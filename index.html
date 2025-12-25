@@ -559,12 +559,14 @@
         <div id="page-dashboard" class="page active">
             <div class="page-header">
                 <h2>📊 סיכום שנתי</h2>
-                <div class="year-selector">
-                    <span>📅</span>
-                    <select id="currentYear" onchange="changeYear()">
-                        <option value="2025">2025</option>
-                        <option value="2024">2024</option>
-                    </select>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <button class="btn btn-sm" onclick="openModal('dashboardSettingsModal')" title="התאם דשבורד">🎨 התאמה</button>
+                    <div class="year-selector">
+                        <span>📅</span>
+                        <select id="currentYear" onchange="changeYear()">
+                        </select>
+                        <button class="btn btn-sm" onclick="openModal('yearModal')" title="נהל שנים">⚙️</button>
+                    </div>
                 </div>
             </div>
 
@@ -573,56 +575,56 @@
                 הזן את כל מקורות ההכנסה שלך (שכיר, אבטלה, מילואים, עצמאי) ואת המס שכבר נוכה במקור. המערכת תחשב אם מגיע לך החזר או שאתה צריך לשלם עוד.
             </div>
 
-            <div class="cards-grid">
-                <div class="card stat-card salary">
+            <div class="cards-grid" id="dashboardCards">
+                <div class="card stat-card salary" data-card="salary">
                     <div class="icon">💼</div>
                     <div class="value" id="dashSalary">₪0</div>
                     <div class="label">הכנסה כשכיר (ברוטו)</div>
                 </div>
-                <div class="card stat-card unemployment">
+                <div class="card stat-card unemployment" data-card="unemployment">
                     <div class="icon">📋</div>
                     <div class="value" id="dashUnemployment">₪0</div>
                     <div class="label">דמי אבטלה</div>
                 </div>
-                <div class="card stat-card miluim">
+                <div class="card stat-card miluim" data-card="miluim">
                     <div class="icon">🎖️</div>
                     <div class="value" id="dashMiluim">₪0</div>
                     <div class="label">דמי מילואים (פטור!)</div>
                 </div>
-                <div class="card stat-card selfemployed">
+                <div class="card stat-card selfemployed" data-card="selfemployed">
                     <div class="icon">💰</div>
                     <div class="value" id="dashSelfEmployed">₪0</div>
                     <div class="label">הכנסה כעצמאי</div>
                 </div>
             </div>
 
-            <div class="cards-grid">
-                <div class="card stat-card total">
+            <div class="cards-grid" id="dashboardCards2">
+                <div class="card stat-card total" data-card="totalIncome">
                     <div class="icon">📈</div>
                     <div class="value" id="dashTotalIncome">₪0</div>
                     <div class="label">סה"כ הכנסה חייבת</div>
                 </div>
-                <div class="card stat-card">
+                <div class="card stat-card" data-card="credits">
                     <div class="icon">⭐</div>
                     <div class="value" id="dashCredits">0</div>
                     <div class="label">נקודות זיכוי</div>
                 </div>
-                <div class="card stat-card tax">
+                <div class="card stat-card tax" data-card="taxDue">
                     <div class="icon">🏛️</div>
                     <div class="value" id="dashTaxDue">₪0</div>
                     <div class="label">מס הכנסה מחושב</div>
                 </div>
-                <div class="card stat-card">
+                <div class="card stat-card" data-card="taxPaid">
                     <div class="icon">✅</div>
                     <div class="value" id="dashTaxPaid">₪0</div>
                     <div class="label">מס הכנסה שנוכה/שולם</div>
                 </div>
-                <div class="card stat-card" style="border:1px solid var(--warning);">
+                <div class="card stat-card" data-card="blDue" style="border:1px solid var(--warning);">
                     <div class="icon">🏥</div>
                     <div class="value" id="dashBLDue" style="color:var(--warning)">₪0</div>
                     <div class="label">ביט"ל + בריאות (עצמאי)</div>
                 </div>
-                <div class="card stat-card">
+                <div class="card stat-card" data-card="blPaid">
                     <div class="icon">💳</div>
                     <div class="value" id="dashBLPaid" style="color:var(--success)">₪0</div>
                     <div class="label">ביט"ל ששולם (מקדמות)</div>
@@ -631,7 +633,7 @@
 
             <div id="dashboardResult"></div>
 
-            <div class="summary-box">
+            <div class="summary-box" data-card="paymentsSummary">
                 <h3 style="margin:0 0 15px;">📋 פירוט תשלומים שנוכו/שולמו</h3>
                 <div class="summary-row">
                     <span>מס הכנסה שנוכה מהמשכורת</span>
@@ -1511,6 +1513,111 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="yearModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>📅 ניהול שנים</h3>
+                <button class="btn-icon" onclick="closeModal('yearModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>הוסף שנה חדשה</label>
+                    <div style="display:flex;gap:10px;">
+                        <input type="number" class="form-control" id="newYearInput" placeholder="2026" min="2020" max="2050">
+                        <button class="btn btn-primary" onclick="addYear()">הוסף</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>שנים קיימות</label>
+                    <div id="yearsList"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('yearModal')">סגור</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="dashboardSettingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>🎨 התאמת דשבורד</h3>
+                <button class="btn-icon" onclick="closeModal('dashboardSettingsModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="info-box">
+                    בחר אילו כרטיסיות להציג בדשבורד:
+                </div>
+                <div class="form-group">
+                    <label><strong>הכנסות</strong></label>
+                    <div class="credit-points-grid">
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_salary" checked onchange="saveDashboardSettings()">
+                            <label for="dash_salary">💼 הכנסה כשכיר</label>
+                        </div>
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_unemployment" checked onchange="saveDashboardSettings()">
+                            <label for="dash_unemployment">📋 דמי אבטלה</label>
+                        </div>
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_miluim" checked onchange="saveDashboardSettings()">
+                            <label for="dash_miluim">🎖️ מילואים</label>
+                        </div>
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_selfemployed" checked onchange="saveDashboardSettings()">
+                            <label for="dash_selfemployed">💰 עצמאי</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label><strong>סיכומים</strong></label>
+                    <div class="credit-points-grid">
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_totalIncome" checked onchange="saveDashboardSettings()">
+                            <label for="dash_totalIncome">📈 סה"כ הכנסה חייבת</label>
+                        </div>
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_credits" checked onchange="saveDashboardSettings()">
+                            <label for="dash_credits">⭐ נקודות זיכוי</label>
+                        </div>
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_taxDue" checked onchange="saveDashboardSettings()">
+                            <label for="dash_taxDue">🏛️ מס מחושב</label>
+                        </div>
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_taxPaid" checked onchange="saveDashboardSettings()">
+                            <label for="dash_taxPaid">✅ מס ששולם</label>
+                        </div>
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_blDue" checked onchange="saveDashboardSettings()">
+                            <label for="dash_blDue">🏥 ביט"ל מחושב</label>
+                        </div>
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_blPaid" checked onchange="saveDashboardSettings()">
+                            <label for="dash_blPaid">💳 ביט"ל ששולם</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label><strong>תצוגה נוספת</strong></label>
+                    <div class="credit-points-grid">
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_paymentsSummary" checked onchange="saveDashboardSettings()">
+                            <label for="dash_paymentsSummary">📋 פירוט תשלומים</label>
+                        </div>
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_result" checked onchange="saveDashboardSettings()">
+                            <label for="dash_result">🎯 תוצאה (החזר/לשלם)</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="closeModal('dashboardSettingsModal')">סגור</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ========== GOOGLE DRIVE INTEGRATION ==========
         const GOOGLE_CLIENT_ID = ''; // User needs to set this
@@ -1761,6 +1868,147 @@
             }
         }
 
+        // ========== YEAR MANAGEMENT ==========
+        function renderYearSelector() {
+            const select = document.getElementById('currentYear');
+            if (!data.years) data.years = [2025, 2024];
+            
+            // Sort years descending
+            const sortedYears = [...data.years].sort((a, b) => b - a);
+            
+            select.innerHTML = sortedYears.map(y => 
+                `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`
+            ).join('');
+        }
+
+        function renderYearsList() {
+            const container = document.getElementById('yearsList');
+            if (!container) return;
+            
+            if (!data.years) data.years = [2025, 2024];
+            const sortedYears = [...data.years].sort((a, b) => b - a);
+            
+            container.innerHTML = sortedYears.map(y => `
+                <div class="breakdown-item" style="margin-bottom:5px;">
+                    <span>${y}</span>
+                    <button class="btn btn-icon btn-sm" onclick="deleteYear(${y})" title="מחק">🗑️</button>
+                </div>
+            `).join('');
+        }
+
+        function addYear() {
+            const input = document.getElementById('newYearInput');
+            const year = parseInt(input.value);
+            
+            if (!year || year < 2020 || year > 2050) {
+                alert('שנה לא תקינה');
+                return;
+            }
+            
+            if (!data.years) data.years = [2025, 2024];
+            
+            if (data.years.includes(year)) {
+                alert('שנה כבר קיימת');
+                return;
+            }
+            
+            data.years.push(year);
+            saveData();
+            renderYearSelector();
+            renderYearsList();
+            input.value = '';
+        }
+
+        function deleteYear(year) {
+            if (data.years.length <= 1) {
+                alert('חייבת להיות לפחות שנה אחת');
+                return;
+            }
+            
+            if (confirm(`למחוק את שנת ${year}?`)) {
+                data.years = data.years.filter(y => y !== year);
+                saveData();
+                
+                // If deleted current year, switch to another
+                if (currentYear === year) {
+                    currentYear = data.years[0];
+                    document.getElementById('currentYear').value = currentYear;
+                }
+                
+                renderYearSelector();
+                renderYearsList();
+                renderAll();
+            }
+        }
+
+        // ========== DASHBOARD SETTINGS ==========
+        function loadDashboardSettings() {
+            if (!data.dashboardSettings) {
+                data.dashboardSettings = {
+                    salary: true,
+                    unemployment: true,
+                    miluim: true,
+                    selfemployed: true,
+                    totalIncome: true,
+                    credits: true,
+                    taxDue: true,
+                    taxPaid: true,
+                    blDue: true,
+                    blPaid: true,
+                    paymentsSummary: true,
+                    result: true
+                };
+            }
+            
+            // Load checkboxes
+            Object.keys(data.dashboardSettings).forEach(key => {
+                const checkbox = document.getElementById('dash_' + key);
+                if (checkbox) {
+                    checkbox.checked = data.dashboardSettings[key];
+                }
+            });
+            
+            applyDashboardSettings();
+        }
+
+        function saveDashboardSettings() {
+            data.dashboardSettings = {
+                salary: document.getElementById('dash_salary').checked,
+                unemployment: document.getElementById('dash_unemployment').checked,
+                miluim: document.getElementById('dash_miluim').checked,
+                selfemployed: document.getElementById('dash_selfemployed').checked,
+                totalIncome: document.getElementById('dash_totalIncome').checked,
+                credits: document.getElementById('dash_credits').checked,
+                taxDue: document.getElementById('dash_taxDue').checked,
+                taxPaid: document.getElementById('dash_taxPaid').checked,
+                blDue: document.getElementById('dash_blDue').checked,
+                blPaid: document.getElementById('dash_blPaid').checked,
+                paymentsSummary: document.getElementById('dash_paymentsSummary').checked,
+                result: document.getElementById('dash_result').checked
+            };
+            
+            saveData();
+            applyDashboardSettings();
+        }
+
+        function applyDashboardSettings() {
+            if (!data.dashboardSettings) return;
+            
+            // Show/hide cards based on settings
+            document.querySelectorAll('[data-card]').forEach(card => {
+                const cardName = card.dataset.card;
+                if (data.dashboardSettings.hasOwnProperty(cardName)) {
+                    card.style.display = data.dashboardSettings[cardName] ? '' : 'none';
+                }
+            });
+            
+            // Handle result box
+            const resultBox = document.getElementById('dashboardResult');
+            if (resultBox) {
+                resultBox.style.display = data.dashboardSettings.result ? '' : 'none';
+            }
+        }
+
         // ========== DATA ==========
         let data = {
             salary: [],
@@ -1770,6 +2018,21 @@
             expenses: [],
             taxAdvances: [],
             blAdvances: [],
+            years: [2025, 2024],
+            dashboardSettings: {
+                salary: true,
+                unemployment: true,
+                miluim: true,
+                selfemployed: true,
+                totalIncome: true,
+                credits: true,
+                taxDue: true,
+                taxPaid: true,
+                blDue: true,
+                blPaid: true,
+                paymentsSummary: true,
+                result: true
+            },
             credits: {
                 woman: false,
                 divorcedAlimony: false,
@@ -1804,6 +2067,8 @@
         // ========== INIT ==========
         function init() {
             loadData();
+            renderYearSelector();
+            loadDashboardSettings();
             renderAll();
             checkLastBackup();
         }
@@ -1875,7 +2140,12 @@
             renderAll();
         }
 
-        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function openModal(id) { 
+            document.getElementById(id).classList.add('active');
+            if (id === 'yearModal') {
+                renderYearsList();
+            }
+        }
         function closeModal(id) { 
             document.getElementById(id).classList.remove('active');
             editingId = null;
@@ -2421,6 +2691,9 @@
             
             // Settings
             renderSettings();
+            
+            // Apply dashboard settings
+            applyDashboardSettings();
         }
 
         function renderSalaryTable() {
