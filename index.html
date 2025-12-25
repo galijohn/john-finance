@@ -1344,7 +1344,7 @@
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
                     <button class="btn btn-primary" onclick="selectLocalFolder()">📂 בחר תיקייה</button>
                     <button class="btn btn-success" onclick="createLocalFolderStructure()" id="btnCreateLocalFolders" disabled>📁 צור מבנה תיקיות</button>
-                    <button class="btn" onclick="openLocalFolder()" id="btnOpenLocalFolder" disabled>🔗 פתח בסייר</button>
+                    <button class="btn" onclick="openLocalFolder()" id="btnOpenLocalFolder" disabled>📋 העתק נתיב</button>
                 </div>
                 <div id="localFolderBrowserWarning" style="display:none;margin-top:10px;padding:10px;background:rgba(245,158,11,0.1);border-radius:8px;color:var(--warning);">
                     ⚠️ הדפדפן שלך לא תומך בגישה לתיקיות. השתמש ב-Chrome או Edge.
@@ -2450,7 +2450,7 @@
             const btnOpen = document.getElementById('btnOpenLocalFolder');
             
             if (localFolderHandle) {
-                pathEl.textContent = localFolderHandle.name;
+                pathEl.textContent = localFolderHandle.name + '/john-finance/';
                 hintEl.textContent = '✅ תיקייה נבחרה - מסמכים יישמרו כאן';
                 hintEl.style.color = 'var(--success)';
                 iconEl.textContent = '📂';
@@ -2481,9 +2481,12 @@
                     return;
                 }
                 
-                // Create year folders
+                // Create john-finance root folder
+                const rootFolder = await localFolderHandle.getDirectoryHandle('john-finance', { create: true });
+                
+                // Create year folders inside john-finance
                 for (const year of (data.years || [currentYear])) {
-                    const yearFolder = await localFolderHandle.getDirectoryHandle(String(year), { create: true });
+                    const yearFolder = await rootFolder.getDirectoryHandle(String(year), { create: true });
                     
                     // Create subfolders
                     for (const subFolder of FOLDER_STRUCTURE) {
@@ -2491,7 +2494,7 @@
                     }
                 }
                 
-                alert(`✅ מבנה התיקיות נוצר בהצלחה!\n\n${localFolderHandle.name}/\n├── ${(data.years || [currentYear]).join('/\n├── ')}/\n    └── [תיקיות מסמכים]`);
+                alert(`✅ מבנה התיקיות נוצר בהצלחה!\n\n${localFolderHandle.name}/john-finance/\n├── ${(data.years || [currentYear]).join('/\n├── ')}/\n    └── [תיקיות מסמכים]`);
                 
             } catch (e) {
                 console.error('Create local folders error:', e);
@@ -2499,10 +2502,16 @@
             }
         }
         
-        // Open local folder in file explorer (not possible from browser, show path instead)
-        function openLocalFolder() {
+        // Copy local folder path to clipboard
+        async function openLocalFolder() {
             if (localFolderHandle) {
-                alert(`📁 תיקייה: ${localFolderHandle.name}\n\nפתח את סייר הקבצים וחפש את התיקייה.`);
+                const path = `${localFolderHandle.name}\\john-finance`;
+                try {
+                    await navigator.clipboard.writeText(path);
+                    alert(`📋 הנתיב הועתק ללוח!\n\n${path}\n\nפתח את סייר הקבצים והדבק בשורת הכתובת.`);
+                } catch (e) {
+                    alert(`📁 תיקייה: ${path}\n\nהעתק ידנית ופתח בסייר הקבצים.`);
+                }
             }
         }
         
@@ -2514,8 +2523,11 @@
                 const permission = await localFolderHandle.requestPermission({ mode: 'readwrite' });
                 if (permission !== 'granted') return null;
                 
+                // Get or create john-finance root folder
+                const rootFolder = await localFolderHandle.getDirectoryHandle('john-finance', { create: true });
+                
                 // Get or create year folder
-                const yearFolder = await localFolderHandle.getDirectoryHandle(String(year), { create: true });
+                const yearFolder = await rootFolder.getDirectoryHandle(String(year), { create: true });
                 
                 // Get or create subfolder
                 const targetFolder = await yearFolder.getDirectoryHandle(subFolder, { create: true });
@@ -2526,7 +2538,7 @@
                 await writable.write(file);
                 await writable.close();
                 
-                return `${localFolderHandle.name}/${year}/${subFolder}/${file.name}`;
+                return `${localFolderHandle.name}/john-finance/${year}/${subFolder}/${file.name}`;
             } catch (e) {
                 console.error('Save file locally error:', e);
                 return null;
