@@ -222,6 +222,25 @@
         .btn-icon { padding: 6px 10px; background: transparent; color: var(--text-muted); }
         .btn-icon:hover { color: var(--text); background: rgba(255,255,255,0.1); }
         
+        .btn-favorite {
+            padding: 8px 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        .btn-favorite:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+        .btn-favorite .fav-icon { font-size: 1rem; }
+        .btn-favorite .fav-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        
         .form-group {
             margin-bottom: 15px;
         }
@@ -454,11 +473,21 @@
         }
         
         .year-selector select {
-            background: transparent;
-            border: none;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
             color: var(--text);
-            font-size: 1rem;
+            font-size: 1.1rem;
+            font-weight: 600;
             cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 5px;
+            min-width: 80px;
+        }
+        
+        .year-selector select option {
+            background: var(--bg-card);
+            color: var(--text);
+            padding: 10px;
         }
         
         .empty-state {
@@ -540,6 +569,10 @@
             <span class="icon">🧾</span>
             <span class="nav-text">הוצאות מוכרות</span>
         </div>
+        <div class="nav-item" onclick="showPage('vat')" id="navVat" style="display:none;">
+            <span class="icon">📊</span>
+            <span class="nav-text">מע"מ</span>
+        </div>
         <div class="nav-item" onclick="showPage('credits')">
             <span class="icon">⭐</span>
             <span class="nav-text">נקודות זיכוי</span>
@@ -575,6 +608,32 @@
                 הזן את כל מקורות ההכנסה שלך (שכיר, אבטלה, מילואים, עצמאי) ואת המס שכבר נוכה במקור. המערכת תחשב אם מגיע לך החזר או שאתה צריך לשלם עוד.
             </div>
 
+            <!-- Favorites Bar -->
+            <div class="favorites-bar" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;">
+                <span style="color:var(--text-muted);font-size:0.85rem;">⭐ מועדפים:</span>
+                <button class="btn btn-favorite" id="fav1" onclick="openFavorite(1)" oncontextmenu="editFavorite(event, 1)">
+                    <span class="fav-icon">🔗</span>
+                    <span class="fav-name">מס הכנסה</span>
+                </button>
+                <button class="btn btn-favorite" id="fav2" onclick="openFavorite(2)" oncontextmenu="editFavorite(event, 2)">
+                    <span class="fav-icon">🔗</span>
+                    <span class="fav-name">ביטוח לאומי</span>
+                </button>
+                <button class="btn btn-favorite" id="fav3" onclick="openFavorite(3)" oncontextmenu="editFavorite(event, 3)">
+                    <span class="fav-icon">🔗</span>
+                    <span class="fav-name">מע"מ</span>
+                </button>
+                <button class="btn btn-favorite" id="fav4" onclick="openFavorite(4)" oncontextmenu="editFavorite(event, 4)">
+                    <span class="fav-icon">📁</span>
+                    <span class="fav-name">תיקייה מקומית</span>
+                </button>
+                <button class="btn btn-favorite" id="fav5" onclick="openFavorite(5)" oncontextmenu="editFavorite(event, 5)">
+                    <span class="fav-icon">⚙️</span>
+                    <span class="fav-name">הגדר...</span>
+                </button>
+                <button class="btn btn-icon btn-sm" onclick="openModal('favoritesModal')" title="ערוך מועדפים" style="margin-right:auto;">✏️</button>
+            </div>
+
             <div class="cards-grid" id="dashboardCards">
                 <div class="card stat-card salary" data-card="salary">
                     <div class="icon">💼</div>
@@ -589,7 +648,7 @@
                 <div class="card stat-card miluim" data-card="miluim">
                     <div class="icon">🎖️</div>
                     <div class="value" id="dashMiluim">₪0</div>
-                    <div class="label">דמי מילואים (פטור!)</div>
+                    <div class="label">דמי מילואים</div>
                 </div>
                 <div class="card stat-card selfemployed" data-card="selfemployed">
                     <div class="icon">💰</div>
@@ -631,7 +690,20 @@
                 </div>
             </div>
 
-            <div id="dashboardResult"></div>
+            <div id="dashboardResult">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+                    <div class="result-box" id="taxResultBox">
+                        <div>🏛️ מס הכנסה</div>
+                        <div class="amount" id="taxResultAmount">₪0</div>
+                        <div id="taxResultText">-</div>
+                    </div>
+                    <div class="result-box" id="blResultBox">
+                        <div>🏥 ביטוח לאומי + בריאות</div>
+                        <div class="amount" id="blResultAmount">₪0</div>
+                        <div id="blResultText">-</div>
+                    </div>
+                </div>
+            </div>
 
             <div class="summary-box" data-card="paymentsSummary">
                 <h3 style="margin:0 0 15px;">📋 פירוט תשלומים שנוכו/שולמו</h3>
@@ -642,6 +714,10 @@
                 <div class="summary-row">
                     <span>מס הכנסה שנוכה מדמי אבטלה</span>
                     <span id="dashTaxFromUnemployment">₪0</span>
+                </div>
+                <div class="summary-row">
+                    <span>מס הכנסה שנוכה מדמי מילואים</span>
+                    <span id="dashTaxFromMiluim">₪0</span>
                 </div>
                 <div class="summary-row">
                     <span>מקדמות מס הכנסה (עצמאי)</span>
@@ -707,6 +783,7 @@
                             <th>תשלום בפועל (חודשים)</th>
                             <th>סכום ברוטו</th>
                             <th>מס שנוכה</th>
+                            <th>ביט"ל שנוכה</th>
                             <th>פעולות</th>
                         </tr>
                     </thead>
@@ -722,11 +799,10 @@
                 <button class="btn btn-primary" onclick="openModal('miluimModal')">+ הוסף תקופת מילואים</button>
             </div>
 
-            <div class="info-box success">
-                <strong>🎉 חדשות טובות!</strong><br>
-                • דמי מילואים <strong>פטורים ממס הכנסה</strong> לחלוטין<br>
-                • משרתי מילואים זכאים ל-<strong>נקודות זיכוי נוספות</strong> (עד 2 נקודות לפי ימי השירות)<br>
-                • נקודות הזיכוי מחושבות אוטומטית לפי הימים שתזין
+            <div class="info-box">
+                <strong>💡 דמי מילואים = הכנסה רגילה חייבת במס</strong><br>
+                • מהתגמול מנוכים: מס הכנסה, ביטוח לאומי ומס בריאות<br>
+                • <strong>עצמאים</strong> מקבלים תוספת פיצוי של 25% על התגמול
             </div>
 
             <div class="table-container">
@@ -735,8 +811,9 @@
                         <tr>
                             <th>תקופה</th>
                             <th>מספר ימים</th>
-                            <th>סכום שהתקבל</th>
-                            <th>נק' זיכוי</th>
+                            <th>סכום ברוטו</th>
+                            <th>מס שנוכה</th>
+                            <th>ביט"ל שנוכה</th>
                             <th>פעולות</th>
                         </tr>
                     </thead>
@@ -751,12 +828,16 @@
                     <span id="totalMiluimDays">0</span>
                 </div>
                 <div class="summary-row">
-                    <span>סה"כ דמי מילואים (פטור ממס)</span>
-                    <span id="totalMiluimAmount" style="color:var(--success)">₪0</span>
+                    <span>סה"כ תגמול ברוטו</span>
+                    <span id="totalMiluimAmount">₪0</span>
                 </div>
                 <div class="summary-row">
-                    <span>נקודות זיכוי ממילואים</span>
-                    <span id="miluimCredits" style="color:var(--warning)">0</span>
+                    <span>סה"כ מס שנוכה</span>
+                    <span id="totalMiluimTax" style="color:var(--danger)">₪0</span>
+                </div>
+                <div class="summary-row">
+                    <span>סה"כ ביט"ל שנוכה</span>
+                    <span id="totalMiluimBL" style="color:var(--warning)">₪0</span>
                 </div>
             </div>
         </div>
@@ -865,6 +946,64 @@
             </div>
         </div>
 
+        <!-- VAT Page (for עוסק מורשה) -->
+        <div id="page-vat" class="page">
+            <div class="page-header">
+                <h2>📊 מע"מ</h2>
+                <button class="btn btn-primary" onclick="openModal('vatModal')">+ הוסף דיווח</button>
+            </div>
+
+            <div class="info-box">
+                <strong>💡 מע"מ לעוסק מורשה:</strong><br>
+                • יצוא לחו"ל (שירותים לחו"ל) = <strong>0% מע"מ</strong> על הכנסות<br>
+                • מע"מ על הוצאות (17%) = <strong>מגיע לך החזר!</strong><br>
+                • יש להגיש דו"ח חודשי/דו-חודשי לרשות המסים
+            </div>
+
+            <div class="cards-grid" style="margin-bottom:20px;">
+                <div class="card stat-card">
+                    <div class="icon">📈</div>
+                    <div class="value" id="vatIncome">₪0</div>
+                    <div class="label">הכנסות (לפני מע"מ)</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="icon">📉</div>
+                    <div class="value" id="vatExpenses">₪0</div>
+                    <div class="label">הוצאות (לפני מע"מ)</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="icon">💰</div>
+                    <div class="value" id="vatOnExpenses" style="color:var(--success)">₪0</div>
+                    <div class="label">מע"מ על הוצאות (לקיזוז)</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="table-header">
+                    <h3>דיווחי מע"מ</h3>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>תקופה</th>
+                            <th>הכנסות</th>
+                            <th>מע"מ עסקאות</th>
+                            <th>מע"מ תשומות</th>
+                            <th>לתשלום/החזר</th>
+                            <th>פעולות</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vatTable"></tbody>
+                </table>
+            </div>
+
+            <div class="result-box refund" style="margin-top:20px;" id="vatResultBox">
+                <div>💰 סה"כ מע"מ לקיזוז (החזר צפוי)</div>
+                <div class="amount" id="vatTotalRefund">₪0</div>
+                <div>בתנאי שההכנסות מיצוא לחו"ל (0% מע"מ)</div>
+            </div>
+        </div>
+
         <!-- Credits Page -->
         <div id="page-credits" class="page">
             <div class="page-header">
@@ -926,15 +1065,6 @@
                         <label for="credit_army">שירות צבאי/לאומי (2 שנים מהשחרור)</label>
                         <span class="points">2</span>
                     </div>
-                    <div class="credit-item" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);">
-                        <input type="checkbox" id="credit_miluim" disabled>
-                        <label for="credit_miluim">מילואים (אוטומטי לפי ימים)</label>
-                        <span class="points" id="miluimCreditDisplay">0</span>
-                    </div>
-                </div>
-                <div class="info-box success" style="margin-top:10px;">
-                    <strong>🎖️ נקודות זיכוי למילואים:</strong><br>
-                    10+ ימים = 0.25 | 20+ ימים = 0.5 | 30+ ימים = 1 | 45+ ימים = 1.5 | 60+ ימים = 2
                 </div>
 
                 <div class="section-title">🎓 השכלה</div>
@@ -997,9 +1127,9 @@
                     <span style="color:var(--danger)">(-) הוצאות מוכרות</span>
                     <span id="calcExpenses" style="color:var(--danger)">₪0</span>
                 </div>
-                <div class="summary-row" style="background:rgba(16,185,129,0.1);margin:10px -20px;padding:10px 20px;">
-                    <span>דמי מילואים (פטור ממס! 🎉)</span>
-                    <span id="calcMiluim" style="color:var(--success)">₪0</span>
+                <div class="summary-row">
+                    <span>דמי מילואים</span>
+                    <span id="calcMiluim">₪0</span>
                 </div>
                 <div class="summary-row total">
                     <span>סה"כ הכנסה חייבת במס</span>
@@ -1034,7 +1164,7 @@
                     <span id="calcBLIncome">₪0</span>
                 </div>
                 <div class="summary-row">
-                    <span>שיעור מופחת (6.92% עד ₪90,264)</span>
+                    <span>שיעור מופחת (7.70% עד ₪90,264)</span>
                     <span id="calcBLReduced">₪0</span>
                 </div>
                 <div class="summary-row">
@@ -1046,7 +1176,7 @@
                     <span id="calcTotalBL" style="color:var(--warning)">₪0</span>
                 </div>
                 <div class="summary-row" style="background:rgba(16,185,129,0.1);margin:10px -20px;padding:10px 20px;">
-                    <span>✅ ביטוח לאומי ששולם (מקדמות)</span>
+                    <span>✅ ביטוח לאומי ששולם (מכל המקורות)</span>
                     <span id="calcBLPaid" style="color:var(--success)">₪0</span>
                 </div>
                 <div class="summary-row" id="blDiffRow">
@@ -1066,6 +1196,10 @@
                     <span id="calcPaidUnemployment">₪0</span>
                 </div>
                 <div class="summary-row">
+                    <span>מס שנוכה מדמי מילואים</span>
+                    <span id="calcPaidMiluim">₪0</span>
+                </div>
+                <div class="summary-row">
                     <span>מקדמות מס הכנסה (עצמאי)</span>
                     <span id="calcPaidSelf">₪0</span>
                 </div>
@@ -1075,7 +1209,39 @@
                 </div>
             </div>
 
-            <div id="calculationResult"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;">
+                <div class="card">
+                    <h3 style="margin:0 0 15px;">🏛️ סיכום מס הכנסה</h3>
+                    <div class="summary-row">
+                        <span>מס מחושב</span>
+                        <span id="calcSummaryTaxDue">₪0</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>מס ששולם</span>
+                        <span id="calcSummaryTaxPaid">₪0</span>
+                    </div>
+                    <div class="summary-row total" id="calcTaxResultRow">
+                        <span id="calcTaxResultLabel">הפרש</span>
+                        <span id="calcTaxResult">₪0</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 style="margin:0 0 15px;">🏥 סיכום ביטוח לאומי</h3>
+                    <div class="summary-row">
+                        <span>ביט"ל מחושב</span>
+                        <span id="calcSummaryBLDue">₪0</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>ביט"ל ששולם</span>
+                        <span id="calcSummaryBLPaid">₪0</span>
+                    </div>
+                    <div class="summary-row total" id="calcBLResultRow">
+                        <span id="calcBLResultLabel">הפרש</span>
+                        <span id="calcBLResult">₪0</span>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <!-- Settings Page -->
@@ -1084,25 +1250,48 @@
                 <h2>⚙️ הגדרות מערכת</h2>
             </div>
 
+            <div class="info-box" style="margin-bottom:20px;background:rgba(59,130,246,0.1);border-color:var(--primary);">
+                <strong>📅 הגדרות לשנת <span id="settingsYearDisplay">2025</span></strong><br>
+                כל ההגדרות בעמוד זה (מדרגות מס, מעמד עוסק, שיעורי ביט"ל) נשמרות בנפרד לכל שנה
+            </div>
+
+            <div class="card" style="margin-bottom:20px;">
+                <h3 style="margin:0 0 15px;">🏢 מעמד עסקי</h3>
+                <div class="form-group">
+                    <label>סוג עוסק</label>
+                    <select class="form-control" id="businessStatus" onchange="updateBusinessStatus()">
+                        <option value="zair">עוסק זעיר (עד 120,000₪ בשנה)</option>
+                        <option value="patur">עוסק פטור (עד 107,692₪ בשנה)</option>
+                        <option value="murshe">עוסק מורשה (עם מע"מ)</option>
+                    </select>
+                </div>
+                <div id="vatInfo" style="display:none;">
+                    <div class="info-box">
+                        <strong>💡 מע"מ לעוסק מורשה:</strong><br>
+                        • יצוא לחו"ל = 0% מע"מ על הכנסות<br>
+                        • מקזז מע"מ על הוצאות = מגיע החזר!<br>
+                        • חובה להגיש דו"ח מע"מ חודשי/דו-חודשי
+                    </div>
+                    <div class="form-group">
+                        <label>שיעור מע"מ (%)</label>
+                        <input type="number" class="form-control" id="vatRate" value="17" step="0.1">
+                    </div>
+                </div>
+            </div>
+
             <div class="cards-grid">
                 <div class="card">
-                    <h3 style="margin:0 0 15px;">📊 מדרגות מס 2025</h3>
+                    <h3 style="margin:0 0 15px;">📊 מדרגות מס <span id="taxBracketsYear">2025</span></h3>
                     <div id="settingsBrackets"></div>
                 </div>
 
                 <div class="card">
-                    <h3 style="margin:0 0 15px;">🏛️ ביטוח לאומי לעצמאים</h3>
-                    <div class="form-group">
-                        <label>שיעור מופחת (%)</label>
-                        <input type="number" class="form-control" id="setBLReduced" value="6.92" step="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label>שיעור מלא (%)</label>
-                        <input type="number" class="form-control" id="setBLFull" value="18" step="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label>תקרת שיעור מופחת (שנתי)</label>
-                        <input type="number" class="form-control" id="setBLCeiling" value="90264">
+                    <h3 style="margin:0 0 15px;">🏛️ ביטוח לאומי + בריאות לעצמאים <span id="blBracketsYear">2025</span></h3>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:10px;">💡 הסכומים שנתיים (חודשי × 12) להתחשבנות סוף שנה</div>
+                    <div id="settingsBLBrackets"></div>
+                    <div class="info-box" style="margin-top:15px;font-size:0.85rem;">
+                        <strong>📊 מקור:</strong> <a href="https://www.btl.gov.il/Insurance/National%20Insurance/type_list/Self_Employed/Pages/rates.aspx" target="_blank" style="color:var(--primary);">אתר ביטוח לאומי</a><br>
+                        <span style="color:var(--text-muted);">חודשי: ₪7,522 / ₪50,695 → שנתי: ₪90,264 / ₪608,340</span>
                     </div>
                 </div>
 
@@ -1110,7 +1299,7 @@
                     <h3 style="margin:0 0 15px;">⭐ נקודות זיכוי</h3>
                     <div class="form-group">
                         <label>ערך נקודה (חודשי)</label>
-                        <input type="number" class="form-control" id="setCreditValue" value="242">
+                        <input type="number" class="form-control" id="setCreditValue" value="242" onchange="updateCreditValue()">
                     </div>
                 </div>
             </div>
@@ -1136,21 +1325,51 @@
             </div>
 
             <div class="card" style="margin-top:20px;">
-                <h3 style="margin:0 0 15px;">📁 מבנה תיקיות מומלץ</h3>
+                <h3 style="margin:0 0 15px;">📁 תיקיית מסמכים מקומית</h3>
                 <div class="info-box">
-                    <strong>תיקיית מסמכים מומלצת:</strong><br>
-                    <code style="background:var(--bg-input);padding:10px;display:block;margin-top:10px;border-radius:5px;direction:ltr;">
-                    📁 מס-2025/<br>
-                    ├── 📁 טפסים-106/<br>
-                    ├── 📁 מקדמות-מס/<br>
-                    ├── 📁 ביטוח-לאומי/<br>
-                    ├── 📁 חשבוניות-עצמאי/<br>
-                    ├── 📁 הוצאות-מוכרות/<br>
-                    ├── 📁 מילואים/<br>
-                    └── 📁 אבטלה/
+                    <strong>💡 למה צריך?</strong><br>
+                    • גישה מהירה למסמכים מהמחשב<br>
+                    • קל לצרף למייל<br>
+                    • גיבוי מקומי בנוסף לענן
+                </div>
+                <div id="localFolderStatus" style="padding:15px;background:var(--bg-input);border-radius:8px;margin:15px 0;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span id="localFolderIcon" style="font-size:1.5rem;">📁</span>
+                        <div>
+                            <div id="localFolderPath" style="font-weight:bold;">לא נבחרה תיקייה</div>
+                            <div id="localFolderHint" style="font-size:0.85rem;color:var(--text-muted);">בחר תיקייה לשמירת המסמכים</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn btn-primary" onclick="selectLocalFolder()">📂 בחר תיקייה</button>
+                    <button class="btn btn-success" onclick="createLocalFolderStructure()" id="btnCreateLocalFolders" disabled>📁 צור מבנה תיקיות</button>
+                    <button class="btn" onclick="openLocalFolder()" id="btnOpenLocalFolder" disabled>🔗 פתח בסייר</button>
+                </div>
+                <div id="localFolderBrowserWarning" style="display:none;margin-top:10px;padding:10px;background:rgba(245,158,11,0.1);border-radius:8px;color:var(--warning);">
+                    ⚠️ הדפדפן שלך לא תומך בגישה לתיקיות. השתמש ב-Chrome או Edge.
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:20px;">
+                <h3 style="margin:0 0 15px;">📄 מבנה תיקיות</h3>
+                <div class="info-box">
+                    <code style="background:var(--bg-input);padding:10px;display:block;margin-top:10px;border-radius:5px;direction:ltr;text-align:left;">
+📁 john-finance/<br>
+├── 📁 2025/<br>
+│   ├── 📁 טפסים-106/<br>
+│   ├── 📁 מקדמות-מס/<br>
+│   ├── 📁 ביטוח-לאומי/<br>
+│   ├── 📁 חשבוניות-עצמאי/<br>
+│   ├── 📁 הוצאות-מוכרות/<br>
+│   ├── 📁 מילואים/<br>
+│   └── 📁 אבטלה/<br>
+├── 📁 2024/<br>
+│   └── ...<br>
+└── 📄 data.json
                     </code>
                 </div>
-                <button class="btn btn-primary" onclick="createFolderStructure()">📁 צור מבנה תיקיות ב-Drive</button>
+                <button class="btn btn-primary" onclick="createFolderStructure()" id="btnCreateDriveFolders" disabled>📁 צור מבנה תיקיות ב-Drive</button>
             </div>
 
             <div class="card" style="margin-top:20px;">
@@ -1231,8 +1450,18 @@
                     <input type="number" class="form-control" id="salaryBLDeducted" placeholder="סכום מצטבר">
                 </div>
                 <div class="form-group">
-                    <label>📎 הערות / מסמך מצורף</label>
-                    <input type="text" class="form-control" id="salaryNotes" placeholder="לדוגמה: טופס 106 בתיקיית מסמכים">
+                    <label>📎 הערות</label>
+                    <input type="text" class="form-control" id="salaryNotes" placeholder="לדוגמה: טופס 106">
+                </div>
+                <div class="form-group">
+                    <label>📄 צרף מסמך (טופס 106)</label>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <input type="file" id="salaryFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <span id="salaryFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
+                        יישמר בתיקייה: טפסים-106/ (מקומי + Google Drive)
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1292,13 +1521,29 @@
                     <label>סה"כ דמי אבטלה ברוטו (₪)</label>
                     <input type="number" class="form-control" id="unemploymentGross">
                 </div>
-                <div class="form-group">
-                    <label>סה"כ מס שנוכה (₪)</label>
-                    <input type="number" class="form-control" id="unemploymentTaxDeducted">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>מס שנוכה (₪)</label>
+                        <input type="number" class="form-control" id="unemploymentTaxDeducted">
+                    </div>
+                    <div class="form-group">
+                        <label>ביט"ל שנוכה (₪)</label>
+                        <input type="number" class="form-control" id="unemploymentBLDeducted">
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label>📎 הערות / מסמך מצורף</label>
+                    <label>📎 הערות</label>
                     <input type="text" class="form-control" id="unemploymentNotes" placeholder="לדוגמה: אישור שנתי מביטוח לאומי">
+                </div>
+                <div class="form-group">
+                    <label>📄 צרף אישור מביטוח לאומי</label>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <input type="file" id="unemploymentFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <span id="unemploymentFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
+                        יישמר בתיקייה: אבטלה/
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1330,12 +1575,32 @@
                     <input type="number" class="form-control" id="miluimDays" placeholder="למשל: 30">
                 </div>
                 <div class="form-group">
-                    <label>סכום שהתקבל (₪)</label>
-                    <input type="number" class="form-control" id="miluimAmount" placeholder="פטור ממס!">
+                    <label>סכום ברוטו שהתקבל (₪)</label>
+                    <input type="number" class="form-control" id="miluimAmount" placeholder="סכום לפני ניכויים">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>מס הכנסה שנוכה (₪)</label>
+                        <input type="number" class="form-control" id="miluimTaxDeducted" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>ביט"ל שנוכה (₪)</label>
+                        <input type="number" class="form-control" id="miluimBLDeducted" placeholder="0">
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label>📎 הערות / מסמך מצורף</label>
-                    <input type="text" class="form-control" id="miluimNotes" placeholder="לדוגמה: צו קריאה / אישור שירות">
+                    <label>📎 הערות</label>
+                    <input type="text" class="form-control" id="miluimNotes" placeholder="לדוגמה: אישור מביטוח לאומי">
+                </div>
+                <div class="form-group">
+                    <label>📄 צרף אישור מילואים</label>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <input type="file" id="miluimFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <span id="miluimFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
+                        יישמר בתיקייה: מילואים/
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1378,8 +1643,18 @@
                     <input type="number" class="form-control" id="selfAmount">
                 </div>
                 <div class="form-group">
-                    <label>📎 הערות / מסמך מצורף</label>
+                    <label>📎 הערות</label>
                     <input type="text" class="form-control" id="selfNotes" placeholder="לדוגמה: חשבונית מס' 001">
+                </div>
+                <div class="form-group">
+                    <label>📄 צרף חשבונית</label>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <input type="file" id="selfFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <span id="selfFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
+                        יישמר בתיקייה: חשבוניות-עצמאי/
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1422,13 +1697,69 @@
                     <input type="number" class="form-control" id="expenseAmount">
                 </div>
                 <div class="form-group">
-                    <label>📎 הערות / מסמך מצורף</label>
-                    <input type="text" class="form-control" id="expenseNotes" placeholder="לדוגמה: קבלה בתיקיית הוצאות">
+                    <label>📎 הערות</label>
+                    <input type="text" class="form-control" id="expenseNotes" placeholder="לדוגמה: קבלה מס' 123">
+                </div>
+                <div class="form-group">
+                    <label>📄 צרף קבלה/חשבונית</label>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <input type="file" id="expenseFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <span id="expenseFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
+                        יישמר בתיקייה: הוצאות-מוכרות/
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-primary" onclick="addExpense()">שמור</button>
                 <button class="btn" onclick="closeModal('expenseModal')">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="vatModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>📊 הוסף דיווח מע"מ</h3>
+                <button class="btn-icon" onclick="closeModal('vatModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>תקופת דיווח</label>
+                    <select class="form-control" id="vatPeriod">
+                        <option value="1-2">ינואר-פברואר</option>
+                        <option value="3-4">מרץ-אפריל</option>
+                        <option value="5-6">מאי-יוני</option>
+                        <option value="7-8">יולי-אוגוסט</option>
+                        <option value="9-10">ספטמבר-אוקטובר</option>
+                        <option value="11-12">נובמבר-דצמבר</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>סה"כ הכנסות (לפני מע"מ)</label>
+                    <input type="number" class="form-control" id="vatIncomeAmount" placeholder="0">
+                </div>
+                <div class="form-group">
+                    <label>מע"מ עסקאות (על הכנסות)</label>
+                    <input type="number" class="form-control" id="vatOutputAmount" placeholder="0 - יצוא לחו''ל">
+                </div>
+                <div class="form-group">
+                    <label>סה"כ הוצאות (לפני מע"מ)</label>
+                    <input type="number" class="form-control" id="vatExpenseAmount" placeholder="0">
+                </div>
+                <div class="form-group">
+                    <label>מע"מ תשומות (על הוצאות - לקיזוז)</label>
+                    <input type="number" class="form-control" id="vatInputAmount" placeholder="17% מההוצאות">
+                </div>
+                <div class="form-group">
+                    <label>📎 הערות</label>
+                    <input type="text" class="form-control" id="vatNotes" placeholder="אסמכתא / מספר דיווח">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="addVatReport()">שמור</button>
+                <button class="btn" onclick="closeModal('vatModal')">ביטול</button>
             </div>
         </div>
     </div>
@@ -1464,6 +1795,16 @@
                 <div class="form-group">
                     <label>📎 הערות / אסמכתא</label>
                     <input type="text" class="form-control" id="taxAdvanceNotes" placeholder="מספר אסמכתא / שובר">
+                </div>
+                <div class="form-group">
+                    <label>📄 צרף אישור תשלום</label>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <input type="file" id="taxAdvanceFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <span id="taxAdvanceFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
+                        יישמר בתיקייה: מקדמות-מס/
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1505,6 +1846,16 @@
                     <label>📎 הערות / אסמכתא</label>
                     <input type="text" class="form-control" id="blAdvanceNotes" placeholder="מספר אסמכתא / שובר">
                 </div>
+                <div class="form-group">
+                    <label>📄 צרף אישור תשלום</label>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <input type="file" id="blAdvanceFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <span id="blAdvanceFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
+                        יישמר בתיקייה: ביטוח-לאומי/
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-primary" onclick="addBLAdvance()">שמור</button>
@@ -1534,6 +1885,28 @@
             </div>
             <div class="modal-footer">
                 <button class="btn" onclick="closeModal('yearModal')">סגור</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="favoritesModal">
+        <div class="modal" style="max-width:500px;">
+            <div class="modal-header">
+                <h3>⭐ עריכת מועדפים</h3>
+                <button class="btn-icon" onclick="closeModal('favoritesModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="info-box" style="margin-bottom:15px;">
+                    <strong>💡 טיפים:</strong><br>
+                    • קליק רגיל = פתיחת הקישור<br>
+                    • קליק ימני = עריכה מהירה<br>
+                    • אתרים: https://... | תיקיות: C:\...
+                </div>
+                <div id="favoritesEditor"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveFavorites()">שמור</button>
+                <button class="btn" onclick="closeModal('favoritesModal')">ביטול</button>
             </div>
         </div>
     </div>
@@ -1620,9 +1993,9 @@
 
     <script>
         // ========== GOOGLE DRIVE INTEGRATION ==========
-        const GOOGLE_CLIENT_ID = ''; // User needs to set this
-        const GOOGLE_API_KEY = ''; // User needs to set this
-        const DRIVE_FOLDER_NAME = 'מערכת-מס-ישראל';
+        const GOOGLE_CLIENT_ID = '831800526620-vrar20hjjjne49jrr6gpv9dmr54224g5.apps.googleusercontent.com';
+        const GOOGLE_API_KEY = 'AIzaSyB30a84J6yYYHgRYddgd97vOVIR-r95Z94';
+        const DRIVE_FOLDER_NAME = 'john-finance';
         const BACKUP_FILE_NAME = 'tax-data-backup.json';
         let googleAccessToken = null;
         let driveFolderId = null;
@@ -1825,20 +2198,41 @@
                 const year = document.getElementById('currentYear').value;
                 const mainFolderId = await getOrCreateFolder();
                 
+                // Create year folder
+                let yearFolderId;
+                const yearSearch = await gapi.client.drive.files.list({
+                    q: `name='${year}' and '${mainFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+                    fields: 'files(id)'
+                });
+                
+                if (yearSearch.result.files.length > 0) {
+                    yearFolderId = yearSearch.result.files[0].id;
+                } else {
+                    const yearFolder = await gapi.client.drive.files.create({
+                        resource: {
+                            name: year.toString(),
+                            mimeType: 'application/vnd.google-apps.folder',
+                            parents: [mainFolderId]
+                        },
+                        fields: 'id'
+                    });
+                    yearFolderId = yearFolder.result.id;
+                }
+                
+                // Create subfolders inside year folder
                 const subFolders = [
-                    `טפסים-106-${year}`,
-                    `מקדמות-מס-${year}`,
-                    `ביטוח-לאומי-${year}`,
-                    `חשבוניות-עצמאי-${year}`,
-                    `הוצאות-מוכרות-${year}`,
-                    `מילואים-${year}`,
-                    `אבטלה-${year}`
+                    'טפסים-106',
+                    'מקדמות-מס',
+                    'ביטוח-לאומי',
+                    'חשבוניות-עצמאי',
+                    'הוצאות-מוכרות',
+                    'מילואים',
+                    'אבטלה'
                 ];
                 
                 for (const folderName of subFolders) {
-                    // Check if exists
                     const search = await gapi.client.drive.files.list({
-                        q: `name='${folderName}' and '${mainFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+                        q: `name='${folderName}' and '${yearFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
                         fields: 'files(id)'
                     });
                     
@@ -1847,13 +2241,13 @@
                             resource: {
                                 name: folderName,
                                 mimeType: 'application/vnd.google-apps.folder',
-                                parents: [mainFolderId]
+                                parents: [yearFolderId]
                             }
                         });
                     }
                 }
                 
-                alert('✅ מבנה התיקיות נוצר בהצלחה!\nפתח את Google Drive כדי לראות.');
+                alert(`✅ מבנה התיקיות נוצר בהצלחה!\njohn-finance/${year}/...\nפתח את Google Drive כדי לראות.`);
             } catch (error) {
                 console.error('Create folders error:', error);
                 alert('❌ שגיאה ביצירת תיקיות: ' + error.message);
@@ -1868,17 +2262,421 @@
             }
         }
 
+        // ========== FAVORITES MANAGEMENT ==========
+        const DEFAULT_FAVORITES = [
+            { name: 'מס הכנסה', icon: '🏛️', url: 'https://www.gov.il/he/departments/israel_tax_authority' },
+            { name: 'ביטוח לאומי', icon: '🏥', url: 'https://www.btl.gov.il/' },
+            { name: 'מע"מ', icon: '📊', url: 'https://www.gov.il/he/service/vat-reports' },
+            { name: 'חשבשבת', icon: '🧮', url: 'https://www.hashavshevet.co.il/' },
+            { name: 'הגדר...', icon: '⚙️', url: '' }
+        ];
+        
+        function loadFavorites() {
+            const saved = localStorage.getItem('johnFinanceFavorites');
+            const favorites = saved ? JSON.parse(saved) : DEFAULT_FAVORITES;
+            
+            for (let i = 1; i <= 5; i++) {
+                const fav = favorites[i - 1] || DEFAULT_FAVORITES[i - 1];
+                const btn = document.getElementById('fav' + i);
+                if (btn) {
+                    btn.querySelector('.fav-icon').textContent = fav.icon;
+                    btn.querySelector('.fav-name').textContent = fav.name;
+                    btn.title = fav.url || 'קליק ימני לעריכה';
+                }
+            }
+        }
+        
+        function getFavorites() {
+            const saved = localStorage.getItem('johnFinanceFavorites');
+            return saved ? JSON.parse(saved) : [...DEFAULT_FAVORITES];
+        }
+        
+        function openFavorite(index) {
+            const favorites = getFavorites();
+            const fav = favorites[index - 1];
+            
+            if (!fav.url) {
+                openModal('favoritesModal');
+                renderFavoritesEditor();
+                return;
+            }
+            
+            // Open URL in new tab
+            window.open(fav.url, '_blank');
+        }
+        
+        function editFavorite(event, index) {
+            event.preventDefault();
+            openModal('favoritesModal');
+            renderFavoritesEditor();
+            // Focus on the specific favorite
+            setTimeout(() => {
+                const input = document.getElementById('favName' + index);
+                if (input) input.focus();
+            }, 100);
+        }
+        
+        function renderFavoritesEditor() {
+            const favorites = getFavorites();
+            const container = document.getElementById('favoritesEditor');
+            
+            container.innerHTML = favorites.map((fav, idx) => `
+                <div style="margin-bottom:15px;padding:15px;background:var(--bg-input);border-radius:8px;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                        <span style="font-size:1.2rem;">${idx + 1}.</span>
+                        <input type="text" class="form-control" id="favIcon${idx + 1}" value="${fav.icon}" 
+                            style="width:50px;text-align:center;font-size:1.2rem;" maxlength="2" placeholder="🔗">
+                        <input type="text" class="form-control" id="favName${idx + 1}" value="${fav.name}" 
+                            style="flex:1;" placeholder="שם הקישור">
+                    </div>
+                    <input type="text" class="form-control" id="favUrl${idx + 1}" value="${fav.url}" 
+                        placeholder="https://... או C:\\תיקייה\\..." dir="ltr">
+                </div>
+            `).join('');
+        }
+        
+        function saveFavorites() {
+            const favorites = [];
+            
+            for (let i = 1; i <= 5; i++) {
+                favorites.push({
+                    icon: document.getElementById('favIcon' + i).value || '🔗',
+                    name: document.getElementById('favName' + i).value || 'מועדף ' + i,
+                    url: document.getElementById('favUrl' + i).value || ''
+                });
+            }
+            
+            localStorage.setItem('johnFinanceFavorites', JSON.stringify(favorites));
+            loadFavorites();
+            closeModal('favoritesModal');
+        }
+
+        // ========== LOCAL FOLDER MANAGEMENT ==========
+        const FOLDER_STRUCTURE = [
+            'טפסים-106',
+            'מקדמות-מס', 
+            'ביטוח-לאומי',
+            'חשבוניות-עצמאי',
+            'הוצאות-מוכרות',
+            'מילואים',
+            'אבטלה'
+        ];
+        
+        let localFolderHandle = null;
+        const DB_NAME = 'johnFinanceDB';
+        const DB_VERSION = 1;
+        
+        // Check if File System Access API is supported
+        function isFileSystemSupported() {
+            return 'showDirectoryPicker' in window;
+        }
+        
+        // Initialize IndexedDB for storing folder handle
+        function initIndexedDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result);
+                
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains('settings')) {
+                        db.createObjectStore('settings', { keyPath: 'key' });
+                    }
+                };
+            });
+        }
+        
+        // Save folder handle to IndexedDB
+        async function saveFolderHandle(handle) {
+            const db = await initIndexedDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction('settings', 'readwrite');
+                const store = tx.objectStore('settings');
+                store.put({ key: 'localFolderHandle', value: handle });
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+        
+        // Load folder handle from IndexedDB
+        async function loadFolderHandle() {
+            try {
+                const db = await initIndexedDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction('settings', 'readonly');
+                    const store = tx.objectStore('settings');
+                    const request = store.get('localFolderHandle');
+                    request.onsuccess = () => resolve(request.result?.value || null);
+                    request.onerror = () => reject(request.error);
+                });
+            } catch (e) {
+                console.error('Error loading folder handle:', e);
+                return null;
+            }
+        }
+        
+        // Select local folder
+        async function selectLocalFolder() {
+            if (!isFileSystemSupported()) {
+                document.getElementById('localFolderBrowserWarning').style.display = 'block';
+                return;
+            }
+            
+            try {
+                const handle = await window.showDirectoryPicker({
+                    mode: 'readwrite'
+                });
+                
+                localFolderHandle = handle;
+                await saveFolderHandle(handle);
+                updateLocalFolderUI();
+                
+            } catch (e) {
+                if (e.name !== 'AbortError') {
+                    console.error('Folder selection error:', e);
+                    alert('❌ שגיאה בבחירת תיקייה: ' + e.message);
+                }
+            }
+        }
+        
+        // Update UI with folder status
+        function updateLocalFolderUI() {
+            const pathEl = document.getElementById('localFolderPath');
+            const hintEl = document.getElementById('localFolderHint');
+            const iconEl = document.getElementById('localFolderIcon');
+            const btnCreate = document.getElementById('btnCreateLocalFolders');
+            const btnOpen = document.getElementById('btnOpenLocalFolder');
+            
+            if (localFolderHandle) {
+                pathEl.textContent = localFolderHandle.name;
+                hintEl.textContent = '✅ תיקייה נבחרה - מסמכים יישמרו כאן';
+                hintEl.style.color = 'var(--success)';
+                iconEl.textContent = '📂';
+                btnCreate.disabled = false;
+                btnOpen.disabled = false;
+            } else {
+                pathEl.textContent = 'לא נבחרה תיקייה';
+                hintEl.textContent = 'בחר תיקייה לשמירת המסמכים';
+                hintEl.style.color = 'var(--text-muted)';
+                iconEl.textContent = '📁';
+                btnCreate.disabled = true;
+                btnOpen.disabled = true;
+            }
+        }
+        
+        // Create folder structure locally
+        async function createLocalFolderStructure() {
+            if (!localFolderHandle) {
+                alert('⚠️ יש לבחור תיקייה קודם');
+                return;
+            }
+            
+            try {
+                // Verify we still have permission
+                const permission = await localFolderHandle.requestPermission({ mode: 'readwrite' });
+                if (permission !== 'granted') {
+                    alert('❌ אין הרשאה לכתוב לתיקייה');
+                    return;
+                }
+                
+                // Create year folders
+                for (const year of (data.years || [currentYear])) {
+                    const yearFolder = await localFolderHandle.getDirectoryHandle(String(year), { create: true });
+                    
+                    // Create subfolders
+                    for (const subFolder of FOLDER_STRUCTURE) {
+                        await yearFolder.getDirectoryHandle(subFolder, { create: true });
+                    }
+                }
+                
+                alert(`✅ מבנה התיקיות נוצר בהצלחה!\n\n${localFolderHandle.name}/\n├── ${(data.years || [currentYear]).join('/\n├── ')}/\n    └── [תיקיות מסמכים]`);
+                
+            } catch (e) {
+                console.error('Create local folders error:', e);
+                alert('❌ שגיאה ביצירת תיקיות: ' + e.message);
+            }
+        }
+        
+        // Open local folder in file explorer (not possible from browser, show path instead)
+        function openLocalFolder() {
+            if (localFolderHandle) {
+                alert(`📁 תיקייה: ${localFolderHandle.name}\n\nפתח את סייר הקבצים וחפש את התיקייה.`);
+            }
+        }
+        
+        // Save file to local folder
+        async function saveFileLocally(file, subFolder, year = currentYear) {
+            if (!localFolderHandle) return null;
+            
+            try {
+                const permission = await localFolderHandle.requestPermission({ mode: 'readwrite' });
+                if (permission !== 'granted') return null;
+                
+                // Get or create year folder
+                const yearFolder = await localFolderHandle.getDirectoryHandle(String(year), { create: true });
+                
+                // Get or create subfolder
+                const targetFolder = await yearFolder.getDirectoryHandle(subFolder, { create: true });
+                
+                // Create file
+                const fileHandle = await targetFolder.getFileHandle(file.name, { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(file);
+                await writable.close();
+                
+                return `${localFolderHandle.name}/${year}/${subFolder}/${file.name}`;
+            } catch (e) {
+                console.error('Save file locally error:', e);
+                return null;
+            }
+        }
+        
+        // Upload file to Google Drive folder
+        async function uploadFileToDrive(file, subFolder, year = currentYear) {
+            if (!googleAccessToken || !driveFolderId) return null;
+            
+            try {
+                // Find or create year folder
+                let yearFolderId = await findOrCreateDriveFolder(String(year), driveFolderId);
+                
+                // Find or create subfolder
+                let subFolderId = await findOrCreateDriveFolder(subFolder, yearFolderId);
+                
+                // Upload file
+                const metadata = {
+                    name: file.name,
+                    parents: [subFolderId]
+                };
+                
+                const form = new FormData();
+                form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                form.append('file', file);
+                
+                const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + googleAccessToken
+                    },
+                    body: form
+                });
+                
+                const result = await response.json();
+                return result.id ? { id: result.id, link: result.webViewLink } : null;
+                
+            } catch (e) {
+                console.error('Upload to Drive error:', e);
+                return null;
+            }
+        }
+        
+        // Helper: find or create Drive folder
+        async function findOrCreateDriveFolder(name, parentId) {
+            const search = await gapi.client.drive.files.list({
+                q: `name='${name}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+                fields: 'files(id)'
+            });
+            
+            if (search.result.files.length > 0) {
+                return search.result.files[0].id;
+            }
+            
+            const create = await gapi.client.drive.files.create({
+                resource: {
+                    name: name,
+                    mimeType: 'application/vnd.google-apps.folder',
+                    parents: [parentId]
+                },
+                fields: 'id'
+            });
+            
+            return create.result.id;
+        }
+        
+        // Upload file to BOTH local and Drive
+        async function uploadDocument(file, subFolder, recordType, recordId) {
+            const results = { local: null, drive: null };
+            
+            // Save locally
+            if (localFolderHandle) {
+                results.local = await saveFileLocally(file, subFolder);
+            }
+            
+            // Upload to Drive
+            if (googleAccessToken && driveFolderId) {
+                results.drive = await uploadFileToDrive(file, subFolder);
+            }
+            
+            // Store reference in data
+            if (results.local || results.drive) {
+                const yd = getYearData();
+                if (!yd.documents) yd.documents = [];
+                
+                yd.documents.push({
+                    id: Date.now(),
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileType: file.type,
+                    subFolder: subFolder,
+                    recordType: recordType,
+                    recordId: recordId,
+                    localPath: results.local,
+                    driveId: results.drive?.id,
+                    driveLink: results.drive?.link,
+                    uploadDate: new Date().toISOString()
+                });
+                
+                saveData();
+            }
+            
+            return results;
+        }
+        
+        // Initialize local folder on page load
+        async function initLocalFolder() {
+            if (!isFileSystemSupported()) {
+                document.getElementById('localFolderBrowserWarning').style.display = 'block';
+                return;
+            }
+            
+            const handle = await loadFolderHandle();
+            if (handle) {
+                try {
+                    // Verify permission
+                    const permission = await handle.queryPermission({ mode: 'readwrite' });
+                    if (permission === 'granted') {
+                        localFolderHandle = handle;
+                    } else {
+                        // Need to re-request permission
+                        localFolderHandle = handle;
+                    }
+                } catch (e) {
+                    console.error('Error verifying folder handle:', e);
+                }
+            }
+            updateLocalFolderUI();
+        }
+
         // ========== YEAR MANAGEMENT ==========
         function renderYearSelector() {
             const select = document.getElementById('currentYear');
-            if (!data.years) data.years = [2025, 2024];
+            if (!data.years || data.years.length === 0) data.years = [2025, 2024];
             
             // Sort years descending
             const sortedYears = [...data.years].sort((a, b) => b - a);
             
+            // Make sure currentYear is one of the available years
+            if (!sortedYears.includes(currentYear)) {
+                currentYear = sortedYears[0];
+            }
+            
             select.innerHTML = sortedYears.map(y => 
                 `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`
             ).join('');
+            
+            // Ensure the select value matches currentYear
+            select.value = currentYear;
         }
 
         function renderYearsList() {
@@ -2010,14 +2808,72 @@
         }
 
         // ========== DATA ==========
+        // Default empty year data structure
+        function createEmptyYearData(year) {
+            // Default tax brackets for 2025
+            const defaultBrackets = [
+                { min: 0, max: 84120, rate: 10 },
+                { min: 84120, max: 120720, rate: 14 },
+                { min: 120720, max: 193800, rate: 20 },
+                { min: 193800, max: 269280, rate: 31 },
+                { min: 269280, max: 560280, rate: 35 },
+                { min: 560280, max: 721560, rate: 47 },
+                { min: 721560, max: 999999999, rate: 50 }
+            ];
+            
+            // Default BL brackets for 2025 (ANNUAL values = monthly × 12)
+            // Based on BTL website: https://www.btl.gov.il/Insurance/National%20Insurance/type_list/Self_Employed/Pages/rates.aspx
+            // Monthly values: 7,522 and 50,695 → Annual: 90,264 and 608,340
+            const defaultBLBrackets = [
+                { 
+                    min: 0, 
+                    max: 90264,  // 7,522 × 12 (60% of average salary, annual)
+                    blRate: 4.47,
+                    healthRate: 3.23,
+                    totalRate: 7.70,
+                    label: 'שיעור מופחת (עד 60% מהשכר הממוצע)'
+                },
+                { 
+                    min: 90264, 
+                    max: 608340,  // 50,695 × 12 (maximum insurable income, annual)
+                    blRate: 12.83,
+                    healthRate: 5.17,
+                    totalRate: 18,
+                    label: 'שיעור מלא (מעל 60% ועד התקרה)'
+                }
+            ];
+            
+            return {
+                salary: [],
+                unemployment: [],
+                miluim: [],
+                selfEmployed: [],
+                expenses: [],
+                taxAdvances: [],
+                blAdvances: [],
+                vatReports: [],
+                businessStatus: 'zair',
+                credits: {
+                    woman: false,
+                    divorcedAlimony: false,
+                    singleParent: false,
+                    army: false,
+                    degree: false,
+                    degree2: false,
+                    oleh: false,
+                    childrenYoung: 0,
+                    childrenOld: 0
+                },
+                settings: {
+                    taxBrackets: defaultBrackets,
+                    blBrackets: defaultBLBrackets,
+                    creditValue: 242,
+                    vatRate: 17
+                }
+            };
+        }
+
         let data = {
-            salary: [],
-            unemployment: [],
-            miluim: [],
-            selfEmployed: [],
-            expenses: [],
-            taxAdvances: [],
-            blAdvances: [],
             years: [2025, 2024],
             dashboardSettings: {
                 salary: true,
@@ -2033,33 +2889,16 @@
                 paymentsSummary: true,
                 result: true
             },
-            credits: {
-                woman: false,
-                divorcedAlimony: false,
-                singleParent: false,
-                army: false,
-                degree: false,
-                degree2: false,
-                oleh: false,
-                childrenYoung: 0,
-                childrenOld: 0
-            },
-            settings: {
-                taxBrackets: [
-                    { min: 0, max: 84120, rate: 10 },
-                    { min: 84120, max: 120720, rate: 14 },
-                    { min: 120720, max: 193800, rate: 20 },
-                    { min: 193800, max: 269280, rate: 31 },
-                    { min: 269280, max: 560280, rate: 35 },
-                    { min: 560280, max: 721560, rate: 47 },
-                    { min: 721560, max: 999999999, rate: 50 }
-                ],
-                blReducedRate: 6.92,
-                blFullRate: 18,
-                blCeiling: 90264,
-                creditValue: 242
-            }
+            yearData: {}
         };
+
+        // Helper to get current year's data
+        function getYearData() {
+            if (!data.yearData[currentYear]) {
+                data.yearData[currentYear] = createEmptyYearData(currentYear);
+            }
+            return data.yearData[currentYear];
+        }
 
         let currentYear = new Date().getFullYear();
         const MONTHS = ['', 'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
@@ -2069,58 +2908,154 @@
             loadData();
             renderYearSelector();
             loadDashboardSettings();
+            loadBusinessStatus();
+            loadFavorites();
             renderAll();
             checkLastBackup();
+            initLocalFolder();
         }
 
         function loadData() {
             const saved = localStorage.getItem('taxCalculatorV2');
             if (saved) {
                 const loadedData = JSON.parse(saved);
-                data = {...data, ...loadedData};
                 
-                // Migrate old advancePayments to new format
-                if (data.advancePayments && data.advancePayments.length > 0) {
-                    if (!data.taxAdvances) data.taxAdvances = [];
-                    if (!data.blAdvances) data.blAdvances = [];
+                // Check if we need to migrate to new year-based structure
+                if (!loadedData.yearData) {
+                    // Migrate old flat structure to year-based
+                    console.log('Migrating to year-based data structure...');
                     
-                    data.advancePayments.forEach(p => {
-                        if (p.tax > 0) {
-                            data.taxAdvances.push({
-                                id: p.id,
-                                month: p.month,
-                                amount: p.tax,
-                                notes: p.notes || ''
-                            });
-                        }
-                        if (p.bl > 0) {
-                            data.blAdvances.push({
-                                id: p.id + 1,
-                                month: p.month,
-                                amount: p.bl,
-                                notes: p.notes || ''
-                            });
-                        }
-                    });
+                    const oldYearData = {
+                        salary: loadedData.salary || [],
+                        unemployment: loadedData.unemployment || [],
+                        miluim: loadedData.miluim || [],
+                        selfEmployed: loadedData.selfEmployed || [],
+                        expenses: loadedData.expenses || [],
+                        taxAdvances: loadedData.taxAdvances || [],
+                        blAdvances: loadedData.blAdvances || [],
+                        vatReports: loadedData.vatReports || [],
+                        businessStatus: loadedData.businessStatus || 'zair',
+                        credits: loadedData.credits || createEmptyYearData().credits,
+                        settings: loadedData.settings || createEmptyYearData().settings
+                    };
                     
-                    delete data.advancePayments;
+                    // Handle old advancePayments migration
+                    if (loadedData.advancePayments && loadedData.advancePayments.length > 0) {
+                        loadedData.advancePayments.forEach(p => {
+                            if (p.tax > 0) {
+                                oldYearData.taxAdvances.push({
+                                    id: p.id,
+                                    month: p.month,
+                                    amount: p.tax,
+                                    notes: p.notes || ''
+                                });
+                            }
+                            if (p.bl > 0) {
+                                oldYearData.blAdvances.push({
+                                    id: p.id + 1,
+                                    month: p.month,
+                                    amount: p.bl,
+                                    notes: p.notes || ''
+                                });
+                            }
+                        });
+                    }
+                    
+                    // Put old data under current year
+                    data.yearData = {};
+                    data.yearData[currentYear] = oldYearData;
+                    
+                    // Copy shared settings (dashboard only)
+                    if (loadedData.years) data.years = loadedData.years;
+                    if (loadedData.dashboardSettings) data.dashboardSettings = loadedData.dashboardSettings;
+                    
                     saveData();
+                    console.log('Migration complete!');
+                } else {
+                    // Already in new format - just load
+                    data = {...data, ...loadedData};
+                    
+                    // Migration: move old shared settings to year data if needed
+                    if (loadedData.settings && !loadedData.yearData[currentYear]?.settings) {
+                        Object.keys(data.yearData).forEach(year => {
+                            if (!data.yearData[year].settings) {
+                                data.yearData[year].settings = loadedData.settings;
+                            }
+                            if (!data.yearData[year].businessStatus) {
+                                data.yearData[year].businessStatus = loadedData.businessStatus || 'zair';
+                            }
+                        });
+                        saveData();
+                    }
                 }
                 
-                // Ensure arrays exist
-                if (!data.taxAdvances) data.taxAdvances = [];
-                if (!data.blAdvances) data.blAdvances = [];
+                // Ensure yearData exists for current year
+                if (!data.yearData) data.yearData = {};
+                if (!data.yearData[currentYear]) {
+                    data.yearData[currentYear] = createEmptyYearData(currentYear);
+                }
+                // Ensure settings exist for current year
+                if (!data.yearData[currentYear].settings) {
+                    data.yearData[currentYear].settings = createEmptyYearData(currentYear).settings;
+                }
+                if (!data.yearData[currentYear].businessStatus) {
+                    data.yearData[currentYear].businessStatus = 'zair';
+                }
+                
+                // Migration: convert old BL settings to new blBrackets format
+                Object.keys(data.yearData).forEach(year => {
+                    const yd = data.yearData[year];
+                    if (yd.settings && !yd.settings.blBrackets) {
+                        // Old format detected - migrate to new format
+                        const oldCeiling = yd.settings.blCeiling || 90264;
+                        const oldReducedRate = yd.settings.blReducedRate || 6.92;
+                        const oldFullRate = yd.settings.blFullRate || 18;
+                        
+                        yd.settings.blBrackets = [
+                            { 
+                                min: 0, 
+                                max: oldCeiling,
+                                blRate: 4.47,
+                                healthRate: 3.23,
+                                totalRate: oldReducedRate,
+                                label: 'שיעור מופחת (עד 60% מהשכר הממוצע)'
+                            },
+                            { 
+                                min: oldCeiling, 
+                                max: 608340,
+                                blRate: 12.83,
+                                healthRate: 5.17,
+                                totalRate: oldFullRate,
+                                label: 'שיעור מלא (מעל 60% ועד התקרה)'
+                            }
+                        ];
+                        
+                        // Remove old fields
+                        delete yd.settings.blReducedRate;
+                        delete yd.settings.blFullRate;
+                        delete yd.settings.blCeiling;
+                        
+                        console.log('Migrated BL settings to brackets format for year ' + year);
+                    }
+                });
+                saveData();
             }
-            // Load credits to UI
-            document.getElementById('credit_woman').checked = data.credits.woman;
-            document.getElementById('credit_divorced_alimony').checked = data.credits.divorcedAlimony;
-            document.getElementById('credit_single_parent').checked = data.credits.singleParent;
-            document.getElementById('credit_army').checked = data.credits.army;
-            document.getElementById('credit_degree').checked = data.credits.degree;
-            document.getElementById('credit_degree2').checked = data.credits.degree2;
-            document.getElementById('credit_oleh').checked = data.credits.oleh;
-            document.getElementById('children_young').value = data.credits.childrenYoung;
-            document.getElementById('children_old').value = data.credits.childrenOld;
+            
+            // Load credits to UI from current year
+            loadCreditsToUI();
+        }
+
+        function loadCreditsToUI() {
+            const yearData = getYearData();
+            document.getElementById('credit_woman').checked = yearData.credits.woman;
+            document.getElementById('credit_divorced_alimony').checked = yearData.credits.divorcedAlimony;
+            document.getElementById('credit_single_parent').checked = yearData.credits.singleParent;
+            document.getElementById('credit_army').checked = yearData.credits.army;
+            document.getElementById('credit_degree').checked = yearData.credits.degree;
+            document.getElementById('credit_degree2').checked = yearData.credits.degree2;
+            document.getElementById('credit_oleh').checked = yearData.credits.oleh;
+            document.getElementById('children_young').value = yearData.credits.childrenYoung;
+            document.getElementById('children_old').value = yearData.credits.childrenOld;
         }
 
         function saveData() {
@@ -2136,8 +3071,17 @@
         }
 
         function changeYear() {
-            currentYear = parseInt(document.getElementById('currentYear').value);
-            renderAll();
+            const selectedYear = parseInt(document.getElementById('currentYear').value);
+            if (selectedYear && !isNaN(selectedYear)) {
+                currentYear = selectedYear;
+                // Ensure year data exists
+                if (!data.yearData[currentYear]) {
+                    data.yearData[currentYear] = createEmptyYearData(currentYear);
+                }
+                loadCreditsToUI();
+                loadBusinessStatus();
+                renderAll();
+            }
         }
 
         function openModal(id) { 
@@ -2158,13 +3102,23 @@
             modal.querySelectorAll('input[type="text"], input[type="number"], input[type="date"]').forEach(input => {
                 input.value = '';
             });
+            modal.querySelectorAll('input[type="file"]').forEach(input => {
+                input.value = '';
+            });
             modal.querySelectorAll('select').forEach(select => {
                 select.selectedIndex = 0;
+            });
+            // Clear file status spans
+            modal.querySelectorAll('[id$="FileStatus"]').forEach(span => {
+                span.textContent = '';
             });
         }
 
         // ========== CRUD OPERATIONS ==========
-        function addSalary() {
+        async function addSalary() {
+            const yd = getYearData();
+            const recordId = editingId || Date.now();
+            
             const itemData = {
                 employer: document.getElementById('salaryEmployer').value,
                 fromMonth: parseInt(document.getElementById('salaryFromMonth').value),
@@ -2175,14 +3129,33 @@
                 notes: document.getElementById('salaryNotes').value
             };
             
+            // Handle file upload
+            const fileInput = document.getElementById('salaryFile');
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                document.getElementById('salaryFileStatus').textContent = '⏳ מעלה...';
+                
+                const results = await uploadDocument(file, 'טפסים-106', 'salary', recordId);
+                
+                if (results.local || results.drive) {
+                    itemData.fileName = file.name;
+                    itemData.localPath = results.local;
+                    itemData.driveId = results.drive?.id;
+                    itemData.driveLink = results.drive?.link;
+                    document.getElementById('salaryFileStatus').textContent = '✅ הועלה!';
+                } else {
+                    document.getElementById('salaryFileStatus').textContent = '⚠️ לא הועלה';
+                }
+            }
+            
             if (editingId) {
-                const idx = data.salary.findIndex(s => s.id === editingId);
+                const idx = yd.salary.findIndex(s => s.id === editingId);
                 if (idx !== -1) {
-                    data.salary[idx] = { ...data.salary[idx], ...itemData };
+                    yd.salary[idx] = { ...yd.salary[idx], ...itemData };
                 }
                 editingId = null;
             } else {
-                data.salary.push({ id: Date.now(), ...itemData });
+                yd.salary.push({ id: recordId, ...itemData });
             }
             
             saveData();
@@ -2191,23 +3164,46 @@
             renderAll();
         }
 
-        function addUnemployment() {
+        async function addUnemployment() {
+            const yd = getYearData();
+            const recordId = editingId || Date.now();
+            
             const itemData = {
                 fromMonth: parseInt(document.getElementById('unemploymentFromMonth').value),
                 toMonth: parseInt(document.getElementById('unemploymentToMonth').value),
                 gross: parseFloat(document.getElementById('unemploymentGross').value) || 0,
                 taxDeducted: parseFloat(document.getElementById('unemploymentTaxDeducted').value) || 0,
+                blDeducted: parseFloat(document.getElementById('unemploymentBLDeducted').value) || 0,
                 notes: document.getElementById('unemploymentNotes').value
             };
             
+            // Handle file upload
+            const fileInput = document.getElementById('unemploymentFile');
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                document.getElementById('unemploymentFileStatus').textContent = '⏳ מעלה...';
+                
+                const results = await uploadDocument(file, 'אבטלה', 'unemployment', recordId);
+                
+                if (results.local || results.drive) {
+                    itemData.fileName = file.name;
+                    itemData.localPath = results.local;
+                    itemData.driveId = results.drive?.id;
+                    itemData.driveLink = results.drive?.link;
+                    document.getElementById('unemploymentFileStatus').textContent = '✅ הועלה!';
+                } else {
+                    document.getElementById('unemploymentFileStatus').textContent = '⚠️ לא הועלה';
+                }
+            }
+            
             if (editingId) {
-                const idx = data.unemployment.findIndex(u => u.id === editingId);
+                const idx = yd.unemployment.findIndex(u => u.id === editingId);
                 if (idx !== -1) {
-                    data.unemployment[idx] = { ...data.unemployment[idx], ...itemData };
+                    yd.unemployment[idx] = { ...yd.unemployment[idx], ...itemData };
                 }
                 editingId = null;
             } else {
-                data.unemployment.push({ id: Date.now(), ...itemData });
+                yd.unemployment.push({ id: recordId, ...itemData });
             }
             
             saveData();
@@ -2216,23 +3212,47 @@
             renderAll();
         }
 
-        function addMiluim() {
+        async function addMiluim() {
+            const yd = getYearData();
+            const recordId = editingId || Date.now();
+            
             const itemData = {
                 from: document.getElementById('miluimFrom').value,
                 to: document.getElementById('miluimTo').value,
                 days: parseInt(document.getElementById('miluimDays').value) || 0,
                 amount: parseFloat(document.getElementById('miluimAmount').value) || 0,
+                taxDeducted: parseFloat(document.getElementById('miluimTaxDeducted').value) || 0,
+                blDeducted: parseFloat(document.getElementById('miluimBLDeducted').value) || 0,
                 notes: document.getElementById('miluimNotes').value
             };
             
+            // Handle file upload
+            const fileInput = document.getElementById('miluimFile');
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                document.getElementById('miluimFileStatus').textContent = '⏳ מעלה...';
+                
+                const results = await uploadDocument(file, 'מילואים', 'miluim', recordId);
+                
+                if (results.local || results.drive) {
+                    itemData.fileName = file.name;
+                    itemData.localPath = results.local;
+                    itemData.driveId = results.drive?.id;
+                    itemData.driveLink = results.drive?.link;
+                    document.getElementById('miluimFileStatus').textContent = '✅ הועלה!';
+                } else {
+                    document.getElementById('miluimFileStatus').textContent = '⚠️ לא הועלה';
+                }
+            }
+            
             if (editingId) {
-                const idx = data.miluim.findIndex(m => m.id === editingId);
+                const idx = yd.miluim.findIndex(m => m.id === editingId);
                 if (idx !== -1) {
-                    data.miluim[idx] = { ...data.miluim[idx], ...itemData };
+                    yd.miluim[idx] = { ...yd.miluim[idx], ...itemData };
                 }
                 editingId = null;
             } else {
-                data.miluim.push({ id: Date.now(), ...itemData });
+                yd.miluim.push({ id: recordId, ...itemData });
             }
             
             saveData();
@@ -2241,7 +3261,10 @@
             renderAll();
         }
 
-        function addSelfEmployed() {
+        async function addSelfEmployed() {
+            const yd = getYearData();
+            const recordId = editingId || Date.now();
+            
             const itemData = {
                 month: parseInt(document.getElementById('selfMonth').value),
                 description: document.getElementById('selfDescription').value,
@@ -2249,14 +3272,33 @@
                 notes: document.getElementById('selfNotes').value
             };
             
+            // Handle file upload
+            const fileInput = document.getElementById('selfFile');
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                document.getElementById('selfFileStatus').textContent = '⏳ מעלה...';
+                
+                const results = await uploadDocument(file, 'חשבוניות-עצמאי', 'selfEmployed', recordId);
+                
+                if (results.local || results.drive) {
+                    itemData.fileName = file.name;
+                    itemData.localPath = results.local;
+                    itemData.driveId = results.drive?.id;
+                    itemData.driveLink = results.drive?.link;
+                    document.getElementById('selfFileStatus').textContent = '✅ הועלה!';
+                } else {
+                    document.getElementById('selfFileStatus').textContent = '⚠️ לא הועלה';
+                }
+            }
+            
             if (editingId) {
-                const idx = data.selfEmployed.findIndex(s => s.id === editingId);
+                const idx = yd.selfEmployed.findIndex(s => s.id === editingId);
                 if (idx !== -1) {
-                    data.selfEmployed[idx] = { ...data.selfEmployed[idx], ...itemData };
+                    yd.selfEmployed[idx] = { ...yd.selfEmployed[idx], ...itemData };
                 }
                 editingId = null;
             } else {
-                data.selfEmployed.push({ id: Date.now(), ...itemData });
+                yd.selfEmployed.push({ id: recordId, ...itemData });
             }
             
             saveData();
@@ -2265,7 +3307,10 @@
             renderAll();
         }
 
-        function addExpense() {
+        async function addExpense() {
+            const yd = getYearData();
+            const recordId = editingId || Date.now();
+            
             const itemData = {
                 date: document.getElementById('expenseDate').value,
                 description: document.getElementById('expenseDesc').value,
@@ -2274,14 +3319,33 @@
                 notes: document.getElementById('expenseNotes').value
             };
             
+            // Handle file upload
+            const fileInput = document.getElementById('expenseFile');
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                document.getElementById('expenseFileStatus').textContent = '⏳ מעלה...';
+                
+                const results = await uploadDocument(file, 'הוצאות-מוכרות', 'expense', recordId);
+                
+                if (results.local || results.drive) {
+                    itemData.fileName = file.name;
+                    itemData.localPath = results.local;
+                    itemData.driveId = results.drive?.id;
+                    itemData.driveLink = results.drive?.link;
+                    document.getElementById('expenseFileStatus').textContent = '✅ הועלה!';
+                } else {
+                    document.getElementById('expenseFileStatus').textContent = '⚠️ לא הועלה';
+                }
+            }
+            
             if (editingId) {
-                const idx = data.expenses.findIndex(e => e.id === editingId);
+                const idx = yd.expenses.findIndex(e => e.id === editingId);
                 if (idx !== -1) {
-                    data.expenses[idx] = { ...data.expenses[idx], ...itemData };
+                    yd.expenses[idx] = { ...yd.expenses[idx], ...itemData };
                 }
                 editingId = null;
             } else {
-                data.expenses.push({ id: Date.now(), ...itemData });
+                yd.expenses.push({ id: recordId, ...itemData });
             }
             
             saveData();
@@ -2290,25 +3354,46 @@
             renderAll();
         }
 
-        function addTaxAdvance() {
+        async function addTaxAdvance() {
+            const yd = getYearData();
+            const recordId = editingId || Date.now();
+            
             const itemData = {
                 month: parseInt(document.getElementById('taxAdvanceMonth').value),
                 amount: parseFloat(document.getElementById('taxAdvanceAmount').value) || 0,
                 notes: document.getElementById('taxAdvanceNotes').value
             };
             
+            // Handle file upload
+            const fileInput = document.getElementById('taxAdvanceFile');
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                document.getElementById('taxAdvanceFileStatus').textContent = '⏳ מעלה...';
+                
+                const results = await uploadDocument(file, 'מקדמות-מס', 'taxAdvance', recordId);
+                
+                if (results.local || results.drive) {
+                    itemData.fileName = file.name;
+                    itemData.localPath = results.local;
+                    itemData.driveId = results.drive?.id;
+                    itemData.driveLink = results.drive?.link;
+                    document.getElementById('taxAdvanceFileStatus').textContent = '✅ הועלה!';
+                } else {
+                    document.getElementById('taxAdvanceFileStatus').textContent = '⚠️ לא הועלה';
+                }
+            }
+            
             if (editingId) {
-                const idx = data.taxAdvances.findIndex(p => p.id === editingId);
+                const idx = yd.taxAdvances.findIndex(p => p.id === editingId);
                 if (idx !== -1) {
-                    data.taxAdvances[idx] = { ...data.taxAdvances[idx], ...itemData };
+                    yd.taxAdvances[idx] = { ...yd.taxAdvances[idx], ...itemData };
                 }
                 editingId = null;
             } else {
-                if (!data.taxAdvances) data.taxAdvances = [];
-                data.taxAdvances.push({ id: Date.now(), ...itemData });
+                yd.taxAdvances.push({ id: recordId, ...itemData });
             }
             
-            data.taxAdvances.sort((a, b) => a.month - b.month);
+            yd.taxAdvances.sort((a, b) => a.month - b.month);
             saveData();
             closeModal('taxAdvanceModal');
             clearForm('taxAdvanceModal');
@@ -2316,7 +3401,8 @@
         }
 
         function editTaxAdvance(id) {
-            const item = data.taxAdvances.find(p => p.id === id);
+            const yd = getYearData();
+            const item = yd.taxAdvances.find(p => p.id === id);
             if (!item) return;
             editingId = id;
             document.getElementById('taxAdvanceMonth').value = item.month;
@@ -2326,32 +3412,54 @@
         }
 
         function deleteTaxAdvance(id) {
+            const yd = getYearData();
             if (confirm('למחוק?')) {
-                data.taxAdvances = data.taxAdvances.filter(p => p.id !== id);
+                yd.taxAdvances = yd.taxAdvances.filter(p => p.id !== id);
                 saveData();
                 renderAll();
             }
         }
 
-        function addBLAdvance() {
+        async function addBLAdvance() {
+            const yd = getYearData();
+            const recordId = editingId || Date.now();
+            
             const itemData = {
                 month: parseInt(document.getElementById('blAdvanceMonth').value),
                 amount: parseFloat(document.getElementById('blAdvanceAmount').value) || 0,
                 notes: document.getElementById('blAdvanceNotes').value
             };
             
+            // Handle file upload
+            const fileInput = document.getElementById('blAdvanceFile');
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                document.getElementById('blAdvanceFileStatus').textContent = '⏳ מעלה...';
+                
+                const results = await uploadDocument(file, 'ביטוח-לאומי', 'blAdvance', recordId);
+                
+                if (results.local || results.drive) {
+                    itemData.fileName = file.name;
+                    itemData.localPath = results.local;
+                    itemData.driveId = results.drive?.id;
+                    itemData.driveLink = results.drive?.link;
+                    document.getElementById('blAdvanceFileStatus').textContent = '✅ הועלה!';
+                } else {
+                    document.getElementById('blAdvanceFileStatus').textContent = '⚠️ לא הועלה';
+                }
+            }
+            
             if (editingId) {
-                const idx = data.blAdvances.findIndex(p => p.id === editingId);
+                const idx = yd.blAdvances.findIndex(p => p.id === editingId);
                 if (idx !== -1) {
-                    data.blAdvances[idx] = { ...data.blAdvances[idx], ...itemData };
+                    yd.blAdvances[idx] = { ...yd.blAdvances[idx], ...itemData };
                 }
                 editingId = null;
             } else {
-                if (!data.blAdvances) data.blAdvances = [];
-                data.blAdvances.push({ id: Date.now(), ...itemData });
+                yd.blAdvances.push({ id: recordId, ...itemData });
             }
             
-            data.blAdvances.sort((a, b) => a.month - b.month);
+            yd.blAdvances.sort((a, b) => a.month - b.month);
             saveData();
             closeModal('blAdvanceModal');
             clearForm('blAdvanceModal');
@@ -2359,7 +3467,8 @@
         }
 
         function editBLAdvance(id) {
-            const item = data.blAdvances.find(p => p.id === id);
+            const yd = getYearData();
+            const item = yd.blAdvances.find(p => p.id === id);
             if (!item) return;
             editingId = id;
             document.getElementById('blAdvanceMonth').value = item.month;
@@ -2369,16 +3478,174 @@
         }
 
         function deleteBLAdvance(id) {
+            const yd = getYearData();
             if (confirm('למחוק?')) {
-                data.blAdvances = data.blAdvances.filter(p => p.id !== id);
+                yd.blAdvances = yd.blAdvances.filter(p => p.id !== id);
                 saveData();
                 renderAll();
             }
         }
 
-        function deleteItem(type, id) {
+        // ========== BUSINESS STATUS & VAT ==========
+        function updateBusinessStatus() {
+            const yd = getYearData();
+            const status = document.getElementById('businessStatus').value;
+            yd.businessStatus = status;
+            
+            // Show/hide VAT section
+            const vatInfo = document.getElementById('vatInfo');
+            const navVat = document.getElementById('navVat');
+            
+            if (status === 'murshe') {
+                vatInfo.style.display = 'block';
+                navVat.style.display = 'flex';
+            } else {
+                vatInfo.style.display = 'none';
+                navVat.style.display = 'none';
+            }
+            
+            saveData();
+            renderAll();
+        }
+
+        function loadBusinessStatus() {
+            const yd = getYearData();
+            const status = yd.businessStatus || 'zair';
+            const select = document.getElementById('businessStatus');
+            if (select) select.value = status;
+            
+            const vatInfo = document.getElementById('vatInfo');
+            const navVat = document.getElementById('navVat');
+            
+            if (status === 'murshe') {
+                if (vatInfo) vatInfo.style.display = 'block';
+                if (navVat) navVat.style.display = 'flex';
+            } else {
+                if (vatInfo) vatInfo.style.display = 'none';
+                if (navVat) navVat.style.display = 'none';
+            }
+        }
+
+        function addVatReport() {
+            const yd = getYearData();
+            const itemData = {
+                period: document.getElementById('vatPeriod').value,
+                income: parseFloat(document.getElementById('vatIncomeAmount').value) || 0,
+                outputVat: parseFloat(document.getElementById('vatOutputAmount').value) || 0,
+                expenses: parseFloat(document.getElementById('vatExpenseAmount').value) || 0,
+                inputVat: parseFloat(document.getElementById('vatInputAmount').value) || 0,
+                notes: document.getElementById('vatNotes').value
+            };
+            
+            if (editingId) {
+                const idx = yd.vatReports.findIndex(v => v.id === editingId);
+                if (idx !== -1) {
+                    yd.vatReports[idx] = { ...yd.vatReports[idx], ...itemData };
+                }
+                editingId = null;
+            } else {
+                yd.vatReports.push({ id: Date.now(), ...itemData });
+            }
+            
+            saveData();
+            closeModal('vatModal');
+            clearForm('vatModal');
+            renderAll();
+        }
+
+        function editVatReport(id) {
+            const yd = getYearData();
+            const item = yd.vatReports.find(v => v.id === id);
+            if (!item) return;
+            editingId = id;
+            document.getElementById('vatPeriod').value = item.period;
+            document.getElementById('vatIncomeAmount').value = item.income;
+            document.getElementById('vatOutputAmount').value = item.outputVat;
+            document.getElementById('vatExpenseAmount').value = item.expenses;
+            document.getElementById('vatInputAmount').value = item.inputVat;
+            document.getElementById('vatNotes').value = item.notes || '';
+            openModal('vatModal');
+        }
+
+        function deleteVatReport(id) {
+            const yd = getYearData();
             if (confirm('למחוק?')) {
-                data[type] = data[type].filter(i => i.id !== id);
+                yd.vatReports = yd.vatReports.filter(v => v.id !== id);
+                saveData();
+                renderAll();
+            }
+        }
+
+        function renderVatTable() {
+            const yd = getYearData();
+            const tbody = document.getElementById('vatTable');
+            if (!tbody) return;
+            
+            if (!yd.vatReports || yd.vatReports.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">📊</div><p>לחץ + להוסיף דיווח מע"מ</p></td></tr>';
+                document.getElementById('vatTotalRefund').textContent = '₪0';
+                document.getElementById('vatIncome').textContent = '₪0';
+                document.getElementById('vatExpenses').textContent = '₪0';
+                document.getElementById('vatOnExpenses').textContent = '₪0';
+                return;
+            }
+            
+            const PERIOD_NAMES = {
+                '1-2': 'ינו-פבר',
+                '3-4': 'מרץ-אפר',
+                '5-6': 'מאי-יונ',
+                '7-8': 'יול-אוג',
+                '9-10': 'ספט-אוק',
+                '11-12': 'נוב-דצמ'
+            };
+            
+            let totalIncome = 0;
+            let totalExpenses = 0;
+            let totalInputVat = 0;
+            let totalOutputVat = 0;
+            
+            tbody.innerHTML = yd.vatReports.map(v => {
+                totalIncome += v.income;
+                totalExpenses += v.expenses;
+                totalInputVat += v.inputVat;
+                totalOutputVat += v.outputVat;
+                const diff = v.outputVat - v.inputVat;
+                
+                return `<tr>
+                    <td>${PERIOD_NAMES[v.period] || v.period} ${v.notes ? '<span title="'+v.notes+'" style="cursor:help;">📎</span>' : ''}</td>
+                    <td>${formatCurrency(v.income)}</td>
+                    <td>${formatCurrency(v.outputVat)}</td>
+                    <td style="color:var(--success)">${formatCurrency(v.inputVat)}</td>
+                    <td style="color:${diff < 0 ? 'var(--success)' : 'var(--danger)'}">${diff < 0 ? 'החזר ' : 'לשלם '}${formatCurrency(Math.abs(diff))}</td>
+                    <td>
+                        <button class="btn btn-icon btn-sm" onclick="editVatReport(${v.id})" title="עריכה">✏️</button>
+                        <button class="btn btn-icon btn-sm" onclick="deleteVatReport(${v.id})" title="מחיקה">🗑️</button>
+                    </td>
+                </tr>`;
+            }).join('');
+            
+            // Summary
+            const totalRefund = totalInputVat - totalOutputVat;
+            document.getElementById('vatIncome').textContent = formatCurrency(totalIncome);
+            document.getElementById('vatExpenses').textContent = formatCurrency(totalExpenses);
+            document.getElementById('vatOnExpenses').textContent = formatCurrency(totalInputVat);
+            document.getElementById('vatTotalRefund').textContent = formatCurrency(Math.max(0, totalRefund));
+            
+            const resultBox = document.getElementById('vatResultBox');
+            if (totalRefund > 0) {
+                resultBox.className = 'result-box refund';
+                resultBox.querySelector('div:first-child').textContent = '💰 סה"כ מע"מ לקיזוז (החזר צפוי)';
+            } else if (totalRefund < 0) {
+                resultBox.className = 'result-box owe';
+                resultBox.querySelector('div:first-child').textContent = '💳 סה"כ מע"מ לתשלום';
+                document.getElementById('vatTotalRefund').textContent = formatCurrency(Math.abs(totalRefund));
+            }
+        }
+
+        function deleteItem(type, id) {
+            const yd = getYearData();
+            if (confirm('למחוק?')) {
+                yd[type] = yd[type].filter(i => i.id !== id);
                 saveData();
                 renderAll();
             }
@@ -2388,7 +3655,8 @@
         let editingId = null;
 
         function editSalary(id) {
-            const item = data.salary.find(s => s.id === id);
+            const yd = getYearData();
+            const item = yd.salary.find(s => s.id === id);
             if (!item) return;
             editingId = id;
             document.getElementById('salaryEmployer').value = item.employer || '';
@@ -2402,31 +3670,37 @@
         }
 
         function editUnemployment(id) {
-            const item = data.unemployment.find(u => u.id === id);
+            const yd = getYearData();
+            const item = yd.unemployment.find(u => u.id === id);
             if (!item) return;
             editingId = id;
             document.getElementById('unemploymentFromMonth').value = item.fromMonth;
             document.getElementById('unemploymentToMonth').value = item.toMonth;
             document.getElementById('unemploymentGross').value = item.gross;
             document.getElementById('unemploymentTaxDeducted').value = item.taxDeducted;
+            document.getElementById('unemploymentBLDeducted').value = item.blDeducted || 0;
             document.getElementById('unemploymentNotes').value = item.notes || '';
             openModal('unemploymentModal');
         }
 
         function editMiluim(id) {
-            const item = data.miluim.find(m => m.id === id);
+            const yd = getYearData();
+            const item = yd.miluim.find(m => m.id === id);
             if (!item) return;
             editingId = id;
             document.getElementById('miluimFrom').value = item.from;
             document.getElementById('miluimTo').value = item.to;
             document.getElementById('miluimDays').value = item.days;
             document.getElementById('miluimAmount').value = item.amount;
+            document.getElementById('miluimTaxDeducted').value = item.taxDeducted || 0;
+            document.getElementById('miluimBLDeducted').value = item.blDeducted || 0;
             document.getElementById('miluimNotes').value = item.notes || '';
             openModal('miluimModal');
         }
 
         function editSelfEmployed(id) {
-            const item = data.selfEmployed.find(s => s.id === id);
+            const yd = getYearData();
+            const item = yd.selfEmployed.find(s => s.id === id);
             if (!item) return;
             editingId = id;
             document.getElementById('selfMonth').value = item.month;
@@ -2437,7 +3711,8 @@
         }
 
         function editExpense(id) {
-            const item = data.expenses.find(e => e.id === id);
+            const yd = getYearData();
+            const item = yd.expenses.find(e => e.id === id);
             if (!item) return;
             editingId = id;
             document.getElementById('expenseDate').value = item.date;
@@ -2450,7 +3725,8 @@
 
         // ========== CREDITS ==========
         function updateCredits() {
-            data.credits = {
+            const yd = getYearData();
+            yd.credits = {
                 woman: document.getElementById('credit_woman').checked,
                 divorcedAlimony: document.getElementById('credit_divorced_alimony').checked,
                 singleParent: document.getElementById('credit_single_parent').checked,
@@ -2466,53 +3742,50 @@
         }
 
         function calculateCredits() {
+            const yd = getYearData();
             let points = 2.25; // Base for Israeli resident
-            if (data.credits.woman) points += 0.5;
-            if (data.credits.divorcedAlimony) points += 1;
-            if (data.credits.singleParent) points += 1;
-            if (data.credits.army) points += 2;
-            if (data.credits.degree) points += 1;
-            if (data.credits.degree2) points += 0.5;
-            if (data.credits.oleh) points += 2.25;
-            points += data.credits.childrenYoung * 2.5;
-            points += data.credits.childrenOld * 1;
-            
-            // Add miluim credits
-            const miluimDays = data.miluim.reduce((sum, m) => sum + m.days, 0);
-            const miluimCredits = calculateMiluimCredits(miluimDays);
-            points += miluimCredits;
+            if (yd.credits.woman) points += 0.5;
+            if (yd.credits.divorcedAlimony) points += 1;
+            if (yd.credits.singleParent) points += 1;
+            if (yd.credits.army) points += 2;
+            if (yd.credits.degree) points += 1;
+            if (yd.credits.degree2) points += 0.5;
+            if (yd.credits.oleh) points += 2.25;
+            points += yd.credits.childrenYoung * 2.5;
+            points += yd.credits.childrenOld * 1;
             
             return points;
         }
 
-        function calculateMiluimCredits(days) {
-            // נקודות זיכוי למילואים לפי הטבלה
-            if (days >= 60) return 2;
-            if (days >= 45) return 1.5;
-            if (days >= 30) return 1;
-            if (days >= 20) return 0.5;
-            if (days >= 10) return 0.25;
-            return 0;
-        }
-
         // ========== TAX CALCULATIONS ==========
         function calculateTotals() {
-            const totalSalary = data.salary.reduce((sum, s) => sum + s.gross, 0);
-            const totalUnemployment = data.unemployment.reduce((sum, u) => sum + u.gross, 0);
-            const totalMiluim = data.miluim.reduce((sum, m) => sum + m.amount, 0);
-            const totalMiluimDays = data.miluim.reduce((sum, m) => sum + m.days, 0);
-            const totalSelfEmployed = data.selfEmployed.reduce((sum, s) => sum + s.amount, 0);
-            const totalExpenses = data.expenses.reduce((sum, e) => sum + e.amount, 0);
+            const yd = getYearData();
+            const totalSalary = yd.salary.reduce((sum, s) => sum + s.gross, 0);
+            const totalUnemployment = yd.unemployment.reduce((sum, u) => sum + u.gross, 0);
+            const totalMiluim = yd.miluim.reduce((sum, m) => sum + m.amount, 0);
+            const totalMiluimDays = yd.miluim.reduce((sum, m) => sum + m.days, 0);
+            const totalSelfEmployed = yd.selfEmployed.reduce((sum, s) => sum + s.amount, 0);
+            const totalExpenses = yd.expenses.reduce((sum, e) => sum + e.amount, 0);
             
-            const taxFromSalary = data.salary.reduce((sum, s) => sum + s.taxDeducted, 0);
-            const taxFromUnemployment = data.unemployment.reduce((sum, u) => sum + u.taxDeducted, 0);
+            // Tax deducted from each source
+            const taxFromSalary = yd.salary.reduce((sum, s) => sum + s.taxDeducted, 0);
+            const taxFromUnemployment = yd.unemployment.reduce((sum, u) => sum + u.taxDeducted, 0);
+            const taxFromMiluim = yd.miluim.reduce((sum, m) => sum + (m.taxDeducted || 0), 0);
+            
+            // BL deducted from each source
+            const blFromSalary = yd.salary.reduce((sum, s) => sum + (s.blDeducted || 0), 0);
+            const blFromUnemployment = yd.unemployment.reduce((sum, u) => sum + (u.blDeducted || 0), 0);
+            const blFromMiluim = yd.miluim.reduce((sum, m) => sum + (m.blDeducted || 0), 0);
             
             // Calculate from separate advance payment arrays
-            const taxFromSelf = data.taxAdvances.reduce((sum, p) => sum + p.amount, 0);
-            const blFromSelf = data.blAdvances.reduce((sum, p) => sum + p.amount, 0);
+            const taxFromSelf = yd.taxAdvances.reduce((sum, p) => sum + p.amount, 0);
+            const blFromSelf = yd.blAdvances.reduce((sum, p) => sum + p.amount, 0);
             
-            // Taxable income (miluim is exempt!)
-            const taxableIncome = totalSalary + totalUnemployment + Math.max(0, totalSelfEmployed - totalExpenses);
+            // Total BL paid from all sources
+            const totalBLPaid = blFromSalary + blFromUnemployment + blFromMiluim + blFromSelf;
+            
+            // Taxable income (miluim IS taxable - not exempt!)
+            const taxableIncome = totalSalary + totalUnemployment + totalMiluim + Math.max(0, totalSelfEmployed - totalExpenses);
             
             // Self employed net income for BL calculation
             const selfEmployedNet = Math.max(0, totalSelfEmployed - totalExpenses);
@@ -2528,17 +3801,23 @@
                 taxableIncome,
                 taxFromSalary,
                 taxFromUnemployment,
+                taxFromMiluim,
                 taxFromSelf,
+                blFromSalary,
+                blFromUnemployment,
+                blFromMiluim,
                 blFromSelf,
-                totalTaxPaid: taxFromSalary + taxFromUnemployment + taxFromSelf
+                totalBLPaid,
+                totalTaxPaid: taxFromSalary + taxFromUnemployment + taxFromMiluim + taxFromSelf
             };
         }
 
         function calculateIncomeTax(income) {
+            const yd = getYearData();
             let tax = 0;
             const details = [];
             
-            for (const bracket of data.settings.taxBrackets) {
+            for (const bracket of yd.settings.taxBrackets) {
                 if (income <= bracket.min) break;
                 const inBracket = Math.min(income, bracket.max) - bracket.min;
                 const taxInBracket = inBracket * (bracket.rate / 100);
@@ -2552,30 +3831,50 @@
         }
 
         function calculateBituachLeumi(selfEmployedIncome) {
-            const ceiling = data.settings.blCeiling;
-            const reducedRate = data.settings.blReducedRate / 100;
-            const fullRate = data.settings.blFullRate / 100;
+            const yd = getYearData();
             
-            let reduced = 0, full = 0;
-            
-            reduced = Math.min(selfEmployedIncome, ceiling) * reducedRate;
-            if (selfEmployedIncome > ceiling) {
-                full = (selfEmployedIncome - ceiling) * fullRate;
+            // Ensure blBrackets exists (migration support)
+            if (!yd.settings.blBrackets) {
+                yd.settings.blBrackets = createEmptyYearData().settings.blBrackets;
             }
             
-            return { reduced, full, total: reduced + full };
+            const brackets = yd.settings.blBrackets;
+            let total = 0;
+            let details = [];
+            
+            for (const bracket of brackets) {
+                if (selfEmployedIncome <= bracket.min) break;
+                const incomeInBracket = Math.min(selfEmployedIncome, bracket.max) - bracket.min;
+                const amountInBracket = incomeInBracket * (bracket.totalRate / 100);
+                total += amountInBracket;
+                if (incomeInBracket > 0) {
+                    details.push({
+                        ...bracket,
+                        income: incomeInBracket,
+                        amount: amountInBracket
+                    });
+                }
+            }
+            
+            return { total, details };
         }
 
         // ========== RENDERING ==========
         function renderAll() {
+            const yd = getYearData();
             const totals = calculateTotals();
             const credits = calculateCredits();
-            const creditValue = credits * data.settings.creditValue * 12;
+            const creditValue = credits * yd.settings.creditValue * 12;
             const { gross: grossTax, details: taxDetails } = calculateIncomeTax(totals.taxableIncome);
             const netTax = Math.max(0, grossTax - creditValue);
-            const bl = calculateBituachLeumi(totals.selfEmployedNet);
             
-            const miluimCredits = calculateMiluimCredits(totals.miluimDays);
+            // Calculate BL on self-employed income only (for display)
+            const blSelfEmployed = calculateBituachLeumi(totals.selfEmployedNet);
+            
+            // For total BL due - we use the total already paid since BL on salary/unemployment
+            // is already deducted correctly by employer/BTL. We only need to calculate what's
+            // due on self-employed income.
+            const bl = blSelfEmployed;
             
             // Dashboard
             document.getElementById('dashSalary').textContent = formatCurrency(totals.salary);
@@ -2587,51 +3886,79 @@
             document.getElementById('dashTaxDue').textContent = formatCurrency(netTax);
             document.getElementById('dashTaxPaid').textContent = formatCurrency(totals.totalTaxPaid);
             document.getElementById('dashBLDue').textContent = formatCurrency(bl.total);
-            document.getElementById('dashBLPaid').textContent = formatCurrency(totals.blFromSelf);
+            document.getElementById('dashBLPaid').textContent = formatCurrency(totals.totalBLPaid);
             
             document.getElementById('dashTaxFromSalary').textContent = formatCurrency(totals.taxFromSalary);
             document.getElementById('dashTaxFromUnemployment').textContent = formatCurrency(totals.taxFromUnemployment);
+            document.getElementById('dashTaxFromMiluim').textContent = formatCurrency(totals.taxFromMiluim);
             document.getElementById('dashTaxFromSelf').textContent = formatCurrency(totals.taxFromSelf);
             document.getElementById('dashTotalTaxPaid').textContent = formatCurrency(totals.totalTaxPaid);
-            document.getElementById('dashTotalBLPaid').textContent = formatCurrency(totals.blFromSelf);
+            document.getElementById('dashTotalBLPaid').textContent = formatCurrency(totals.totalBLPaid);
             
-            // Result box
-            const diff = totals.totalTaxPaid - netTax;
-            let resultHTML = '';
-            if (diff > 0) {
-                resultHTML = `<div class="result-box refund">
-                    <div>🎉 מגיע לך החזר מס!</div>
-                    <div class="amount">${formatCurrency(diff)}</div>
-                    <div>ניתן להגיש בקשה להחזר מס דרך אתר רשות המסים</div>
-                </div>`;
-            } else if (diff < 0) {
-                resultHTML = `<div class="result-box owe">
-                    <div>💳 יש לך יתרת מס לתשלום</div>
-                    <div class="amount">${formatCurrency(Math.abs(diff))}</div>
-                    <div>זה לא כולל ביטוח לאומי על ההכנסה כעצמאי</div>
-                </div>`;
-            } else if (totals.taxableIncome > 0) {
-                resultHTML = `<div class="result-box refund" style="border-color:var(--primary);">
-                    <div>✓ מאוזן</div>
-                    <div class="amount" style="color:var(--primary)">₪0</div>
-                    <div>המס שנוכה שווה למס המחושב</div>
-                </div>`;
+            // Result boxes - Tax and BL separately
+            const taxDiff = totals.totalTaxPaid - netTax;
+            // BL diff: what was paid as advances for self-employed vs what's due on self-employed
+            const blDiff = totals.blFromSelf - bl.total;
+            
+            // Tax result box
+            const taxResultBox = document.getElementById('taxResultBox');
+            const taxResultAmount = document.getElementById('taxResultAmount');
+            const taxResultText = document.getElementById('taxResultText');
+            
+            if (taxDiff > 0) {
+                taxResultBox.className = 'result-box refund';
+                taxResultAmount.textContent = formatCurrency(taxDiff);
+                taxResultText.textContent = '🎉 מגיע לך החזר!';
+            } else if (taxDiff < 0) {
+                taxResultBox.className = 'result-box owe';
+                taxResultAmount.textContent = formatCurrency(Math.abs(taxDiff));
+                taxResultText.textContent = '💳 יתרה לתשלום';
+            } else {
+                taxResultBox.className = 'result-box';
+                taxResultBox.style.borderColor = 'var(--primary)';
+                taxResultAmount.textContent = '₪0';
+                taxResultAmount.style.color = 'var(--primary)';
+                taxResultText.textContent = '✓ מאוזן';
             }
-            document.getElementById('dashboardResult').innerHTML = resultHTML;
-            document.getElementById('calculationResult').innerHTML = resultHTML;
+            
+            // BL result box
+            const blResultBox = document.getElementById('blResultBox');
+            const blResultAmount = document.getElementById('blResultAmount');
+            const blResultText = document.getElementById('blResultText');
+            
+            if (bl.total === 0 && totals.blFromSelf === 0) {
+                blResultBox.className = 'result-box';
+                blResultBox.style.borderColor = 'var(--border)';
+                blResultAmount.textContent = '₪0';
+                blResultAmount.style.color = 'var(--text-muted)';
+                blResultText.textContent = 'אין הכנסה כעצמאי';
+            } else if (blDiff > 0) {
+                blResultBox.className = 'result-box refund';
+                blResultAmount.textContent = formatCurrency(blDiff);
+                blResultText.textContent = '🎉 שילמת יותר מדי!';
+            } else if (blDiff < 0) {
+                blResultBox.className = 'result-box owe';
+                blResultAmount.textContent = formatCurrency(Math.abs(blDiff));
+                blResultText.textContent = '💳 יתרה לתשלום';
+            } else {
+                blResultBox.className = 'result-box';
+                blResultBox.style.borderColor = 'var(--warning)';
+                blResultAmount.textContent = '₪0';
+                blResultAmount.style.color = 'var(--warning)';
+                blResultText.textContent = '✓ מאוזן';
+            }
             
             // Tables
             renderSalaryTable();
             renderUnemploymentTable();
-            renderMiluimTable(totals.miluimDays, miluimCredits);
+            renderMiluimTable(totals.miluimDays);
             renderSelfEmployedTable();
             renderExpenseTable(totals.expenses);
             renderTaxAdvanceTable();
             renderBLAdvanceTable();
+            renderVatTable();
             
             // Credits
-            document.getElementById('miluimCreditDisplay').textContent = miluimCredits.toFixed(2);
-            document.getElementById('credit_miluim').checked = miluimCredits > 0;
             document.getElementById('totalCredits').textContent = credits.toFixed(2);
             document.getElementById('creditValue').textContent = formatCurrency(creditValue);
             
@@ -2663,10 +3990,9 @@
             document.getElementById('calcBLReduced').textContent = formatCurrency(bl.reduced);
             document.getElementById('calcBLFull').textContent = formatCurrency(bl.full);
             document.getElementById('calcTotalBL').textContent = formatCurrency(bl.total);
-            document.getElementById('calcBLPaid').textContent = formatCurrency(totals.blFromSelf);
+            document.getElementById('calcBLPaid').textContent = formatCurrency(totals.totalBLPaid);
             
-            // BL difference
-            const blDiff = totals.blFromSelf - bl.total;
+            // BL difference display (using blDiff from above)
             const blDiffEl = document.getElementById('blDiff');
             const blDiffLabelEl = document.getElementById('blDiffLabel');
             const blDiffRowEl = document.getElementById('blDiffRow');
@@ -2686,8 +4012,57 @@
             
             document.getElementById('calcPaidSalary').textContent = formatCurrency(totals.taxFromSalary);
             document.getElementById('calcPaidUnemployment').textContent = formatCurrency(totals.taxFromUnemployment);
+            document.getElementById('calcPaidMiluim').textContent = formatCurrency(totals.taxFromMiluim);
             document.getElementById('calcPaidSelf').textContent = formatCurrency(totals.taxFromSelf);
             document.getElementById('calcTotalPaid').textContent = formatCurrency(totals.totalTaxPaid);
+            
+            // Summary boxes for calculation page
+            document.getElementById('calcSummaryTaxDue').textContent = formatCurrency(netTax);
+            document.getElementById('calcSummaryTaxPaid').textContent = formatCurrency(totals.totalTaxPaid);
+            document.getElementById('calcSummaryBLDue').textContent = formatCurrency(bl.total);
+            document.getElementById('calcSummaryBLPaid').textContent = formatCurrency(totals.totalBLPaid);
+            
+            // Tax result
+            const calcTaxResultRow = document.getElementById('calcTaxResultRow');
+            const calcTaxResultLabel = document.getElementById('calcTaxResultLabel');
+            const calcTaxResult = document.getElementById('calcTaxResult');
+            if (taxDiff > 0) {
+                calcTaxResultRow.style.background = 'rgba(16,185,129,0.1)';
+                calcTaxResultLabel.textContent = '🎉 מגיע החזר';
+                calcTaxResult.textContent = formatCurrency(taxDiff);
+                calcTaxResult.style.color = 'var(--success)';
+            } else if (taxDiff < 0) {
+                calcTaxResultRow.style.background = 'rgba(239,68,68,0.1)';
+                calcTaxResultLabel.textContent = '💳 לתשלום';
+                calcTaxResult.textContent = formatCurrency(Math.abs(taxDiff));
+                calcTaxResult.style.color = 'var(--danger)';
+            } else {
+                calcTaxResultRow.style.background = '';
+                calcTaxResultLabel.textContent = '✓ מאוזן';
+                calcTaxResult.textContent = '₪0';
+                calcTaxResult.style.color = 'var(--primary)';
+            }
+            
+            // BL result
+            const calcBLResultRow = document.getElementById('calcBLResultRow');
+            const calcBLResultLabel = document.getElementById('calcBLResultLabel');
+            const calcBLResult = document.getElementById('calcBLResult');
+            if (blDiff > 0) {
+                calcBLResultRow.style.background = 'rgba(16,185,129,0.1)';
+                calcBLResultLabel.textContent = '🎉 שילמת יותר';
+                calcBLResult.textContent = formatCurrency(blDiff);
+                calcBLResult.style.color = 'var(--success)';
+            } else if (blDiff < 0) {
+                calcBLResultRow.style.background = 'rgba(239,68,68,0.1)';
+                calcBLResultLabel.textContent = '💳 לתשלום';
+                calcBLResult.textContent = formatCurrency(Math.abs(blDiff));
+                calcBLResult.style.color = 'var(--danger)';
+            } else {
+                calcBLResultRow.style.background = '';
+                calcBLResultLabel.textContent = '✓ מאוזן';
+                calcBLResult.textContent = '₪0';
+                calcBLResult.style.color = 'var(--warning)';
+            }
             
             // Settings
             renderSettings();
@@ -2697,12 +4072,13 @@
         }
 
         function renderSalaryTable() {
+            const yd = getYearData();
             const tbody = document.getElementById('salaryTable');
-            if (data.salary.length === 0) {
+            if (yd.salary.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">💼</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = data.salary.map(s => `<tr>
+            tbody.innerHTML = yd.salary.map(s => `<tr>
                 <td>${s.employer || '-'} ${s.notes ? '<span title="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${MONTHS[s.fromMonth]} - ${MONTHS[s.toMonth]}</td>
                 <td>${formatCurrency(s.gross)}</td>
@@ -2716,15 +4092,17 @@
         }
 
         function renderUnemploymentTable() {
+            const yd = getYearData();
             const tbody = document.getElementById('unemploymentTable');
-            if (data.unemployment.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><div class="icon">📋</div><p>לחץ + להוסיף</p></td></tr>';
+            if (yd.unemployment.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">📋</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = data.unemployment.map(u => `<tr>
+            tbody.innerHTML = yd.unemployment.map(u => `<tr>
                 <td>${MONTHS[u.fromMonth]} - ${MONTHS[u.toMonth]} ${u.notes ? '<span title="'+u.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${formatCurrency(u.gross)}</td>
                 <td>${formatCurrency(u.taxDeducted)}</td>
+                <td>${formatCurrency(u.blDeducted || 0)}</td>
                 <td>
                     <button class="btn btn-icon btn-sm" onclick="editUnemployment(${u.id})" title="עריכה">✏️</button>
                     <button class="btn btn-icon btn-sm" onclick="deleteItem('unemployment',${u.id})" title="מחיקה">🗑️</button>
@@ -2732,21 +4110,28 @@
             </tr>`).join('');
         }
 
-        function renderMiluimTable(totalDays, miluimCredits) {
+        function renderMiluimTable(totalDays) {
+            const yd = getYearData();
             const tbody = document.getElementById('miluimTable');
-            document.getElementById('totalMiluimDays').textContent = totalDays;
-            document.getElementById('totalMiluimAmount').textContent = formatCurrency(data.miluim.reduce((s,m) => s+m.amount, 0));
-            document.getElementById('miluimCredits').textContent = miluimCredits.toFixed(2);
+            const totalAmount = yd.miluim.reduce((s,m) => s+m.amount, 0);
+            const totalTax = yd.miluim.reduce((s,m) => s+(m.taxDeducted || 0), 0);
+            const totalBL = yd.miluim.reduce((s,m) => s+(m.blDeducted || 0), 0);
             
-            if (data.miluim.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">🎖️</div><p>לחץ + להוסיף</p></td></tr>';
+            document.getElementById('totalMiluimDays').textContent = totalDays;
+            document.getElementById('totalMiluimAmount').textContent = formatCurrency(totalAmount);
+            document.getElementById('totalMiluimTax').textContent = formatCurrency(totalTax);
+            document.getElementById('totalMiluimBL').textContent = formatCurrency(totalBL);
+            
+            if (yd.miluim.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">🎖️</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = data.miluim.map(m => `<tr>
+            tbody.innerHTML = yd.miluim.map(m => `<tr>
                 <td>${m.from} - ${m.to} ${m.notes ? '<span title="'+m.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${m.days}</td>
-                <td style="color:var(--success)">${formatCurrency(m.amount)}</td>
-                <td>${calculateMiluimCredits(m.days)}</td>
+                <td>${formatCurrency(m.amount)}</td>
+                <td style="color:var(--danger)">${formatCurrency(m.taxDeducted || 0)}</td>
+                <td style="color:var(--warning)">${formatCurrency(m.blDeducted || 0)}</td>
                 <td>
                     <button class="btn btn-icon btn-sm" onclick="editMiluim(${m.id})" title="עריכה">✏️</button>
                     <button class="btn btn-icon btn-sm" onclick="deleteItem('miluim',${m.id})" title="מחיקה">🗑️</button>
@@ -2755,14 +4140,15 @@
         }
 
         function renderSelfEmployedTable() {
+            const yd = getYearData();
             const tbody = document.getElementById('selfEmployedTable');
-            document.getElementById('selfEmployedWarning').style.display = data.selfEmployed.length > 0 ? 'block' : 'none';
+            document.getElementById('selfEmployedWarning').style.display = yd.selfEmployed.length > 0 ? 'block' : 'none';
             
-            if (data.selfEmployed.length === 0) {
+            if (yd.selfEmployed.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><div class="icon">💰</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = data.selfEmployed.map(s => `<tr>
+            tbody.innerHTML = yd.selfEmployed.map(s => `<tr>
                 <td>${MONTHS[s.month]}</td>
                 <td>${s.description || '-'} ${s.notes ? '<span title="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${formatCurrency(s.amount)}</td>
@@ -2774,14 +4160,15 @@
         }
 
         function renderExpenseTable(total) {
+            const yd = getYearData();
             const tbody = document.getElementById('expenseTable');
             document.getElementById('totalExpenses').textContent = formatCurrency(total);
             
-            if (data.expenses.length === 0) {
+            if (yd.expenses.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">🧾</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = data.expenses.map(e => `<tr>
+            tbody.innerHTML = yd.expenses.map(e => `<tr>
                 <td>${e.date}</td>
                 <td>${e.description || '-'} ${e.notes ? '<span title="'+e.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${e.category}</td>
@@ -2794,10 +4181,11 @@
         }
 
         function renderTaxAdvanceTable() {
+            const yd = getYearData();
             const tbody = document.getElementById('taxAdvanceTable');
             const tfoot = document.getElementById('taxAdvanceTotals');
             
-            if (!data.taxAdvances || data.taxAdvances.length === 0) {
+            if (!yd.taxAdvances || yd.taxAdvances.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">🏛️</div><p>לחץ + להוסיף מקדמת מס</p></td></tr>';
                 tfoot.innerHTML = '';
                 return;
@@ -2806,7 +4194,7 @@
             let cumulative = 0;
             let total = 0;
             
-            tbody.innerHTML = data.taxAdvances.map(p => {
+            tbody.innerHTML = yd.taxAdvances.map(p => {
                 cumulative += p.amount;
                 total += p.amount;
                 
@@ -2832,10 +4220,11 @@
         }
 
         function renderBLAdvanceTable() {
+            const yd = getYearData();
             const tbody = document.getElementById('blAdvanceTable');
             const tfoot = document.getElementById('blAdvanceTotals');
             
-            if (!data.blAdvances || data.blAdvances.length === 0) {
+            if (!yd.blAdvances || yd.blAdvances.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">🏥</div><p>לחץ + להוסיף תשלום ביט"ל</p></td></tr>';
                 tfoot.innerHTML = '';
                 return;
@@ -2844,7 +4233,7 @@
             let cumulative = 0;
             let total = 0;
             
-            tbody.innerHTML = data.blAdvances.map(p => {
+            tbody.innerHTML = yd.blAdvances.map(p => {
                 cumulative += p.amount;
                 total += p.amount;
                 
@@ -2870,14 +4259,141 @@
         }
 
         function renderSettings() {
-            let html = '';
-            data.settings.taxBrackets.forEach(b => {
-                html += `<div class="breakdown-item">
-                    <span>${formatCurrency(b.min)} - ${b.max > 900000000 ? '∞' : formatCurrency(b.max)}</span>
-                    <span class="rate">${b.rate}%</span>
+            const yd = getYearData();
+            
+            // Ensure blBrackets exists (migration support)
+            if (!yd.settings.blBrackets) {
+                yd.settings.blBrackets = createEmptyYearData().settings.blBrackets;
+            }
+            
+            // Update year displays
+            const yearDisplayEls = [
+                document.getElementById('settingsYearDisplay'),
+                document.getElementById('taxBracketsYear'),
+                document.getElementById('blBracketsYear')
+            ];
+            yearDisplayEls.forEach(el => { if (el) el.textContent = currentYear; });
+            
+            // Tax brackets
+            let html = '<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px;">מ-סכום | עד-סכום | אחוז</div>';
+            yd.settings.taxBrackets.forEach((b, idx) => {
+                const isLast = idx === yd.settings.taxBrackets.length - 1;
+                html += `<div class="breakdown-item" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <input type="number" value="${b.min}" style="width:80px;padding:5px;border-radius:4px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);text-align:right;" onchange="updateTaxBracket(${idx}, 'min', this.value)">
+                    <span>-</span>
+                    <input type="number" value="${isLast ? '' : b.max}" placeholder="${isLast ? '∞' : ''}" ${isLast ? 'disabled' : ''} style="width:80px;padding:5px;border-radius:4px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);text-align:right;${isLast ? 'opacity:0.5;' : ''}" onchange="updateTaxBracket(${idx}, 'max', this.value)">
+                    <input type="number" value="${b.rate}" style="width:50px;padding:5px;border-radius:4px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);text-align:center;" onchange="updateTaxBracket(${idx}, 'rate', this.value)">
+                    <span>%</span>
                 </div>`;
             });
             document.getElementById('settingsBrackets').innerHTML = html;
+            
+            // BL brackets table
+            let blHtml = `
+                <table style="width:100%;font-size:0.85rem;border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:var(--bg-card);text-align:right;">
+                            <th style="padding:8px;border-bottom:1px solid var(--border);">מדרגה</th>
+                            <th style="padding:8px;border-bottom:1px solid var(--border);">מ-סכום</th>
+                            <th style="padding:8px;border-bottom:1px solid var(--border);">עד-סכום</th>
+                            <th style="padding:8px;border-bottom:1px solid var(--border);">ביט"ל %</th>
+                            <th style="padding:8px;border-bottom:1px solid var(--border);">בריאות %</th>
+                            <th style="padding:8px;border-bottom:1px solid var(--border);">סה"כ %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            yd.settings.blBrackets.forEach((b, idx) => {
+                blHtml += `
+                    <tr>
+                        <td style="padding:8px;border-bottom:1px solid var(--border);font-size:0.8rem;">${b.label || (idx === 0 ? 'מופחת' : 'מלא')}</td>
+                        <td style="padding:4px;border-bottom:1px solid var(--border);">
+                            <input type="number" value="${b.min}" style="width:70px;padding:4px;border-radius:4px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);text-align:right;" onchange="updateBLBracket(${idx}, 'min', this.value)">
+                        </td>
+                        <td style="padding:4px;border-bottom:1px solid var(--border);">
+                            <input type="number" value="${b.max}" style="width:70px;padding:4px;border-radius:4px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);text-align:right;" onchange="updateBLBracket(${idx}, 'max', this.value)">
+                        </td>
+                        <td style="padding:4px;border-bottom:1px solid var(--border);">
+                            <input type="number" value="${b.blRate}" step="0.01" style="width:55px;padding:4px;border-radius:4px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);text-align:center;" onchange="updateBLBracket(${idx}, 'blRate', this.value)">
+                        </td>
+                        <td style="padding:4px;border-bottom:1px solid var(--border);">
+                            <input type="number" value="${b.healthRate}" step="0.01" style="width:55px;padding:4px;border-radius:4px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);text-align:center;" onchange="updateBLBracket(${idx}, 'healthRate', this.value)">
+                        </td>
+                        <td style="padding:8px;border-bottom:1px solid var(--border);font-weight:bold;color:var(--primary);" id="blTotal${idx}">${b.totalRate.toFixed(2)}%</td>
+                    </tr>
+                `;
+            });
+            
+            blHtml += '</tbody></table>';
+            document.getElementById('settingsBLBrackets').innerHTML = blHtml;
+            
+            // Credit value
+            document.getElementById('setCreditValue').value = yd.settings.creditValue;
+        }
+
+        function updateTaxBracket(idx, field, value) {
+            const yd = getYearData();
+            const numValue = parseFloat(value) || 0;
+            
+            if (field === 'min') {
+                yd.settings.taxBrackets[idx].min = numValue;
+                // Update previous bracket's max to match
+                if (idx > 0) {
+                    yd.settings.taxBrackets[idx - 1].max = numValue;
+                }
+            } else if (field === 'max') {
+                yd.settings.taxBrackets[idx].max = numValue;
+                // Update next bracket's min to match
+                if (idx < yd.settings.taxBrackets.length - 1) {
+                    yd.settings.taxBrackets[idx + 1].min = numValue;
+                }
+            } else if (field === 'rate') {
+                yd.settings.taxBrackets[idx].rate = numValue;
+            }
+            
+            saveData();
+            renderAll();
+        }
+
+        function updateTaxBracketRate(idx, value) {
+            updateTaxBracket(idx, 'rate', value);
+        }
+
+        function updateBLBracket(idx, field, value) {
+            const yd = getYearData();
+            const numValue = parseFloat(value) || 0;
+            
+            if (field === 'min') {
+                yd.settings.blBrackets[idx].min = numValue;
+                if (idx > 0) {
+                    yd.settings.blBrackets[idx - 1].max = numValue;
+                }
+            } else if (field === 'max') {
+                yd.settings.blBrackets[idx].max = numValue;
+                if (idx < yd.settings.blBrackets.length - 1) {
+                    yd.settings.blBrackets[idx + 1].min = numValue;
+                }
+            } else if (field === 'blRate' || field === 'healthRate') {
+                yd.settings.blBrackets[idx][field] = numValue;
+                // Update total
+                yd.settings.blBrackets[idx].totalRate = 
+                    (yd.settings.blBrackets[idx].blRate || 0) + 
+                    (yd.settings.blBrackets[idx].healthRate || 0);
+                // Update display
+                const totalEl = document.getElementById('blTotal' + idx);
+                if (totalEl) totalEl.textContent = yd.settings.blBrackets[idx].totalRate.toFixed(2) + '%';
+            }
+            
+            saveData();
+            renderAll();
+        }
+
+        function updateCreditValue() {
+            const yd = getYearData();
+            yd.settings.creditValue = parseFloat(document.getElementById('setCreditValue').value) || 242;
+            saveData();
+            renderAll();
         }
 
         // ========== UTILITIES ==========
