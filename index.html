@@ -2015,6 +2015,7 @@
             
             if (savedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
                 googleAccessToken = savedToken;
+                gapi.client.setToken({ access_token: savedToken });
                 return;
             }
             
@@ -2031,6 +2032,7 @@
                             return;
                         }
                         googleAccessToken = response.access_token;
+                        gapi.client.setToken({ access_token: response.access_token });
                         // Save for 55 minutes
                         localStorage.setItem('googleAccessToken', response.access_token);
                         localStorage.setItem('googleTokenExpiry', String(Date.now() + 55 * 60 * 1000));
@@ -2201,13 +2203,31 @@
             const savedToken = localStorage.getItem('googleAccessToken');
             const tokenExpiry = localStorage.getItem('googleTokenExpiry');
             
+            console.log('Checking saved token...', savedToken ? 'found' : 'none', tokenExpiry ? 'expiry: ' + new Date(parseInt(tokenExpiry)).toLocaleString() : '');
+            
             if (savedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
                 try {
+                    console.log('Token still valid, auto-connecting...');
                     await loadGoogleAPI();
+                    
+                    // Set token in gapi client
                     googleAccessToken = savedToken;
+                    gapi.client.setToken({ access_token: savedToken });
+                    
+                    // Find folder
                     await findOrCreateFolder();
                     updateDriveStatus(true);
+                    console.log('✅ Auto-connected!');
                 } catch (e) {
+                    console.log('Auto-connect failed, clearing token:', e);
+                    localStorage.removeItem('googleAccessToken');
+                    localStorage.removeItem('googleTokenExpiry');
+                    updateDriveStatus(false);
+                }
+            } else {
+                console.log('No valid token found');
+                if (savedToken) {
+                    // Token expired, clear it
                     localStorage.removeItem('googleAccessToken');
                     localStorage.removeItem('googleTokenExpiry');
                 }
