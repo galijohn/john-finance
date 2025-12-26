@@ -2077,8 +2077,21 @@
                 'אבטלה'
             ];
             
-            // Create year folders for all years in data
-            const years = data.years || [currentYear];
+            // Get years from data - make sure it's loaded
+            let years = [];
+            if (data && data.years && data.years.length > 0) {
+                years = data.years;
+            } else {
+                // Fallback - try to load from localStorage
+                const saved = localStorage.getItem('taxCalculatorV2');
+                if (saved) {
+                    const savedData = JSON.parse(saved);
+                    years = savedData.years || [new Date().getFullYear()];
+                } else {
+                    years = [new Date().getFullYear()];
+                }
+            }
+            
             console.log('Creating folders for years:', years);
             
             for (const year of years) {
