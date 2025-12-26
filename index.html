@@ -543,20 +543,26 @@
 </head>
 <body>
     <!-- PIN Lock Screen -->
-    <div id="pinLockScreen" style="position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg-main);z-index:9999;display:none;align-items:center;justify-content:center;">
-        <div style="background:var(--bg-card);padding:40px;border-radius:16px;text-align:center;max-width:300px;width:90%;">
-            <h2 style="margin:0 0 10px;">🔒 נעול</h2>
-            <p id="pinMessage" style="color:var(--text-muted);margin-bottom:20px;">הזן קוד PIN</p>
-            <input type="password" id="pinInput" maxlength="6" 
-                   style="font-size:2rem;text-align:center;width:150px;padding:15px;border-radius:8px;border:2px solid var(--border);background:var(--bg-input);color:var(--text);letter-spacing:10px;"
-                   inputmode="numeric" pattern="[0-9]*">
-            <div style="margin-top:20px;">
-                <button class="btn btn-primary" onclick="checkPin()" style="width:100%;padding:15px;">כניסה</button>
+    <div id="pinLockScreen" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#0f172a;z-index:9999;display:none;align-items:center;justify-content:center;">
+        <div style="background:var(--bg-card);padding:40px;border-radius:16px;text-align:center;max-width:320px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.5);">
+            <div style="margin-bottom:25px;">
+                <div style="font-size:2.5rem;margin-bottom:10px;">💼</div>
+                <h1 style="margin:0;font-size:1.5rem;">ניהול עוסק</h1>
+                <p style="margin:5px 0 0;color:var(--primary);font-size:1rem;">ג'ון לוי</p>
             </div>
-            <div id="pinError" style="color:var(--danger);margin-top:15px;display:none;">קוד שגוי</div>
-            <div id="pinSetup" style="margin-top:20px;display:none;">
-                <p style="color:var(--text-muted);font-size:0.9rem;">הגדרת PIN חדש</p>
-                <button class="btn" onclick="setupPin()" style="width:100%;">שמור PIN</button>
+            <div style="border-top:1px solid var(--border);padding-top:25px;">
+                <p id="pinMessage" style="color:var(--text-muted);margin-bottom:15px;">הזן קוד PIN</p>
+                <input type="password" id="pinInput" maxlength="6" 
+                       style="font-size:2rem;text-align:center;width:150px;padding:15px;border-radius:8px;border:2px solid var(--border);background:var(--bg-input);color:var(--text);letter-spacing:10px;"
+                       inputmode="numeric" pattern="[0-9]*">
+                <div style="margin-top:20px;">
+                    <button class="btn btn-primary" onclick="checkPin()" style="width:100%;padding:15px;">כניסה</button>
+                </div>
+                <div id="pinError" style="color:var(--danger);margin-top:15px;display:none;">קוד שגוי</div>
+                <div id="pinSetup" style="margin-top:20px;display:none;">
+                    <p style="color:var(--text-muted);font-size:0.9rem;">הגדרת PIN חדש</p>
+                    <button class="btn" onclick="setupPin()" style="width:100%;">שמור PIN</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1191,12 +1197,16 @@
                     <span>הכנסה כעצמאי (נטו מהוצאות)</span>
                     <span id="calcBLIncome">₪0</span>
                 </div>
+                <div class="summary-row" style="font-size:0.9rem;color:var(--text-muted);">
+                    <span id="calcBLMonthsLabel">חודשים כעצמאי: 12</span>
+                    <span id="calcBLThresholds">סף: ₪90,264</span>
+                </div>
                 <div class="summary-row">
-                    <span>שיעור מופחת (7.70% עד ₪90,264)</span>
+                    <span id="calcBLReducedLabel">שיעור מופחת 7.70%</span>
                     <span id="calcBLReduced">₪0</span>
                 </div>
                 <div class="summary-row">
-                    <span>שיעור מלא (18% מעל ₪90,264)</span>
+                    <span id="calcBLFullLabel">שיעור מלא 18%</span>
                     <span id="calcBLFull">₪0</span>
                 </div>
                 <div class="summary-row total">
@@ -1292,6 +1302,26 @@
                         <option value="patur">עוסק פטור (עד 107,692₪ בשנה)</option>
                         <option value="murshe">עוסק מורשה (עם מע"מ)</option>
                     </select>
+                </div>
+                <div class="form-group">
+                    <label>חודשים כעצמאי בשנה זו</label>
+                    <select class="form-control" id="selfEmployedMonths" onchange="updateSelfEmployedMonths()">
+                        <option value="1">1 חודש</option>
+                        <option value="2">2 חודשים</option>
+                        <option value="3">3 חודשים</option>
+                        <option value="4">4 חודשים</option>
+                        <option value="5">5 חודשים</option>
+                        <option value="6">6 חודשים</option>
+                        <option value="7">7 חודשים</option>
+                        <option value="8">8 חודשים</option>
+                        <option value="9">9 חודשים</option>
+                        <option value="10">10 חודשים</option>
+                        <option value="11">11 חודשים</option>
+                        <option value="12" selected>12 חודשים (שנה מלאה)</option>
+                    </select>
+                    <div style="font-size:0.85rem;color:var(--text-muted);margin-top:5px;">
+                        משפיע על חישוב ביטוח לאומי - מדרגות לפי חודשים
+                    </div>
                 </div>
                 <div id="vatInfo" style="display:none;">
                     <div class="info-box">
@@ -3025,6 +3055,7 @@
                 blAdvances: [],
                 vatReports: [],
                 businessStatus: 'zair',
+                selfEmployedMonths: 12,
                 credits: {
                     woman: false,
                     divorcedAlimony: false,
@@ -3869,12 +3900,24 @@
             saveData();
             renderAll();
         }
+        
+        function updateSelfEmployedMonths() {
+            const yd = getYearData();
+            yd.selfEmployedMonths = parseInt(document.getElementById('selfEmployedMonths').value) || 12;
+            saveData();
+            renderAll();
+        }
 
         function loadBusinessStatus() {
             const yd = getYearData();
             const status = yd.businessStatus || 'zair';
             const select = document.getElementById('businessStatus');
             if (select) select.value = status;
+            
+            // Load self employed months
+            const months = yd.selfEmployedMonths || 12;
+            const monthsSelect = document.getElementById('selfEmployedMonths');
+            if (monthsSelect) monthsSelect.value = months;
             
             const vatInfo = document.getElementById('vatInfo');
             const navVat = document.getElementById('navVat');
@@ -4195,33 +4238,39 @@
         function calculateBituachLeumi(selfEmployedIncome) {
             const yd = getYearData();
             
-            // Ensure blBrackets exists (migration support)
-            if (!yd.settings.blBrackets) {
-                yd.settings.blBrackets = createEmptyYearData().settings.blBrackets;
-            }
+            // Get number of months as self-employed (default 12)
+            const months = yd.selfEmployedMonths || 12;
             
-            const brackets = yd.settings.blBrackets;
-            let total = 0;
+            // Monthly thresholds (2025)
+            const monthlyReducedThreshold = 7522;  // 60% of average salary
+            const monthlyMaxThreshold = 50695;     // Maximum insurable income
+            
+            // Calculate thresholds based on actual months
+            const reducedThreshold = monthlyReducedThreshold * months;
+            const maxThreshold = monthlyMaxThreshold * months;
+            
+            // Rates
+            const reducedRate = 7.70;  // BL 4.47% + Health 3.23%
+            const fullRate = 18;       // BL 12.83% + Health 5.17%
+            
             let reduced = 0;
             let full = 0;
             
-            for (let i = 0; i < brackets.length; i++) {
-                const bracket = brackets[i];
-                if (selfEmployedIncome <= bracket.min) break;
-                
-                const incomeInBracket = Math.min(selfEmployedIncome, bracket.max) - bracket.min;
-                const amountInBracket = incomeInBracket * ((bracket.totalRate || 0) / 100);
-                total += amountInBracket;
-                
-                // First bracket = reduced, second = full
-                if (i === 0) {
-                    reduced = amountInBracket;
-                } else {
-                    full += amountInBracket;
-                }
+            // Calculate reduced rate portion (up to threshold)
+            if (selfEmployedIncome > 0) {
+                const incomeForReduced = Math.min(selfEmployedIncome, reducedThreshold);
+                reduced = incomeForReduced * (reducedRate / 100);
             }
             
-            return { total, reduced, full };
+            // Calculate full rate portion (above reduced threshold, up to max)
+            if (selfEmployedIncome > reducedThreshold) {
+                const incomeForFull = Math.min(selfEmployedIncome, maxThreshold) - reducedThreshold;
+                full = incomeForFull * (fullRate / 100);
+            }
+            
+            const total = reduced + full;
+            
+            return { total, reduced, full, months, reducedThreshold, maxThreshold };
         }
 
         // ========== RENDERING ==========
@@ -4352,6 +4401,10 @@
             document.getElementById('calcNetTax').textContent = formatCurrency(netTax);
             
             document.getElementById('calcBLIncome').textContent = formatCurrency(totals.selfEmployedNet);
+            document.getElementById('calcBLMonthsLabel').textContent = `חודשים כעצמאי: ${bl.months || 12}`;
+            document.getElementById('calcBLThresholds').textContent = `סף מופחת: ${formatCurrency(bl.reducedThreshold || 90264)}`;
+            document.getElementById('calcBLReducedLabel').textContent = `שיעור מופחת 7.70% (עד ${formatCurrency(bl.reducedThreshold || 90264)})`;
+            document.getElementById('calcBLFullLabel').textContent = `שיעור מלא 18% (עד ${formatCurrency(bl.maxThreshold || 608340)})`;
             document.getElementById('calcBLReduced').textContent = formatCurrency(bl.reduced);
             document.getElementById('calcBLFull').textContent = formatCurrency(bl.full);
             document.getElementById('calcTotalBL').textContent = formatCurrency(bl.total);
