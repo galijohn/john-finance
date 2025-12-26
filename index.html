@@ -542,6 +542,25 @@
     </style>
 </head>
 <body>
+    <!-- PIN Lock Screen -->
+    <div id="pinLockScreen" style="position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg-main);z-index:9999;display:none;align-items:center;justify-content:center;">
+        <div style="background:var(--bg-card);padding:40px;border-radius:16px;text-align:center;max-width:300px;width:90%;">
+            <h2 style="margin:0 0 10px;">🔒 נעול</h2>
+            <p id="pinMessage" style="color:var(--text-muted);margin-bottom:20px;">הזן קוד PIN</p>
+            <input type="password" id="pinInput" maxlength="6" 
+                   style="font-size:2rem;text-align:center;width:150px;padding:15px;border-radius:8px;border:2px solid var(--border);background:var(--bg-input);color:var(--text);letter-spacing:10px;"
+                   inputmode="numeric" pattern="[0-9]*">
+            <div style="margin-top:20px;">
+                <button class="btn btn-primary" onclick="checkPin()" style="width:100%;padding:15px;">כניסה</button>
+            </div>
+            <div id="pinError" style="color:var(--danger);margin-top:15px;display:none;">קוד שגוי</div>
+            <div id="pinSetup" style="margin-top:20px;display:none;">
+                <p style="color:var(--text-muted);font-size:0.9rem;">הגדרת PIN חדש</p>
+                <button class="btn" onclick="setupPin()" style="width:100%;">שמור PIN</button>
+            </div>
+        </div>
+    </div>
+
     <nav class="sidebar">
         <div class="logo">
             <h1>💼 ניהול עוסק</h1>
@@ -637,8 +656,8 @@
                     <span class="fav-name">תיקייה מקומית</span>
                 </button>
                 <button class="btn btn-favorite" id="fav5" onclick="openFavorite(5)" oncontextmenu="editFavorite(event, 5)">
-                    <span class="fav-icon">⚙️</span>
-                    <span class="fav-name">הגדר...</span>
+                    <span class="fav-icon">🌐</span>
+                    <span class="fav-name">אתר...</span>
                 </button>
                 <button class="btn btn-icon btn-sm" onclick="openModal('favoritesModal')" title="ערוך מועדפים" style="margin-right:auto;">✏️</button>
             </div>
@@ -1348,6 +1367,14 @@
                     <button class="btn btn-success" onclick="document.getElementById('importFile').click()">📤 ייבא קובץ</button>
                     <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
                     <button class="btn btn-danger" onclick="clearAllData()">🗑️ נקה הכל</button>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:20px;">
+                <h3 style="margin:0 0 15px;">🔒 קוד PIN</h3>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn btn-primary" onclick="changePin()">🔑 שנה PIN</button>
+                    <button class="btn btn-danger" onclick="removePin()">🗑️ הסר PIN</button>
                 </div>
             </div>
         </div>
@@ -2328,7 +2355,7 @@
             { name: 'ביטוח לאומי', icon: '🏥', url: 'https://www.btl.gov.il/' },
             { name: 'מע"מ', icon: '📊', url: 'https://www.gov.il/he/service/vat-reports' },
             { name: 'חשבשבת', icon: '🧮', url: 'https://www.hashavshevet.co.il/' },
-            { name: 'הגדר...', icon: '⚙️', url: '' }
+            { name: 'אתר...', icon: '🌐', url: '' }
         ];
         
         function loadFavorites() {
@@ -3049,6 +3076,83 @@
         const MONTHS = ['', 'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
 
         // ========== INIT ==========
+        // ===== PIN LOCK =====
+        function checkPinOnLoad() {
+            const lockScreen = document.getElementById('pinLockScreen');
+            const savedPin = data.pin || null;
+            
+            if (!savedPin) {
+                // No PIN set - show setup
+                lockScreen.style.display = 'flex';
+                document.getElementById('pinMessage').textContent = 'הגדר קוד PIN (4-6 ספרות)';
+                document.getElementById('pinSetup').style.display = 'block';
+                document.querySelector('#pinLockScreen .btn-primary').style.display = 'none';
+            } else {
+                // PIN exists - require it
+                lockScreen.style.display = 'flex';
+                setTimeout(() => document.getElementById('pinInput').focus(), 100);
+            }
+            
+            // Enter key to submit
+            document.getElementById('pinInput').addEventListener('keyup', (e) => {
+                if (e.key === 'Enter') {
+                    if (!data.pin) {
+                        setupPin();
+                    } else {
+                        checkPin();
+                    }
+                }
+            });
+        }
+        
+        function setupPin() {
+            const pin = document.getElementById('pinInput').value;
+            if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) {
+                document.getElementById('pinError').textContent = 'PIN חייב להיות 4-6 ספרות';
+                document.getElementById('pinError').style.display = 'block';
+                return;
+            }
+            
+            // Save PIN in data (will sync to cloud)
+            data.pin = pin;
+            saveData();
+            
+            document.getElementById('pinLockScreen').style.display = 'none';
+        }
+        
+        function checkPin() {
+            const pin = document.getElementById('pinInput').value;
+            const savedPin = data.pin || null;
+            
+            if (pin === savedPin) {
+                document.getElementById('pinLockScreen').style.display = 'none';
+            } else {
+                document.getElementById('pinError').textContent = 'קוד שגוי';
+                document.getElementById('pinError').style.display = 'block';
+                document.getElementById('pinInput').value = '';
+                document.getElementById('pinInput').focus();
+            }
+        }
+        
+        function changePin() {
+            const newPin = prompt('הזן PIN חדש (4-6 ספרות):');
+            if (newPin && newPin.length >= 4 && newPin.length <= 6 && /^\d+$/.test(newPin)) {
+                data.pin = newPin;
+                saveData();
+                alert('✅ PIN שונה בהצלחה!');
+            } else if (newPin !== null) {
+                alert('❌ PIN חייב להיות 4-6 ספרות');
+            }
+        }
+        
+        function removePin() {
+            if (confirm('להסיר את ה-PIN?')) {
+                delete data.pin;
+                saveData();
+                alert('✅ PIN הוסר');
+            }
+        }
+
         // ===== CLOCK UPDATE =====
         function updateClock() {
             const now = new Date();
@@ -4702,6 +4806,7 @@
         }
 
         init();
+        checkPinOnLoad();
     </script>
 </body>
 </html>
