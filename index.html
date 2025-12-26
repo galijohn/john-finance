@@ -589,6 +589,18 @@
             <span class="icon">🏠</span>
             <span class="nav-text">דשבורד</span>
         </div>
+        <div class="nav-item" onclick="showPage('selfemployed')">
+            <span class="icon">💰</span>
+            <span class="nav-text">עצמאי</span>
+        </div>
+        <div class="nav-item" onclick="showPage('expenses')">
+            <span class="icon">🧾</span>
+            <span class="nav-text">הוצאות מוכרות</span>
+        </div>
+        <div class="nav-item" onclick="showPage('miluim')">
+            <span class="icon">🎖️</span>
+            <span class="nav-text">מילואים</span>
+        </div>
         <div class="nav-item" onclick="showPage('salary')">
             <span class="icon">💼</span>
             <span class="nav-text">הכנסה כשכיר</span>
@@ -597,17 +609,9 @@
             <span class="icon">📋</span>
             <span class="nav-text">דמי אבטלה</span>
         </div>
-        <div class="nav-item" onclick="showPage('miluim')">
-            <span class="icon">🎖️</span>
-            <span class="nav-text">מילואים</span>
-        </div>
-        <div class="nav-item" onclick="showPage('selfemployed')">
-            <span class="icon">💰</span>
-            <span class="nav-text">עצמאי</span>
-        </div>
-        <div class="nav-item" onclick="showPage('expenses')">
-            <span class="icon">🧾</span>
-            <span class="nav-text">הוצאות מוכרות</span>
+        <div class="nav-item" onclick="showPage('forecast')">
+            <span class="icon">📈</span>
+            <span class="nav-text">תחזית שנתית</span>
         </div>
         <div class="nav-item" onclick="showPage('vat')" id="navVat" style="display:none;">
             <span class="icon">📊</span>
@@ -1292,6 +1296,143 @@
                 </div>
             </div>
 
+        </div>
+
+        <!-- Forecast Page -->
+        <div id="page-forecast" class="page">
+            <div class="page-header">
+                <h2>📈 תחזית שנתית</h2>
+            </div>
+
+            <div class="info-box">
+                <strong>💡 איך זה עובד?</strong><br>
+                הזן את התחזית שלך להכנסות והוצאות, והמערכת תחשב כמה תצטרך לשלם מקדמות מס וביטוח לאומי.
+            </div>
+
+            <div class="card" style="margin-bottom:20px;">
+                <h3 style="margin:0 0 20px;">📥 הזן תחזית</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>הכנסה צפויה כעצמאי (שנתי)</label>
+                        <input type="number" class="form-control" id="forecastIncome" placeholder="₪0" onchange="calculateForecast()">
+                    </div>
+                    <div class="form-group">
+                        <label>הוצאות מוכרות צפויות (שנתי)</label>
+                        <input type="number" class="form-control" id="forecastExpenses" placeholder="₪0" onchange="calculateForecast()">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>הכנסות אחרות (שכיר/אבטלה/מילואים)</label>
+                        <input type="number" class="form-control" id="forecastOtherIncome" placeholder="₪0" onchange="calculateForecast()">
+                    </div>
+                    <div class="form-group">
+                        <label>מס שנוכה ממקורות אחרים</label>
+                        <input type="number" class="form-control" id="forecastOtherTax" placeholder="₪0" onchange="calculateForecast()">
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="calculateForecast()" style="margin-top:10px;">🧮 חשב תחזית</button>
+                <button class="btn" onclick="loadActualToForecast()" style="margin-top:10px;">📊 טען נתונים בפועל</button>
+            </div>
+
+            <div class="cards-grid" style="margin-bottom:20px;">
+                <div class="card stat-card">
+                    <div class="icon">💵</div>
+                    <div class="value" id="forecastNetIncome" style="color:var(--primary)">₪0</div>
+                    <div class="label">הכנסה נטו צפויה</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="icon">🏛️</div>
+                    <div class="value" id="forecastTaxDue" style="color:var(--danger)">₪0</div>
+                    <div class="label">מס הכנסה צפוי</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="icon">🏥</div>
+                    <div class="value" id="forecastBLDue" style="color:var(--warning)">₪0</div>
+                    <div class="label">ביט"ל + בריאות צפוי</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="icon">💳</div>
+                    <div class="value" id="forecastTotalDue" style="color:var(--purple)">₪0</div>
+                    <div class="label">סה"כ לתשלום</div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom:20px;background:linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(37, 99, 235, 0.05));border-color:var(--primary);">
+                <h3 style="margin:0 0 15px;">💳 מקדמות חודשיות מומלצות</h3>
+                <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:20px;text-align:center;">
+                    <div>
+                        <div style="font-size:0.9rem;color:var(--text-muted);">מס הכנסה</div>
+                        <div style="font-size:1.5rem;font-weight:bold;color:var(--danger);" id="forecastMonthlyTax">₪0</div>
+                        <div style="font-size:0.8rem;color:var(--text-muted);">לחודש</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.9rem;color:var(--text-muted);">ביט"ל + בריאות</div>
+                        <div style="font-size:1.5rem;font-weight:bold;color:var(--warning);" id="forecastMonthlyBL">₪0</div>
+                        <div style="font-size:0.8rem;color:var(--text-muted);">לחודש</div>
+                    </div>
+                    <div style="background:rgba(139,92,246,0.2);padding:15px;border-radius:8px;">
+                        <div style="font-size:0.9rem;color:var(--text-muted);">סה"כ</div>
+                        <div style="font-size:1.8rem;font-weight:bold;color:var(--purple);" id="forecastMonthlyTotal">₪0</div>
+                        <div style="font-size:0.8rem;color:var(--text-muted);">לחודש</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin:0 0 15px;">📅 לוח תשלומים שנתי</h3>
+                <div class="table-container" style="border:none;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>חודש</th>
+                                <th>מס הכנסה</th>
+                                <th>ביט"ל</th>
+                                <th>סה"כ</th>
+                                <th>מצטבר</th>
+                            </tr>
+                        </thead>
+                        <tbody id="forecastTable"></tbody>
+                        <tfoot id="forecastTotals"></tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:20px;">
+                <h3 style="margin:0 0 15px;">📊 פירוט חישוב</h3>
+                <div class="summary-row">
+                    <span>הכנסה כעצמאי צפויה</span>
+                    <span id="forecastDetailIncome">₪0</span>
+                </div>
+                <div class="summary-row">
+                    <span style="color:var(--danger)">(-) הוצאות מוכרות צפויות</span>
+                    <span id="forecastDetailExpenses" style="color:var(--danger)">₪0</span>
+                </div>
+                <div class="summary-row">
+                    <span>(+) הכנסות אחרות</span>
+                    <span id="forecastDetailOther">₪0</span>
+                </div>
+                <div class="summary-row total">
+                    <span>סה"כ הכנסה חייבת צפויה</span>
+                    <span id="forecastDetailTaxable">₪0</span>
+                </div>
+                <div class="summary-row" style="margin-top:15px;">
+                    <span>מס ברוטו (לפני זיכויים)</span>
+                    <span id="forecastDetailGrossTax">₪0</span>
+                </div>
+                <div class="summary-row">
+                    <span style="color:var(--success)">(-) זיכוי נקודות (<span id="forecastDetailCredits">0</span> נק')</span>
+                    <span id="forecastDetailCreditValue" style="color:var(--success)">₪0</span>
+                </div>
+                <div class="summary-row">
+                    <span style="color:var(--success)">(-) מס שנוכה ממקורות אחרים</span>
+                    <span id="forecastDetailOtherTax" style="color:var(--success)">₪0</span>
+                </div>
+                <div class="summary-row total" style="color:var(--danger);">
+                    <span>מס הכנסה לתשלום (עצמאי)</span>
+                    <span id="forecastDetailNetTax">₪0</span>
+                </div>
+            </div>
         </div>
 
         <!-- Settings Page -->
@@ -4417,6 +4558,141 @@
             return { total, reduced, full, months, reducedThreshold, maxThreshold };
         }
 
+        // ========== FORECAST CALCULATIONS ==========
+        function calculateForecast() {
+            const yd = getYearData();
+            
+            // Get input values
+            const income = parseFloat(document.getElementById('forecastIncome').value) || 0;
+            const expenses = parseFloat(document.getElementById('forecastExpenses').value) || 0;
+            const otherIncome = parseFloat(document.getElementById('forecastOtherIncome').value) || 0;
+            const otherTax = parseFloat(document.getElementById('forecastOtherTax').value) || 0;
+            
+            // Calculate net self-employed income
+            const netSelfEmployed = Math.max(0, income - expenses);
+            
+            // Total taxable income
+            const taxableIncome = netSelfEmployed + otherIncome;
+            
+            // Calculate tax
+            const credits = calculateCredits();
+            const creditValue = credits * yd.settings.creditValue * 12;
+            const { gross: grossTax } = calculateIncomeTax(taxableIncome);
+            const netTax = Math.max(0, grossTax - creditValue);
+            
+            // Tax to pay as self-employed (minus what's already deducted from other sources)
+            const selfEmployedTax = Math.max(0, netTax - otherTax);
+            
+            // Calculate BL on self-employed income
+            const bl = calculateBituachLeumi(netSelfEmployed);
+            
+            // Total to pay
+            const totalDue = selfEmployedTax + bl.total;
+            
+            // Monthly amounts (for remaining months or full year)
+            const months = yd.selfEmployedMonths || 12;
+            const monthlyTax = Math.ceil(selfEmployedTax / months);
+            const monthlyBL = Math.ceil(bl.total / months);
+            const monthlyTotal = monthlyTax + monthlyBL;
+            
+            // Update display - Summary cards
+            document.getElementById('forecastNetIncome').textContent = formatCurrency(netSelfEmployed);
+            document.getElementById('forecastTaxDue').textContent = formatCurrency(selfEmployedTax);
+            document.getElementById('forecastBLDue').textContent = formatCurrency(bl.total);
+            document.getElementById('forecastTotalDue').textContent = formatCurrency(totalDue);
+            
+            // Update monthly recommendations
+            document.getElementById('forecastMonthlyTax').textContent = formatCurrency(monthlyTax);
+            document.getElementById('forecastMonthlyBL').textContent = formatCurrency(monthlyBL);
+            document.getElementById('forecastMonthlyTotal').textContent = formatCurrency(monthlyTotal);
+            
+            // Update detail section
+            document.getElementById('forecastDetailIncome').textContent = formatCurrency(income);
+            document.getElementById('forecastDetailExpenses').textContent = '-' + formatCurrency(expenses);
+            document.getElementById('forecastDetailOther').textContent = formatCurrency(otherIncome);
+            document.getElementById('forecastDetailTaxable').textContent = formatCurrency(taxableIncome);
+            document.getElementById('forecastDetailGrossTax').textContent = formatCurrency(grossTax);
+            document.getElementById('forecastDetailCredits').textContent = credits.toFixed(2);
+            document.getElementById('forecastDetailCreditValue').textContent = '-' + formatCurrency(Math.min(creditValue, grossTax));
+            document.getElementById('forecastDetailOtherTax').textContent = '-' + formatCurrency(otherTax);
+            document.getElementById('forecastDetailNetTax').textContent = formatCurrency(selfEmployedTax);
+            
+            // Render payment schedule table
+            renderForecastTable(monthlyTax, monthlyBL, months);
+            
+            // Save forecast to data
+            yd.forecast = {
+                income,
+                expenses,
+                otherIncome,
+                otherTax
+            };
+            saveData();
+        }
+        
+        function renderForecastTable(monthlyTax, monthlyBL, months) {
+            const tbody = document.getElementById('forecastTable');
+            const tfoot = document.getElementById('forecastTotals');
+            
+            let html = '';
+            let cumulative = 0;
+            let totalTax = 0;
+            let totalBL = 0;
+            
+            for (let i = 1; i <= months; i++) {
+                const monthTotal = monthlyTax + monthlyBL;
+                cumulative += monthTotal;
+                totalTax += monthlyTax;
+                totalBL += monthlyBL;
+                
+                html += `<tr>
+                    <td>${MONTHS[i]}</td>
+                    <td style="color:var(--danger)">${formatCurrency(monthlyTax)}</td>
+                    <td style="color:var(--warning)">${formatCurrency(monthlyBL)}</td>
+                    <td style="color:var(--purple)">${formatCurrency(monthTotal)}</td>
+                    <td style="color:var(--primary)">${formatCurrency(cumulative)}</td>
+                </tr>`;
+            }
+            
+            tbody.innerHTML = html;
+            
+            tfoot.innerHTML = `<tr style="background:rgba(139,92,246,0.1);font-weight:bold;">
+                <td>סה"כ שנתי</td>
+                <td style="color:var(--danger)">${formatCurrency(totalTax)}</td>
+                <td style="color:var(--warning)">${formatCurrency(totalBL)}</td>
+                <td style="color:var(--purple)">${formatCurrency(totalTax + totalBL)}</td>
+                <td></td>
+            </tr>`;
+        }
+        
+        function loadActualToForecast() {
+            const totals = calculateTotals();
+            
+            // Load actual values to forecast inputs
+            document.getElementById('forecastIncome').value = totals.selfEmployed || 0;
+            document.getElementById('forecastExpenses').value = totals.expenses || 0;
+            document.getElementById('forecastOtherIncome').value = (totals.salary + totals.unemployment + totals.miluim) || 0;
+            document.getElementById('forecastOtherTax').value = (totals.taxFromSalary + totals.taxFromUnemployment + totals.taxFromMiluim) || 0;
+            
+            // Recalculate
+            calculateForecast();
+        }
+        
+        function loadForecastFromData() {
+            const yd = getYearData();
+            if (yd.forecast) {
+                document.getElementById('forecastIncome').value = yd.forecast.income || 0;
+                document.getElementById('forecastExpenses').value = yd.forecast.expenses || 0;
+                document.getElementById('forecastOtherIncome').value = yd.forecast.otherIncome || 0;
+                document.getElementById('forecastOtherTax').value = yd.forecast.otherTax || 0;
+                calculateForecast();
+            } else {
+                // Show empty table
+                const months = yd.selfEmployedMonths || 12;
+                renderForecastTable(0, 0, months);
+            }
+        }
+
         // ========== RENDERING ==========
         function renderAll() {
             const yd = getYearData();
@@ -4628,6 +4904,9 @@
             
             // Settings
             renderSettings();
+            
+            // Forecast
+            loadForecastFromData();
             
             // Apply dashboard settings
             applyDashboardSettings();
