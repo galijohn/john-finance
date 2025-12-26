@@ -4520,11 +4520,11 @@
             return { gross: tax, details };
         }
 
-        function calculateBituachLeumi(selfEmployedIncome) {
+        function calculateBituachLeumi(selfEmployedIncome, overrideMonths = null) {
             const yd = getYearData();
             
-            // Get number of months as self-employed (default 12)
-            const months = yd.selfEmployedMonths || 12;
+            // Get number of months as self-employed (default 12, or use override for forecast)
+            const months = overrideMonths !== null ? overrideMonths : (yd.selfEmployedMonths || 12);
             
             // Monthly thresholds (2025)
             const monthlyReducedThreshold = 7522;  // 60% of average salary
@@ -4583,16 +4583,15 @@
             // Tax to pay as self-employed (minus what's already deducted from other sources)
             const selfEmployedTax = Math.max(0, netTax - otherTax);
             
-            // Calculate BL on self-employed income
-            const bl = calculateBituachLeumi(netSelfEmployed);
+            // Calculate BL on self-employed income - use 12 months for yearly forecast
+            const bl = calculateBituachLeumi(netSelfEmployed, 12);
             
             // Total to pay
             const totalDue = selfEmployedTax + bl.total;
             
-            // Monthly amounts (for remaining months or full year)
-            const months = yd.selfEmployedMonths || 12;
-            const monthlyTax = Math.ceil(selfEmployedTax / months);
-            const monthlyBL = Math.ceil(bl.total / months);
+            // Monthly amounts - ALWAYS divide by 12 for monthly advance payments
+            const monthlyTax = Math.ceil(selfEmployedTax / 12);
+            const monthlyBL = Math.ceil(bl.total / 12);
             const monthlyTotal = monthlyTax + monthlyBL;
             
             // Update display - Summary cards
@@ -4617,8 +4616,8 @@
             document.getElementById('forecastDetailOtherTax').textContent = '-' + formatCurrency(otherTax);
             document.getElementById('forecastDetailNetTax').textContent = formatCurrency(selfEmployedTax);
             
-            // Render payment schedule table
-            renderForecastTable(monthlyTax, monthlyBL, months);
+            // Render payment schedule table - always 12 months
+            renderForecastTable(monthlyTax, monthlyBL, 12);
             
             // Save forecast to data
             yd.forecast = {
@@ -4687,9 +4686,8 @@
                 document.getElementById('forecastOtherTax').value = yd.forecast.otherTax || 0;
                 calculateForecast();
             } else {
-                // Show empty table
-                const months = yd.selfEmployedMonths || 12;
-                renderForecastTable(0, 0, months);
+                // Show empty table - always 12 months
+                renderForecastTable(0, 0, 12);
             }
         }
 
