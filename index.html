@@ -1345,6 +1345,7 @@
                     <button class="btn btn-primary" onclick="selectLocalFolder()">📂 בחר תיקייה</button>
                     <button class="btn btn-success" onclick="createLocalFolderStructure()" id="btnCreateLocalFolders" disabled>📁 צור מבנה תיקיות</button>
                     <button class="btn" onclick="openLocalFolder()" id="btnOpenLocalFolder" disabled>📋 העתק נתיב</button>
+                    <button class="btn btn-primary" onclick="restoreFromLocalFolder()" id="btnRestoreLocal" disabled>📥 שחזר מתיקייה</button>
                 </div>
                 <div id="localFolderBrowserWarning" style="display:none;margin-top:10px;padding:10px;background:rgba(245,158,11,0.1);border-radius:8px;color:var(--warning);">
                     ⚠️ הדפדפן שלך לא תומך בגישה לתיקיות. השתמש ב-Chrome או Edge.
@@ -1357,7 +1358,7 @@
                     <code style="background:var(--bg-input);padding:10px;display:block;margin-top:10px;border-radius:5px;direction:ltr;text-align:left;">
 📁 john-finance/<br>
 ├── 📁 2025/<br>
-│   ├── 📁 טפסים-106/<br>
+│   ├── 📁 שכיר/<br>
 │   ├── 📁 מקדמות-מס/<br>
 │   ├── 📁 ביטוח-לאומי/<br>
 │   ├── 📁 חשבוניות-עצמאי/<br>
@@ -1451,16 +1452,16 @@
                 </div>
                 <div class="form-group">
                     <label>📎 הערות</label>
-                    <input type="text" class="form-control" id="salaryNotes" placeholder="לדוגמה: טופס 106">
+                    <input type="text" class="form-control" id="salaryNotes" placeholder="תלוש שכר / טופס 106">
                 </div>
                 <div class="form-group">
-                    <label>📄 צרף מסמך (טופס 106)</label>
+                    <label>📄 צרף מסמך</label>
                     <div style="display:flex;gap:10px;align-items:center;">
                         <input type="file" id="salaryFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
                         <span id="salaryFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
                     </div>
                     <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
-                        יישמר בתיקייה: טפסים-106/ (מקומי + Google Drive)
+                        יישמר בתיקייה: שכיר/ (מקומי + Google Drive)
                     </div>
                 </div>
             </div>
@@ -2014,14 +2015,39 @@
                 return;
             }
             
+            // Show connecting status
+            document.getElementById('driveStatusText').innerHTML = '⏳ מתחבר ל-Google...';
+            
             try {
                 // Load the Google API client
                 await loadGoogleAPI();
                 await authenticateGoogle();
+                await findOrCreateDriveRootFolder();
                 updateDriveStatus(true);
             } catch (error) {
                 console.error('Google Drive init error:', error);
                 updateDriveStatus(false, error.message);
+            }
+        }
+        
+        // Find or create john-finance root folder
+        async function findOrCreateDriveRootFolder() {
+            const search = await gapi.client.drive.files.list({
+                q: `name='john-finance' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+                fields: 'files(id)'
+            });
+            
+            if (search.result.files.length > 0) {
+                driveFolderId = search.result.files[0].id;
+            } else {
+                const create = await gapi.client.drive.files.create({
+                    resource: {
+                        name: 'john-finance',
+                        mimeType: 'application/vnd.google-apps.folder'
+                    },
+                    fields: 'id'
+                });
+                driveFolderId = create.result.id;
             }
         }
 
@@ -2046,7 +2072,8 @@
                 apiKey: GOOGLE_API_KEY,
                 clientId: GOOGLE_CLIENT_ID,
                 discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
-                scope: 'https://www.googleapis.com/auth/drive.file'
+                scope: 'https://www.googleapis.com/auth/drive.file',
+                cookiePolicy: 'single_host_origin'
             });
             
             const authInstance = gapi.auth2.getAuthInstance();
@@ -2060,17 +2087,20 @@
             const statusEl = document.getElementById('driveStatusText');
             const backupBtn = document.getElementById('btnBackup');
             const restoreBtn = document.getElementById('btnRestore');
+            const createFoldersBtn = document.getElementById('btnCreateDriveFolders');
             
             if (connected) {
                 statusEl.innerHTML = '✅ מחובר ל-Google Drive';
                 statusEl.style.color = 'var(--success)';
                 backupBtn.disabled = false;
                 restoreBtn.disabled = false;
+                if (createFoldersBtn) createFoldersBtn.disabled = false;
             } else {
                 statusEl.innerHTML = '❌ לא מחובר' + (error ? ': ' + error : '');
                 statusEl.style.color = 'var(--danger)';
                 backupBtn.disabled = true;
                 restoreBtn.disabled = true;
+                if (createFoldersBtn) createFoldersBtn.disabled = true;
             }
         }
 
@@ -2221,7 +2251,7 @@
                 
                 // Create subfolders inside year folder
                 const subFolders = [
-                    'טפסים-106',
+                    'שכיר',
                     'מקדמות-מס',
                     'ביטוח-לאומי',
                     'חשבוניות-עצמאי',
@@ -2353,7 +2383,7 @@
 
         // ========== LOCAL FOLDER MANAGEMENT ==========
         const FOLDER_STRUCTURE = [
-            'טפסים-106',
+            'שכיר',
             'מקדמות-מס', 
             'ביטוח-לאומי',
             'חשבוניות-עצמאי',
@@ -2448,14 +2478,16 @@
             const iconEl = document.getElementById('localFolderIcon');
             const btnCreate = document.getElementById('btnCreateLocalFolders');
             const btnOpen = document.getElementById('btnOpenLocalFolder');
+            const btnRestore = document.getElementById('btnRestoreLocal');
             
             if (localFolderHandle) {
                 pathEl.textContent = localFolderHandle.name + '/john-finance/';
-                hintEl.textContent = '✅ תיקייה נבחרה - מסמכים יישמרו כאן';
+                hintEl.textContent = '✅ תיקייה נבחרה - נתונים נשמרים אוטומטית';
                 hintEl.style.color = 'var(--success)';
                 iconEl.textContent = '📂';
                 btnCreate.disabled = false;
                 btnOpen.disabled = false;
+                btnRestore.disabled = false;
             } else {
                 pathEl.textContent = 'לא נבחרה תיקייה';
                 hintEl.textContent = 'בחר תיקייה לשמירת המסמכים';
@@ -2463,6 +2495,28 @@
                 iconEl.textContent = '📁';
                 btnCreate.disabled = true;
                 btnOpen.disabled = true;
+                btnRestore.disabled = true;
+            }
+        }
+        
+        // Manual restore from local folder
+        async function restoreFromLocalFolder() {
+            if (!localFolderHandle) {
+                alert('⚠️ יש לבחור תיקייה קודם');
+                return;
+            }
+            
+            const localData = await loadDataFromLocalFolder();
+            if (localData) {
+                if (confirm('⚠️ שחזור יחליף את כל הנתונים הנוכחיים.\n\nלהמשיך?')) {
+                    data = localData;
+                    localStorage.setItem('taxCalculatorV2', JSON.stringify(data));
+                    renderYearSelector();
+                    renderAll();
+                    alert('✅ הנתונים שוחזרו בהצלחה מהתיקייה המקומית!');
+                }
+            } else {
+                alert('❌ לא נמצא קובץ data.json בתיקייה john-finance/');
             }
         }
         
@@ -2659,6 +2713,8 @@
                     const permission = await handle.queryPermission({ mode: 'readwrite' });
                     if (permission === 'granted') {
                         localFolderHandle = handle;
+                        // Try to restore data if localStorage is empty
+                        await tryRestoreFromLocal();
                     } else {
                         // Need to re-request permission
                         localFolderHandle = handle;
@@ -2916,8 +2972,14 @@
         const MONTHS = ['', 'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
 
         // ========== INIT ==========
-        function init() {
-            loadData();
+        async function init() {
+            const hasLocalData = loadData();
+            
+            // If no local data, try to restore from Google Drive
+            if (!hasLocalData) {
+                await tryAutoRestoreFromDrive();
+            }
+            
             renderYearSelector();
             loadDashboardSettings();
             loadBusinessStatus();
@@ -2925,6 +2987,73 @@
             renderAll();
             checkLastBackup();
             initLocalFolder();
+        }
+        
+        // Try to auto-restore from Google Drive
+        async function tryAutoRestoreFromDrive() {
+            try {
+                // Try silent authentication
+                await loadGoogleAPI();
+                await gapi.client.init({
+                    apiKey: GOOGLE_API_KEY,
+                    clientId: GOOGLE_CLIENT_ID,
+                    discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+                    scope: 'https://www.googleapis.com/auth/drive.file',
+                    cookiePolicy: 'single_host_origin'
+                });
+                
+                const authInstance = gapi.auth2.getAuthInstance();
+                if (authInstance.isSignedIn.get()) {
+                    // User is signed in, try to restore
+                    googleAccessToken = authInstance.currentUser.get().getAuthResponse().access_token;
+                    
+                    // Find john-finance folder
+                    const folderSearch = await gapi.client.drive.files.list({
+                        q: `name='john-finance' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+                        fields: 'files(id)'
+                    });
+                    
+                    if (folderSearch.result.files.length > 0) {
+                        driveFolderId = folderSearch.result.files[0].id;
+                        
+                        // Find data.json
+                        const fileSearch = await gapi.client.drive.files.list({
+                            q: `name='data.json' and '${driveFolderId}' in parents and trashed=false`,
+                            fields: 'files(id)'
+                        });
+                        
+                        if (fileSearch.result.files.length > 0) {
+                            const fileId = fileSearch.result.files[0].id;
+                            const response = await gapi.client.drive.files.get({
+                                fileId: fileId,
+                                alt: 'media'
+                            });
+                            
+                            data = response.result;
+                            
+                            // Ensure data structure is valid
+                            if (!data.years) data.years = [currentYear];
+                            if (!data.yearData) data.yearData = {};
+                            if (!data.yearData[currentYear]) {
+                                data.yearData[currentYear] = createEmptyYearData(currentYear);
+                            }
+                            
+                            localStorage.setItem('taxCalculatorV2', JSON.stringify(data));
+                            updateDriveStatus(true);
+                            loadCreditsToUI();
+                            console.log('✅ Data auto-restored from Google Drive!');
+                            
+                            // Show notification
+                            setTimeout(() => {
+                                alert('✅ הנתונים שוחזרו אוטומטית מ-Google Drive!');
+                            }, 500);
+                            return;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('Auto-restore from Drive not available:', e.message);
+            }
         }
 
         function loadData() {
@@ -3051,10 +3180,14 @@
                     }
                 });
                 saveData();
+                loadCreditsToUI();
+                return true; // Data was found
             }
             
-            // Load credits to UI from current year
-            loadCreditsToUI();
+            // No saved data - initialize empty
+            data = { years: [currentYear], yearData: {} };
+            data.yearData[currentYear] = createEmptyYearData(currentYear);
+            return false; // No data found
         }
 
         function loadCreditsToUI() {
@@ -3072,6 +3205,125 @@
 
         function saveData() {
             localStorage.setItem('taxCalculatorV2', JSON.stringify(data));
+            // Also save to local folder and Drive if available
+            saveDataToLocalFolder();
+            saveDataToDrive();
+        }
+        
+        // Save data.json to local folder
+        async function saveDataToLocalFolder() {
+            if (!localFolderHandle) return;
+            
+            try {
+                const permission = await localFolderHandle.queryPermission({ mode: 'readwrite' });
+                if (permission !== 'granted') return;
+                
+                // Get or create john-finance folder
+                const rootFolder = await localFolderHandle.getDirectoryHandle('john-finance', { create: true });
+                
+                // Save data.json
+                const fileHandle = await rootFolder.getFileHandle('data.json', { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(JSON.stringify(data, null, 2));
+                await writable.close();
+                
+                console.log('Data saved to local folder');
+            } catch (e) {
+                console.error('Error saving to local folder:', e);
+            }
+        }
+        
+        // Save data.json to Google Drive (debounced)
+        let driveeSaveTimeout = null;
+        async function saveDataToDrive() {
+            if (!googleAccessToken || !driveFolderId) return;
+            
+            // Debounce - wait 3 seconds before saving to avoid too many API calls
+            if (driveeSaveTimeout) clearTimeout(driveeSaveTimeout);
+            driveeSaveTimeout = setTimeout(async () => {
+                try {
+                    // Check if data.json already exists
+                    const search = await gapi.client.drive.files.list({
+                        q: `name='data.json' and '${driveFolderId}' in parents and trashed=false`,
+                        fields: 'files(id)'
+                    });
+                    
+                    const jsonContent = JSON.stringify(data, null, 2);
+                    const blob = new Blob([jsonContent], { type: 'application/json' });
+                    
+                    if (search.result.files.length > 0) {
+                        // Update existing file
+                        const fileId = search.result.files[0].id;
+                        await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+                            method: 'PATCH',
+                            headers: {
+                                'Authorization': 'Bearer ' + googleAccessToken,
+                                'Content-Type': 'application/json'
+                            },
+                            body: jsonContent
+                        });
+                    } else {
+                        // Create new file
+                        const metadata = {
+                            name: 'data.json',
+                            parents: [driveFolderId]
+                        };
+                        
+                        const form = new FormData();
+                        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                        form.append('file', blob);
+                        
+                        await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer ' + googleAccessToken
+                            },
+                            body: form
+                        });
+                    }
+                    
+                    console.log('Data saved to Google Drive');
+                } catch (e) {
+                    console.error('Error saving to Drive:', e);
+                }
+            }, 3000);
+        }
+        
+        // Load data from local folder
+        async function loadDataFromLocalFolder() {
+            if (!localFolderHandle) return null;
+            
+            try {
+                const permission = await localFolderHandle.requestPermission({ mode: 'readwrite' });
+                if (permission !== 'granted') return null;
+                
+                const rootFolder = await localFolderHandle.getDirectoryHandle('john-finance', { create: false });
+                const fileHandle = await rootFolder.getFileHandle('data.json', { create: false });
+                const file = await fileHandle.getFile();
+                const text = await file.text();
+                return JSON.parse(text);
+            } catch (e) {
+                console.log('No local data.json found or error reading:', e.message);
+                return null;
+            }
+        }
+        
+        // Try to restore data from local folder on startup
+        async function tryRestoreFromLocal() {
+            if (!localFolderHandle) return;
+            
+            const localData = await loadDataFromLocalFolder();
+            if (localData) {
+                // Check if local data is newer or localStorage is empty
+                const localStorageData = localStorage.getItem('taxCalculatorV2');
+                if (!localStorageData) {
+                    // localStorage is empty, restore from local
+                    data = localData;
+                    saveData();
+                    renderAll();
+                    console.log('Data restored from local folder');
+                }
+            }
         }
 
         // ========== NAVIGATION ==========
@@ -3147,7 +3399,7 @@
                 const file = fileInput.files[0];
                 document.getElementById('salaryFileStatus').textContent = '⏳ מעלה...';
                 
-                const results = await uploadDocument(file, 'טפסים-106', 'salary', recordId);
+                const results = await uploadDocument(file, 'שכיר', 'salary', recordId);
                 
                 if (results.local || results.drive) {
                     itemData.fileName = file.name;
@@ -4097,6 +4349,7 @@
                 <td>${formatCurrency(s.taxDeducted)}</td>
                 <td>${formatCurrency(s.blDeducted)}</td>
                 <td>
+                    ${s.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${s.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
                     <button class="btn btn-icon btn-sm" onclick="editSalary(${s.id})" title="עריכה">✏️</button>
                     <button class="btn btn-icon btn-sm" onclick="deleteItem('salary',${s.id})" title="מחיקה">🗑️</button>
                 </td>
@@ -4116,6 +4369,7 @@
                 <td>${formatCurrency(u.taxDeducted)}</td>
                 <td>${formatCurrency(u.blDeducted || 0)}</td>
                 <td>
+                    ${u.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${u.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
                     <button class="btn btn-icon btn-sm" onclick="editUnemployment(${u.id})" title="עריכה">✏️</button>
                     <button class="btn btn-icon btn-sm" onclick="deleteItem('unemployment',${u.id})" title="מחיקה">🗑️</button>
                 </td>
@@ -4145,6 +4399,7 @@
                 <td style="color:var(--danger)">${formatCurrency(m.taxDeducted || 0)}</td>
                 <td style="color:var(--warning)">${formatCurrency(m.blDeducted || 0)}</td>
                 <td>
+                    ${m.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${m.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
                     <button class="btn btn-icon btn-sm" onclick="editMiluim(${m.id})" title="עריכה">✏️</button>
                     <button class="btn btn-icon btn-sm" onclick="deleteItem('miluim',${m.id})" title="מחיקה">🗑️</button>
                 </td>
@@ -4165,6 +4420,7 @@
                 <td>${s.description || '-'} ${s.notes ? '<span title="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${formatCurrency(s.amount)}</td>
                 <td>
+                    ${s.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${s.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
                     <button class="btn btn-icon btn-sm" onclick="editSelfEmployed(${s.id})" title="עריכה">✏️</button>
                     <button class="btn btn-icon btn-sm" onclick="deleteItem('selfEmployed',${s.id})" title="מחיקה">🗑️</button>
                 </td>
@@ -4186,6 +4442,7 @@
                 <td>${e.category}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
                 <td>
+                    ${e.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${e.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
                     <button class="btn btn-icon btn-sm" onclick="editExpense(${e.id})" title="עריכה">✏️</button>
                     <button class="btn btn-icon btn-sm" onclick="deleteItem('expenses',${e.id})" title="מחיקה">🗑️</button>
                 </td>
@@ -4216,6 +4473,7 @@
                     <td style="color:var(--primary)">${formatCurrency(cumulative)}</td>
                     <td>${p.notes ? '<span title="'+p.notes+'" style="cursor:help;">📎</span>' : '-'}</td>
                     <td>
+                        ${p.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${p.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
                         <button class="btn btn-icon btn-sm" onclick="editTaxAdvance(${p.id})" title="עריכה">✏️</button>
                         <button class="btn btn-icon btn-sm" onclick="deleteTaxAdvance(${p.id})" title="מחיקה">🗑️</button>
                     </td>
@@ -4255,6 +4513,7 @@
                     <td style="color:var(--primary)">${formatCurrency(cumulative)}</td>
                     <td>${p.notes ? '<span title="'+p.notes+'" style="cursor:help;">📎</span>' : '-'}</td>
                     <td>
+                        ${p.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${p.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
                         <button class="btn btn-icon btn-sm" onclick="editBLAdvance(${p.id})" title="עריכה">✏️</button>
                         <button class="btn btn-icon btn-sm" onclick="deleteBLAdvance(${p.id})" title="מחיקה">🗑️</button>
                     </td>
