@@ -3293,6 +3293,14 @@
             
             if (pin === savedPin) {
                 document.getElementById('pinLockScreen').style.display = 'none';
+                // Reload data from localStorage (in case it was just restored from cloud)
+                loadData();
+                renderYearSelector();
+                loadDashboardSettings();
+                loadCreditsToUI();
+                loadBusinessStatus();
+                loadFavorites();
+                renderAll();
             } else {
                 document.getElementById('pinError').textContent = 'קוד שגוי';
                 document.getElementById('pinError').style.display = 'block';
