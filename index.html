@@ -3212,7 +3212,7 @@
                 // Step 3: Find folder (don't create if doesn't exist)
                 statusEl.textContent = 'מחפש תיקייה בענן...';
                 const search = await gapi.client.drive.files.list({
-                    q: "name='JohnFinance' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+                    q: "name='john-finance' and mimeType='application/vnd.google-apps.folder' and trashed=false",
                     fields: 'files(id, name)'
                 });
                 
