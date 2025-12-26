@@ -2034,8 +2034,9 @@
             }
         }
         
-        // Find or create john-finance root folder
+        // Find or create john-finance root folder AND full structure
         async function findOrCreateDriveRootFolder() {
+            // Find or create root folder
             const search = await gapi.client.drive.files.list({
                 q: `name='john-finance' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
                 fields: 'files(id)'
@@ -2053,6 +2054,68 @@
                 });
                 driveFolderId = create.result.id;
             }
+            
+            // Create full folder structure automatically
+            await createDriveFolderStructure();
+        }
+        
+        // Create full folder structure in Drive
+        async function createDriveFolderStructure() {
+            const subFolders = [
+                'שכיר',
+                'מקדמות-מס',
+                'ביטוח-לאומי',
+                'חשבוניות-עצמאי',
+                'הוצאות-מוכרות',
+                'מילואים',
+                'אבטלה'
+            ];
+            
+            // Create year folders for all years in data
+            const years = data.years || [currentYear];
+            
+            for (const year of years) {
+                // Find or create year folder
+                let yearFolderId;
+                const yearSearch = await gapi.client.drive.files.list({
+                    q: `name='${year}' and '${driveFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+                    fields: 'files(id)'
+                });
+                
+                if (yearSearch.result.files.length > 0) {
+                    yearFolderId = yearSearch.result.files[0].id;
+                } else {
+                    const yearFolder = await gapi.client.drive.files.create({
+                        resource: {
+                            name: year.toString(),
+                            mimeType: 'application/vnd.google-apps.folder',
+                            parents: [driveFolderId]
+                        },
+                        fields: 'id'
+                    });
+                    yearFolderId = yearFolder.result.id;
+                }
+                
+                // Create subfolders inside year folder
+                for (const folderName of subFolders) {
+                    const subSearch = await gapi.client.drive.files.list({
+                        q: `name='${folderName}' and '${yearFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+                        fields: 'files(id)'
+                    });
+                    
+                    if (subSearch.result.files.length === 0) {
+                        await gapi.client.drive.files.create({
+                            resource: {
+                                name: folderName,
+                                mimeType: 'application/vnd.google-apps.folder',
+                                parents: [yearFolderId]
+                            }
+                        });
+                    }
+                }
+            }
+            
+            console.log('Drive folder structure created/verified');
         }
 
         function loadGoogleAPI() {
@@ -2185,27 +2248,34 @@
                     fields: 'files(id)'
                 });
                 
-                const metadata = {
-                    name: BACKUP_FILE_NAME,
-                    mimeType: 'application/json'
-                };
-                
+                let url, method;
                 const form = new FormData();
-                form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-                form.append('file', blob);
-                
-                let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id';
-                let method = 'POST';
                 
                 if (searchResponse.result.files.length > 0) {
                     // Update existing file
                     const fileId = searchResponse.result.files[0].id;
                     url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&fields=id`;
                     method = 'PATCH';
+                    
+                    const metadata = {
+                        name: BACKUP_FILE_NAME,
+                        mimeType: 'application/json'
+                    };
+                    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
                 } else {
                     // Create new file in folder
-                    metadata.parents = [folderId];
+                    url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id';
+                    method = 'POST';
+                    
+                    const metadata = {
+                        name: BACKUP_FILE_NAME,
+                        mimeType: 'application/json',
+                        parents: [folderId]  // Include parent folder!
+                    };
+                    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
                 }
+                
+                form.append('file', blob);
                 
                 await fetch(url, {
                     method: method,
@@ -2269,59 +2339,8 @@
             }
             
             try {
-                const year = document.getElementById('currentYear').value;
-                const mainFolderId = await getOrCreateFolder();
-                
-                // Create year folder
-                let yearFolderId;
-                const yearSearch = await gapi.client.drive.files.list({
-                    q: `name='${year}' and '${mainFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-                    fields: 'files(id)'
-                });
-                
-                if (yearSearch.result.files.length > 0) {
-                    yearFolderId = yearSearch.result.files[0].id;
-                } else {
-                    const yearFolder = await gapi.client.drive.files.create({
-                        resource: {
-                            name: year.toString(),
-                            mimeType: 'application/vnd.google-apps.folder',
-                            parents: [mainFolderId]
-                        },
-                        fields: 'id'
-                    });
-                    yearFolderId = yearFolder.result.id;
-                }
-                
-                // Create subfolders inside year folder
-                const subFolders = [
-                    'שכיר',
-                    'מקדמות-מס',
-                    'ביטוח-לאומי',
-                    'חשבוניות-עצמאי',
-                    'הוצאות-מוכרות',
-                    'מילואים',
-                    'אבטלה'
-                ];
-                
-                for (const folderName of subFolders) {
-                    const search = await gapi.client.drive.files.list({
-                        q: `name='${folderName}' and '${yearFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-                        fields: 'files(id)'
-                    });
-                    
-                    if (search.result.files.length === 0) {
-                        await gapi.client.drive.files.create({
-                            resource: {
-                                name: folderName,
-                                mimeType: 'application/vnd.google-apps.folder',
-                                parents: [yearFolderId]
-                            }
-                        });
-                    }
-                }
-                
-                alert(`✅ מבנה התיקיות נוצר בהצלחה!\njohn-finance/${year}/...\nפתח את Google Drive כדי לראות.`);
+                await createDriveFolderStructure();
+                alert(`✅ מבנה התיקיות נוצר בהצלחה!\njohn-finance/\nפתח את Google Drive כדי לראות.`);
             } catch (error) {
                 console.error('Create folders error:', error);
                 alert('❌ שגיאה ביצירת תיקיות: ' + error.message);
