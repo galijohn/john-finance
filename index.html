@@ -1309,16 +1309,16 @@
                 <div class="info-box">
                     <strong>💡 איך זה עובד?</strong><br>
                     • הנתונים נשמרים מקומית בדפדפן<br>
-                    • לחץ "גיבוי ל-Drive" כדי לשמור עותק בענן<br>
+                    • לחץ "סנכרון ל-Drive" כדי לשמור את כל הנתונים בענן<br>
                     • לחץ "שחזור מ-Drive" כדי לטעון מהענן<br>
-                    • כך תוכל לגשת מכל מחשב!
+                    • הנתונים מסתנכרנים אוטומטית בכל שינוי!
                 </div>
                 <div id="driveStatus" style="padding:10px;background:var(--bg-input);border-radius:8px;margin-bottom:15px;">
                     <span id="driveStatusText">לא מחובר ל-Google Drive</span>
                 </div>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
                     <button class="btn btn-primary" onclick="initGoogleDrive()">🔗 התחבר ל-Google</button>
-                    <button class="btn btn-success" onclick="backupToDrive()" id="btnBackup" disabled>📤 גיבוי ל-Drive</button>
+                    <button class="btn btn-success" onclick="backupToDrive()" id="btnBackup" disabled>📤 סנכרון ל-Drive</button>
                     <button class="btn btn-primary" onclick="restoreFromDrive()" id="btnRestore" disabled>📥 שחזור מ-Drive</button>
                 </div>
                 <div id="lastSyncTime" style="margin-top:10px;color:var(--text-muted);font-size:0.85rem;"></div>
@@ -1352,26 +1352,6 @@
                 </div>
             </div>
 
-            <div class="card" style="margin-top:20px;">
-                <h3 style="margin:0 0 15px;">📄 מבנה תיקיות</h3>
-                <div class="info-box">
-                    <code style="background:var(--bg-input);padding:10px;display:block;margin-top:10px;border-radius:5px;direction:ltr;text-align:left;">
-📁 john-finance/<br>
-├── 📁 2025/<br>
-│   ├── 📁 שכיר/<br>
-│   ├── 📁 מקדמות-מס/<br>
-│   ├── 📁 ביטוח-לאומי/<br>
-│   ├── 📁 חשבוניות-עצמאי/<br>
-│   ├── 📁 הוצאות-מוכרות/<br>
-│   ├── 📁 מילואים/<br>
-│   └── 📁 אבטלה/<br>
-├── 📁 2024/<br>
-│   └── ...<br>
-└── 📄 data.json
-                    </code>
-                </div>
-                <button class="btn btn-primary" onclick="createFolderStructure()" id="btnCreateDriveFolders" disabled>📁 צור מבנה תיקיות ב-Drive</button>
-            </div>
 
             <div class="card" style="margin-top:20px;">
                 <h3 style="margin:0 0 15px;">💾 גיבוי ושחזור מקומי</h3>
@@ -1996,210 +1976,93 @@
         // ========== GOOGLE DRIVE INTEGRATION ==========
         const GOOGLE_CLIENT_ID = '831800526620-vrar20hjjjne49jrr6gpv9dmr54224g5.apps.googleusercontent.com';
         const GOOGLE_API_KEY = 'AIzaSyB30a84J6yYYHgRYddgd97vOVIR-r95Z94';
-        const DRIVE_FOLDER_NAME = 'john-finance';
-        const BACKUP_FILE_NAME = 'tax-data-backup.json';
         let googleAccessToken = null;
         let driveFolderId = null;
 
+        // ===== MAIN CONNECT FUNCTION =====
         async function initGoogleDrive() {
-            // Check if credentials are set
-            if (!GOOGLE_CLIENT_ID || !GOOGLE_API_KEY) {
-                // Show setup instructions
-                alert('⚙️ הגדרת Google Drive:\n\n' +
-                    '1. לך ל-console.cloud.google.com\n' +
-                    '2. צור פרויקט חדש\n' +
-                    '3. הפעל את Google Drive API\n' +
-                    '4. צור OAuth 2.0 credentials\n' +
-                    '5. הוסף את ה-Client ID וה-API Key בקוד\n\n' +
-                    'בינתיים, אפשר להשתמש בגיבוי מקומי (ייצא/ייבא)');
-                return;
-            }
-            
-            // Show connecting status
-            document.getElementById('driveStatusText').innerHTML = '⏳ מתחבר ל-Google...';
+            document.getElementById('driveStatusText').innerHTML = '⏳ מתחבר...';
             
             try {
-                console.log('Step 1: Loading Google API...');
+                // 1. Load Google API
                 await loadGoogleAPI();
-                console.log('Step 2: Google API loaded, authenticating...');
-                await authenticateGoogle();
-                console.log('Step 3: Authenticated, creating folder...');
-                await findOrCreateDriveRootFolder();
-                console.log('Step 4: Done!');
+                
+                // 2. Get token (saved or new)
+                await getGoogleToken();
+                
+                // 3. Find or create folder
+                await findOrCreateFolder();
+                
+                // 4. SYNC ALL DATA NOW
+                await syncToCloud();
+                
+                // 5. Update status
                 updateDriveStatus(true);
+                
             } catch (error) {
-                console.error('Google Drive init error:', error);
-                const errorMsg = error.error_description || error.error || error.message || JSON.stringify(error);
-                updateDriveStatus(false, errorMsg);
-            }
-        }
-        
-        // Find or create john-finance root folder AND full structure
-        async function findOrCreateDriveRootFolder() {
-            // First, get years from localStorage directly
-            let years = [new Date().getFullYear()];
-            const saved = localStorage.getItem('taxCalculatorV2');
-            if (saved) {
-                try {
-                    const savedData = JSON.parse(saved);
-                    if (savedData.years && savedData.years.length > 0) {
-                        years = savedData.years;
-                    }
-                } catch(e) {}
-            }
-            
-            console.log('Will create folders for years:', years);
-            
-            // Find or create root folder
-            const search = await gapi.client.drive.files.list({
-                q: `name='john-finance' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-                fields: 'files(id)'
-            });
-            
-            if (search.result.files.length > 0) {
-                driveFolderId = search.result.files[0].id;
-                console.log('Found existing folder:', driveFolderId);
-            } else {
-                console.log('Creating john-finance folder...');
-                const create = await gapi.client.drive.files.create({
-                    resource: {
-                        name: 'john-finance',
-                        mimeType: 'application/vnd.google-apps.folder'
-                    },
-                    fields: 'id'
-                });
-                driveFolderId = create.result.id;
-                console.log('Created folder:', driveFolderId);
-            }
-            
-            // Create folder structure for ALL years
-            const subFolders = ['שכיר', 'מקדמות-מס', 'ביטוח-לאומי', 'חשבוניות-עצמאי', 'הוצאות-מוכרות', 'מילואים', 'אבטלה'];
-            
-            for (const year of years) {
-                console.log('Creating folders for year:', year);
-                
-                // Find or create year folder
-                let yearFolderId;
-                const yearSearch = await gapi.client.drive.files.list({
-                    q: `name='${year}' and '${driveFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-                    fields: 'files(id)'
-                });
-                
-                if (yearSearch.result.files.length > 0) {
-                    yearFolderId = yearSearch.result.files[0].id;
-                } else {
-                    const yearFolder = await gapi.client.drive.files.create({
-                        resource: {
-                            name: year.toString(),
-                            mimeType: 'application/vnd.google-apps.folder',
-                            parents: [driveFolderId]
-                        },
-                        fields: 'id'
-                    });
-                    yearFolderId = yearFolder.result.id;
-                    console.log('Created year folder:', year);
-                }
-                
-                // Create subfolders
-                for (const folderName of subFolders) {
-                    const subSearch = await gapi.client.drive.files.list({
-                        q: `name='${folderName}' and '${yearFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-                        fields: 'files(id)'
-                    });
-                    
-                    if (subSearch.result.files.length === 0) {
-                        await gapi.client.drive.files.create({
-                            resource: {
-                                name: folderName,
-                                mimeType: 'application/vnd.google-apps.folder',
-                                parents: [yearFolderId]
-                            }
-                        });
-                    }
-                }
-            }
-            
-            // AUTO-SYNC: Save data.json immediately
-            console.log('Auto-saving data.json to Drive...');
-            await saveDataToDriveNow();
-            
-            console.log('✅ All folders created and data synced!');
-        }
-        
-        // Save data.json to Drive immediately (not debounced)
-        async function saveDataToDriveNow() {
-            if (!googleAccessToken || !driveFolderId) return;
-            
-            try {
-                const jsonContent = JSON.stringify(data, null, 2);
-                const blob = new Blob([jsonContent], { type: 'application/json' });
-                
-                // Check if data.json already exists
-                const search = await gapi.client.drive.files.list({
-                    q: `name='data.json' and '${driveFolderId}' in parents and trashed=false`,
-                    fields: 'files(id)'
-                });
-                
-                if (search.result.files.length > 0) {
-                    // Update existing file
-                    const fileId = search.result.files[0].id;
-                    await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
-                        method: 'PATCH',
-                        headers: {
-                            'Authorization': 'Bearer ' + googleAccessToken,
-                            'Content-Type': 'application/json'
-                        },
-                        body: jsonContent
-                    });
-                    console.log('Updated data.json in Drive');
-                } else {
-                    // Create new file
-                    const metadata = {
-                        name: 'data.json',
-                        parents: [driveFolderId]
-                    };
-                    
-                    const form = new FormData();
-                    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-                    form.append('file', blob);
-                    
-                    await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': 'Bearer ' + googleAccessToken
-                        },
-                        body: form
-                    });
-                    console.log('Created data.json in Drive');
-                }
-            } catch (e) {
-                console.error('Error saving data.json:', e);
+                console.error('Google Drive error:', error);
+                updateDriveStatus(false, error.message || 'שגיאה בהתחברות');
             }
         }
 
+        // ===== LOAD GOOGLE API =====
         function loadGoogleAPI() {
             return new Promise((resolve, reject) => {
-                // Load GAPI
-                if (!window.gapi) {
-                    const gapiScript = document.createElement('script');
-                    gapiScript.src = 'https://apis.google.com/js/api.js';
-                    gapiScript.onload = () => {
-                        gapi.load('client', async () => {
-                            await gapi.client.init({
-                                apiKey: GOOGLE_API_KEY,
-                                discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
-                            });
-                            resolve();
-                        });
-                    };
-                    gapiScript.onerror = reject;
-                    document.body.appendChild(gapiScript);
-                } else {
+                if (window.gapi?.client) {
                     resolve();
+                    return;
                 }
+                const script = document.createElement('script');
+                script.src = 'https://apis.google.com/js/api.js';
+                script.onload = () => {
+                    gapi.load('client', async () => {
+                        await gapi.client.init({
+                            apiKey: GOOGLE_API_KEY,
+                            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
+                        });
+                        resolve();
+                    });
+                };
+                script.onerror = reject;
+                document.body.appendChild(script);
             });
         }
-        
+
+        // ===== GET TOKEN (SAVED OR NEW) =====
+        async function getGoogleToken() {
+            // Check saved token
+            const savedToken = localStorage.getItem('googleAccessToken');
+            const tokenExpiry = localStorage.getItem('googleTokenExpiry');
+            
+            if (savedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
+                googleAccessToken = savedToken;
+                return;
+            }
+            
+            // Need new token - load GIS and request
+            await loadGISClient();
+            
+            return new Promise((resolve, reject) => {
+                const tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: GOOGLE_CLIENT_ID,
+                    scope: 'https://www.googleapis.com/auth/drive.file',
+                    callback: (response) => {
+                        if (response.error) {
+                            reject(new Error(response.error));
+                            return;
+                        }
+                        googleAccessToken = response.access_token;
+                        // Save for 55 minutes
+                        localStorage.setItem('googleAccessToken', response.access_token);
+                        localStorage.setItem('googleTokenExpiry', String(Date.now() + 55 * 60 * 1000));
+                        resolve();
+                    },
+                    error_callback: (error) => reject(new Error(error.message || 'Auth failed'))
+                });
+                tokenClient.requestAccessToken();
+            });
+        }
+
         function loadGISClient() {
             return new Promise((resolve, reject) => {
                 if (window.google?.accounts?.oauth2) {
@@ -2214,170 +2077,139 @@
             });
         }
 
-        async function authenticateGoogle() {
-            console.log('Loading GIS client...');
-            await loadGISClient();
-            console.log('GIS client loaded, requesting token...');
-            
-            return new Promise((resolve, reject) => {
-                try {
-                    const tokenClient = google.accounts.oauth2.initTokenClient({
-                        client_id: GOOGLE_CLIENT_ID,
-                        scope: 'https://www.googleapis.com/auth/drive.file',
-                        callback: (response) => {
-                            console.log('Token response:', response);
-                            if (response.error) {
-                                console.error('Token error:', response);
-                                reject(response);
-                                return;
-                            }
-                            googleAccessToken = response.access_token;
-                            console.log('Got access token!');
-                            resolve();
-                        },
-                        error_callback: (error) => {
-                            console.error('Error callback:', error);
-                            reject(error);
-                        }
-                    });
-                    console.log('Requesting access token...');
-                    tokenClient.requestAccessToken();
-                } catch (e) {
-                    console.error('initTokenClient error:', e);
-                    reject(e);
-                }
+        // ===== FIND OR CREATE FOLDER =====
+        async function findOrCreateFolder() {
+            const search = await gapi.client.drive.files.list({
+                q: "name='john-finance' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+                fields: 'files(id)'
             });
+            
+            if (search.result.files.length > 0) {
+                driveFolderId = search.result.files[0].id;
+            } else {
+                const create = await gapi.client.drive.files.create({
+                    resource: { name: 'john-finance', mimeType: 'application/vnd.google-apps.folder' },
+                    fields: 'id'
+                });
+                driveFolderId = create.result.id;
+            }
         }
 
+        // ===== SYNC ALL DATA TO CLOUD =====
+        async function syncToCloud() {
+            if (!googleAccessToken || !driveFolderId) return;
+            
+            const jsonContent = JSON.stringify(data, null, 2);
+            
+            // Check if data.json exists
+            const search = await gapi.client.drive.files.list({
+                q: `name='data.json' and '${driveFolderId}' in parents and trashed=false`,
+                fields: 'files(id)'
+            });
+            
+            if (search.result.files.length > 0) {
+                // Update existing
+                const fileId = search.result.files[0].id;
+                await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': 'Bearer ' + googleAccessToken,
+                        'Content-Type': 'application/json'
+                    },
+                    body: jsonContent
+                });
+            } else {
+                // Create new
+                const form = new FormData();
+                form.append('metadata', new Blob([JSON.stringify({
+                    name: 'data.json',
+                    parents: [driveFolderId]
+                })], { type: 'application/json' }));
+                form.append('file', new Blob([jsonContent], { type: 'application/json' }));
+                
+                await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + googleAccessToken },
+                    body: form
+                });
+            }
+            
+            // Update last sync time
+            const now = new Date().toLocaleString('he-IL');
+            document.getElementById('lastSyncTime').textContent = '📅 סנכרון אחרון: ' + now;
+            localStorage.setItem('lastDriveBackup', now);
+        }
+
+        // ===== AUTO-CONNECT ON PAGE LOAD =====
+        async function tryAutoConnect() {
+            const savedToken = localStorage.getItem('googleAccessToken');
+            const tokenExpiry = localStorage.getItem('googleTokenExpiry');
+            
+            if (savedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
+                try {
+                    await loadGoogleAPI();
+                    googleAccessToken = savedToken;
+                    await findOrCreateFolder();
+                    updateDriveStatus(true);
+                } catch (e) {
+                    localStorage.removeItem('googleAccessToken');
+                    localStorage.removeItem('googleTokenExpiry');
+                }
+            }
+        }
+
+        // ===== UPDATE STATUS =====
         function updateDriveStatus(connected, error = null) {
             const statusEl = document.getElementById('driveStatusText');
             const backupBtn = document.getElementById('btnBackup');
             const restoreBtn = document.getElementById('btnRestore');
-            const createFoldersBtn = document.getElementById('btnCreateDriveFolders');
             
             if (connected) {
                 statusEl.innerHTML = '✅ מחובר ל-Google Drive';
                 statusEl.style.color = 'var(--success)';
                 backupBtn.disabled = false;
                 restoreBtn.disabled = false;
-                if (createFoldersBtn) createFoldersBtn.disabled = false;
             } else {
                 statusEl.innerHTML = '❌ לא מחובר' + (error ? ': ' + error : '');
                 statusEl.style.color = 'var(--danger)';
                 backupBtn.disabled = true;
                 restoreBtn.disabled = true;
-                if (createFoldersBtn) createFoldersBtn.disabled = true;
             }
         }
 
-        async function getOrCreateFolder() {
-            // Search for existing folder
-            const response = await gapi.client.drive.files.list({
-                q: `name='${DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-                fields: 'files(id, name)'
-            });
-            
-            if (response.result.files.length > 0) {
-                return response.result.files[0].id;
-            }
-            
-            // Create new folder
-            const createResponse = await gapi.client.drive.files.create({
-                resource: {
-                    name: DRIVE_FOLDER_NAME,
-                    mimeType: 'application/vnd.google-apps.folder'
-                },
-                fields: 'id'
-            });
-            
-            return createResponse.result.id;
-        }
-
+        // ===== MANUAL BACKUP BUTTON =====
         async function backupToDrive() {
             try {
-                document.getElementById('btnBackup').textContent = '⏳ מגבה...';
-                
-                const folderId = await getOrCreateFolder();
-                const dataStr = JSON.stringify(data, null, 2);
-                const blob = new Blob([dataStr], { type: 'application/json' });
-                
-                // Check if file exists
-                const searchResponse = await gapi.client.drive.files.list({
-                    q: `name='${BACKUP_FILE_NAME}' and '${folderId}' in parents and trashed=false`,
-                    fields: 'files(id)'
-                });
-                
-                let url, method;
-                const form = new FormData();
-                
-                if (searchResponse.result.files.length > 0) {
-                    // Update existing file
-                    const fileId = searchResponse.result.files[0].id;
-                    url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&fields=id`;
-                    method = 'PATCH';
-                    
-                    const metadata = {
-                        name: BACKUP_FILE_NAME,
-                        mimeType: 'application/json'
-                    };
-                    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-                } else {
-                    // Create new file in folder
-                    url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id';
-                    method = 'POST';
-                    
-                    const metadata = {
-                        name: BACKUP_FILE_NAME,
-                        mimeType: 'application/json',
-                        parents: [folderId]  // Include parent folder!
-                    };
-                    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-                }
-                
-                form.append('file', blob);
-                
-                await fetch(url, {
-                    method: method,
-                    headers: { 'Authorization': 'Bearer ' + googleAccessToken },
-                    body: form
-                });
-                
-                const now = new Date().toLocaleString('he-IL');
-                document.getElementById('lastSyncTime').textContent = '📅 גיבוי אחרון: ' + now;
-                localStorage.setItem('lastDriveBackup', now);
-                
-                document.getElementById('btnBackup').textContent = '📤 גיבוי ל-Drive';
-                alert('✅ הגיבוי הושלם בהצלחה!');
+                document.getElementById('btnBackup').textContent = '⏳ מסנכרן...';
+                await syncToCloud();
+                document.getElementById('btnBackup').textContent = '📤 סנכרון ל-Drive';
+                alert('✅ כל הנתונים סונכרנו בהצלחה!');
             } catch (error) {
-                console.error('Backup error:', error);
-                document.getElementById('btnBackup').textContent = '📤 גיבוי ל-Drive';
-                alert('❌ שגיאה בגיבוי: ' + error.message);
+                document.getElementById('btnBackup').textContent = '📤 סנכרון ל-Drive';
+                alert('❌ שגיאה: ' + error.message);
             }
         }
 
+        // ===== RESTORE FROM CLOUD =====
         async function restoreFromDrive() {
+            if (!confirm('⚠️ שחזור יחליף את כל הנתונים הנוכחיים. להמשיך?')) return;
+            
             try {
-                if (!confirm('⚠️ שחזור יחליף את כל הנתונים הנוכחיים. להמשיך?')) return;
-                
                 document.getElementById('btnRestore').textContent = '⏳ משחזר...';
                 
-                const folderId = await getOrCreateFolder();
-                
-                // Find backup file
-                const searchResponse = await gapi.client.drive.files.list({
-                    q: `name='${BACKUP_FILE_NAME}' and '${folderId}' in parents and trashed=false`,
+                const search = await gapi.client.drive.files.list({
+                    q: `name='data.json' and '${driveFolderId}' in parents and trashed=false`,
                     fields: 'files(id)'
                 });
                 
-                if (searchResponse.result.files.length === 0) {
-                    alert('❌ לא נמצא קובץ גיבוי ב-Drive');
+                if (search.result.files.length === 0) {
+                    alert('❌ לא נמצא קובץ גיבוי');
                     document.getElementById('btnRestore').textContent = '📥 שחזור מ-Drive';
                     return;
                 }
                 
-                const fileId = searchResponse.result.files[0].id;
                 const response = await gapi.client.drive.files.get({
-                    fileId: fileId,
+                    fileId: search.result.files[0].id,
                     alt: 'media'
                 });
                 
@@ -2385,32 +2217,16 @@
                 saveData();
                 location.reload();
             } catch (error) {
-                console.error('Restore error:', error);
                 document.getElementById('btnRestore').textContent = '📥 שחזור מ-Drive';
-                alert('❌ שגיאה בשחזור: ' + error.message);
+                alert('❌ שגיאה: ' + error.message);
             }
         }
 
-        async function createFolderStructure() {
-            if (!googleAccessToken) {
-                alert('⚠️ יש להתחבר קודם ל-Google Drive');
-                return;
-            }
-            
-            try {
-                await findOrCreateDriveRootFolder();
-                alert(`✅ מבנה התיקיות נוצר והנתונים סונכרנו!\nפתח את Google Drive כדי לראות.`);
-            } catch (error) {
-                console.error('Create folders error:', error);
-                alert('❌ שגיאה ביצירת תיקיות: ' + error.message);
-            }
-        }
-
-        // Check for last backup time on load
+        // ===== CHECK LAST BACKUP TIME =====
         function checkLastBackup() {
             const lastBackup = localStorage.getItem('lastDriveBackup');
             if (lastBackup) {
-                document.getElementById('lastSyncTime').textContent = '📅 גיבוי אחרון: ' + lastBackup;
+                document.getElementById('lastSyncTime').textContent = '📅 סנכרון אחרון: ' + lastBackup;
             }
         }
 
@@ -3109,6 +2925,9 @@
             renderAll();
             checkLastBackup();
             initLocalFolder();
+            
+            // Try to auto-connect to Google Drive
+            tryAutoConnect();
         }
         
         // Try to auto-restore from Google Drive
@@ -3269,7 +3088,17 @@
             localStorage.setItem('taxCalculatorV2', JSON.stringify(data));
             // Also save to local folder and Drive if available
             saveDataToLocalFolder();
-            saveDataToDrive();
+            syncToCloudDebounced();
+        }
+        
+        // Debounced sync to cloud (avoid too many API calls)
+        let syncTimeout = null;
+        function syncToCloudDebounced() {
+            if (!googleAccessToken || !driveFolderId) return;
+            if (syncTimeout) clearTimeout(syncTimeout);
+            syncTimeout = setTimeout(() => {
+                syncToCloud().catch(e => console.error('Auto-sync error:', e));
+            }, 3000);
         }
         
         // Save data.json to local folder
@@ -3293,62 +3122,6 @@
             } catch (e) {
                 console.error('Error saving to local folder:', e);
             }
-        }
-        
-        // Save data.json to Google Drive (debounced)
-        let driveeSaveTimeout = null;
-        async function saveDataToDrive() {
-            if (!googleAccessToken || !driveFolderId) return;
-            
-            // Debounce - wait 3 seconds before saving to avoid too many API calls
-            if (driveeSaveTimeout) clearTimeout(driveeSaveTimeout);
-            driveeSaveTimeout = setTimeout(async () => {
-                try {
-                    // Check if data.json already exists
-                    const search = await gapi.client.drive.files.list({
-                        q: `name='data.json' and '${driveFolderId}' in parents and trashed=false`,
-                        fields: 'files(id)'
-                    });
-                    
-                    const jsonContent = JSON.stringify(data, null, 2);
-                    const blob = new Blob([jsonContent], { type: 'application/json' });
-                    
-                    if (search.result.files.length > 0) {
-                        // Update existing file
-                        const fileId = search.result.files[0].id;
-                        await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
-                            method: 'PATCH',
-                            headers: {
-                                'Authorization': 'Bearer ' + googleAccessToken,
-                                'Content-Type': 'application/json'
-                            },
-                            body: jsonContent
-                        });
-                    } else {
-                        // Create new file
-                        const metadata = {
-                            name: 'data.json',
-                            parents: [driveFolderId]
-                        };
-                        
-                        const form = new FormData();
-                        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-                        form.append('file', blob);
-                        
-                        await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': 'Bearer ' + googleAccessToken
-                            },
-                            body: form
-                        });
-                    }
-                    
-                    console.log('Data saved to Google Drive');
-                } catch (e) {
-                    console.error('Error saving to Drive:', e);
-                }
-            }, 3000);
         }
         
         // Load data from local folder
