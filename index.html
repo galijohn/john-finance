@@ -1305,59 +1305,38 @@
             </div>
 
             <div class="card" style="margin-top:20px;">
-                <h3 style="margin:0 0 15px;">☁️ סנכרון Google Drive</h3>
-                <div class="info-box">
-                    <strong>💡 איך זה עובד?</strong><br>
-                    • הנתונים נשמרים מקומית בדפדפן<br>
-                    • לחץ "סנכרון ל-Drive" כדי לשמור את כל הנתונים בענן<br>
-                    • לחץ "שחזור מ-Drive" כדי לטעון מהענן<br>
-                    • הנתונים מסתנכרנים אוטומטית בכל שינוי!
+                <h3 style="margin:0 0 15px;">☁️ סנכרון ענן</h3>
+                <div id="driveStatus" style="padding:15px;background:var(--bg-input);border-radius:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                    <div>
+                        <span id="driveStatusText" style="font-weight:bold;">לא מחובר</span>
+                        <div id="lastSyncTime" style="font-size:0.85rem;color:var(--text-muted);margin-top:5px;"></div>
+                    </div>
+                    <div style="display:flex;gap:10px;">
+                        <button class="btn btn-primary" onclick="initGoogleDrive()" id="btnConnect">🔗 התחבר</button>
+                        <button class="btn btn-danger" onclick="restoreFromDrive()" id="btnRestore" disabled style="display:none;">📥 שחזר מענן</button>
+                    </div>
                 </div>
-                <div id="driveStatus" style="padding:10px;background:var(--bg-input);border-radius:8px;margin-bottom:15px;">
-                    <span id="driveStatusText">לא מחובר ל-Google Drive</span>
-                </div>
-                <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                    <button class="btn btn-primary" onclick="initGoogleDrive()">🔗 התחבר ל-Google</button>
-                    <button class="btn btn-success" onclick="backupToDrive()" id="btnBackup" disabled>📤 סנכרון ל-Drive</button>
-                    <button class="btn btn-primary" onclick="restoreFromDrive()" id="btnRestore" disabled>📥 שחזור מ-Drive</button>
-                </div>
-                <div id="lastSyncTime" style="margin-top:10px;color:var(--text-muted);font-size:0.85rem;"></div>
             </div>
 
             <div class="card" style="margin-top:20px;">
-                <h3 style="margin:0 0 15px;">📁 תיקיית מסמכים מקומית</h3>
-                <div class="info-box">
-                    <strong>💡 למה צריך?</strong><br>
-                    • גישה מהירה למסמכים מהמחשב<br>
-                    • קל לצרף למייל<br>
-                    • גיבוי מקומי בנוסף לענן
-                </div>
-                <div id="localFolderStatus" style="padding:15px;background:var(--bg-input);border-radius:8px;margin:15px 0;">
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <span id="localFolderIcon" style="font-size:1.5rem;">📁</span>
-                        <div>
-                            <div id="localFolderPath" style="font-weight:bold;">לא נבחרה תיקייה</div>
-                            <div id="localFolderHint" style="font-size:0.85rem;color:var(--text-muted);">בחר תיקייה לשמירת המסמכים</div>
-                        </div>
+                <h3 style="margin:0 0 15px;">📁 תיקייה מקומית</h3>
+                <div id="localFolderStatus" style="padding:15px;background:var(--bg-input);border-radius:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                    <div>
+                        <span id="localFolderPath" style="font-weight:bold;">לא מחובר</span>
+                        <div id="localFolderHint" style="font-size:0.85rem;color:var(--text-muted);margin-top:5px;">בחר תיקייה לגיבוי מקומי</div>
                     </div>
-                </div>
-                <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                    <button class="btn btn-primary" onclick="selectLocalFolder()">📂 בחר תיקייה</button>
-                    <button class="btn btn-success" onclick="createLocalFolderStructure()" id="btnCreateLocalFolders" disabled>📁 צור מבנה תיקיות</button>
-                    <button class="btn" onclick="openLocalFolder()" id="btnOpenLocalFolder" disabled>📋 העתק נתיב</button>
-                    <button class="btn btn-primary" onclick="restoreFromLocalFolder()" id="btnRestoreLocal" disabled>📥 שחזר מתיקייה</button>
+                    <button class="btn btn-primary" onclick="selectLocalFolder()" id="btnSelectFolder">📂 בחר תיקייה</button>
                 </div>
                 <div id="localFolderBrowserWarning" style="display:none;margin-top:10px;padding:10px;background:rgba(245,158,11,0.1);border-radius:8px;color:var(--warning);">
                     ⚠️ הדפדפן שלך לא תומך בגישה לתיקיות. השתמש ב-Chrome או Edge.
                 </div>
             </div>
 
-
             <div class="card" style="margin-top:20px;">
-                <h3 style="margin:0 0 15px;">💾 גיבוי ושחזור מקומי</h3>
+                <h3 style="margin:0 0 15px;">💾 גיבוי ידני</h3>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                    <button class="btn btn-primary" onclick="exportData()">📥 ייצא נתונים</button>
-                    <button class="btn btn-success" onclick="document.getElementById('importFile').click()">📤 ייבא נתונים</button>
+                    <button class="btn btn-primary" onclick="exportData()">📥 ייצא קובץ</button>
+                    <button class="btn btn-success" onclick="document.getElementById('importFile').click()">📤 ייבא קובץ</button>
                     <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
                     <button class="btn btn-danger" onclick="clearAllData()">🗑️ נקה הכל</button>
                 </div>
@@ -2093,13 +2072,76 @@
                 });
                 driveFolderId = create.result.id;
             }
+            
+            // Create full folder structure
+            await createFolderStructure();
+        }
+
+        // ===== CREATE FOLDER STRUCTURE =====
+        async function createFolderStructure() {
+            const subFolders = ['שכיר', 'מקדמות-מס', 'ביטוח-לאומי', 'חשבוניות-עצמאי', 'הוצאות-מוכרות', 'מילואים', 'אבטלה'];
+            
+            // Get years from data.yearData
+            let years = [new Date().getFullYear()];
+            if (data && data.yearData) {
+                years = Object.keys(data.yearData).map(y => parseInt(y));
+            }
+            console.log('Creating folders for years:', years);
+            
+            for (const year of years) {
+                // Find or create year folder
+                let yearFolderId;
+                const yearSearch = await gapi.client.drive.files.list({
+                    q: `name='${year}' and '${driveFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+                    fields: 'files(id)'
+                });
+                
+                if (yearSearch.result.files.length > 0) {
+                    yearFolderId = yearSearch.result.files[0].id;
+                } else {
+                    const yearFolder = await gapi.client.drive.files.create({
+                        resource: {
+                            name: year.toString(),
+                            mimeType: 'application/vnd.google-apps.folder',
+                            parents: [driveFolderId]
+                        },
+                        fields: 'id'
+                    });
+                    yearFolderId = yearFolder.result.id;
+                    console.log('Created year folder:', year);
+                }
+                
+                // Create subfolders
+                for (const folderName of subFolders) {
+                    const subSearch = await gapi.client.drive.files.list({
+                        q: `name='${folderName}' and '${yearFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+                        fields: 'files(id)'
+                    });
+                    
+                    if (subSearch.result.files.length === 0) {
+                        await gapi.client.drive.files.create({
+                            resource: {
+                                name: folderName,
+                                mimeType: 'application/vnd.google-apps.folder',
+                                parents: [yearFolderId]
+                            }
+                        });
+                        console.log('Created subfolder:', year + '/' + folderName);
+                    }
+                }
+            }
+            console.log('✅ Folder structure complete!');
         }
 
         // ===== SYNC ALL DATA TO CLOUD =====
         async function syncToCloud() {
-            if (!googleAccessToken || !driveFolderId) return;
+            if (!googleAccessToken || !driveFolderId) {
+                console.error('No token or folder ID!');
+                return;
+            }
             
             const jsonContent = JSON.stringify(data, null, 2);
+            console.log('Syncing data, size:', jsonContent.length, 'bytes');
             
             // Check if data.json exists
             const search = await gapi.client.drive.files.list({
@@ -2107,10 +2149,12 @@
                 fields: 'files(id)'
             });
             
+            let response;
             if (search.result.files.length > 0) {
                 // Update existing
                 const fileId = search.result.files[0].id;
-                await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+                console.log('Updating existing file:', fileId);
+                response = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
                     method: 'PATCH',
                     headers: {
                         'Authorization': 'Bearer ' + googleAccessToken,
@@ -2120,6 +2164,7 @@
                 });
             } else {
                 // Create new
+                console.log('Creating new file in folder:', driveFolderId);
                 const form = new FormData();
                 form.append('metadata', new Blob([JSON.stringify({
                     name: 'data.json',
@@ -2127,17 +2172,28 @@
                 })], { type: 'application/json' }));
                 form.append('file', new Blob([jsonContent], { type: 'application/json' }));
                 
-                await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
                     method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + googleAccessToken },
                     body: form
                 });
             }
             
+            // Check response
+            console.log('Response status:', response.status);
+            const result = await response.json();
+            console.log('Response body:', result);
+            
+            if (!response.ok) {
+                throw new Error('Upload failed: ' + (result.error?.message || response.status));
+            }
+            
             // Update last sync time
             const now = new Date().toLocaleString('he-IL');
             document.getElementById('lastSyncTime').textContent = '📅 סנכרון אחרון: ' + now;
             localStorage.setItem('lastDriveBackup', now);
+            
+            console.log('✅ Sync complete!');
         }
 
         // ===== AUTO-CONNECT ON PAGE LOAD =====
@@ -2161,32 +2217,20 @@
         // ===== UPDATE STATUS =====
         function updateDriveStatus(connected, error = null) {
             const statusEl = document.getElementById('driveStatusText');
-            const backupBtn = document.getElementById('btnBackup');
+            const connectBtn = document.getElementById('btnConnect');
             const restoreBtn = document.getElementById('btnRestore');
             
             if (connected) {
-                statusEl.innerHTML = '✅ מחובר ל-Google Drive';
+                statusEl.innerHTML = '✅ מסונכרן';
                 statusEl.style.color = 'var(--success)';
-                backupBtn.disabled = false;
+                connectBtn.style.display = 'none';
+                restoreBtn.style.display = 'inline-block';
                 restoreBtn.disabled = false;
             } else {
                 statusEl.innerHTML = '❌ לא מחובר' + (error ? ': ' + error : '');
                 statusEl.style.color = 'var(--danger)';
-                backupBtn.disabled = true;
-                restoreBtn.disabled = true;
-            }
-        }
-
-        // ===== MANUAL BACKUP BUTTON =====
-        async function backupToDrive() {
-            try {
-                document.getElementById('btnBackup').textContent = '⏳ מסנכרן...';
-                await syncToCloud();
-                document.getElementById('btnBackup').textContent = '📤 סנכרון ל-Drive';
-                alert('✅ כל הנתונים סונכרנו בהצלחה!');
-            } catch (error) {
-                document.getElementById('btnBackup').textContent = '📤 סנכרון ל-Drive';
-                alert('❌ שגיאה: ' + error.message);
+                connectBtn.style.display = 'inline-block';
+                restoreBtn.style.display = 'none';
             }
         }
 
@@ -2204,7 +2248,7 @@
                 
                 if (search.result.files.length === 0) {
                     alert('❌ לא נמצא קובץ גיבוי');
-                    document.getElementById('btnRestore').textContent = '📥 שחזור מ-Drive';
+                    document.getElementById('btnRestore').textContent = '📥 שחזר מענן';
                     return;
                 }
                 
@@ -2217,7 +2261,7 @@
                 saveData();
                 location.reload();
             } catch (error) {
-                document.getElementById('btnRestore').textContent = '📥 שחזור מ-Drive';
+                document.getElementById('btnRestore').textContent = '📥 שחזר מענן';
                 alert('❌ שגיאה: ' + error.message);
             }
         }
@@ -2401,6 +2445,9 @@
                 await saveFolderHandle(handle);
                 updateLocalFolderUI();
                 
+                // Auto-create folder structure
+                await createLocalFolderStructure();
+                
             } catch (e) {
                 if (e.name !== 'AbortError') {
                     console.error('Folder selection error:', e);
@@ -2413,27 +2460,18 @@
         function updateLocalFolderUI() {
             const pathEl = document.getElementById('localFolderPath');
             const hintEl = document.getElementById('localFolderHint');
-            const iconEl = document.getElementById('localFolderIcon');
-            const btnCreate = document.getElementById('btnCreateLocalFolders');
-            const btnOpen = document.getElementById('btnOpenLocalFolder');
-            const btnRestore = document.getElementById('btnRestoreLocal');
+            const btnSelect = document.getElementById('btnSelectFolder');
             
             if (localFolderHandle) {
-                pathEl.textContent = localFolderHandle.name + '/john-finance/';
-                hintEl.textContent = '✅ תיקייה נבחרה - נתונים נשמרים אוטומטית';
-                hintEl.style.color = 'var(--success)';
-                iconEl.textContent = '📂';
-                btnCreate.disabled = false;
-                btnOpen.disabled = false;
-                btnRestore.disabled = false;
+                pathEl.textContent = '✅ ' + localFolderHandle.name + '/john-finance/';
+                pathEl.style.color = 'var(--success)';
+                hintEl.textContent = 'נתונים נשמרים אוטומטית';
+                btnSelect.textContent = '📂 שנה תיקייה';
             } else {
-                pathEl.textContent = 'לא נבחרה תיקייה';
-                hintEl.textContent = 'בחר תיקייה לשמירת המסמכים';
-                hintEl.style.color = 'var(--text-muted)';
-                iconEl.textContent = '📁';
-                btnCreate.disabled = true;
-                btnOpen.disabled = true;
-                btnRestore.disabled = true;
+                pathEl.textContent = 'לא מחובר';
+                pathEl.style.color = 'var(--text-muted)';
+                hintEl.textContent = 'בחר תיקייה לגיבוי מקומי';
+                btnSelect.textContent = '📂 בחר תיקייה';
             }
         }
         
@@ -2721,6 +2759,59 @@
             renderYearSelector();
             renderYearsList();
             input.value = '';
+            
+            // Create folders for new year in Drive and Local
+            createYearFolders(year);
+        }
+        
+        // Create folders for a specific year
+        async function createYearFolders(year) {
+            const subFolders = ['שכיר', 'מקדמות-מס', 'ביטוח-לאומי', 'חשבוניות-עצמאי', 'הוצאות-מוכרות', 'מילואים', 'אבטלה'];
+            
+            // Create in Google Drive
+            if (googleAccessToken && driveFolderId) {
+                try {
+                    // Create year folder
+                    const yearFolder = await gapi.client.drive.files.create({
+                        resource: {
+                            name: year.toString(),
+                            mimeType: 'application/vnd.google-apps.folder',
+                            parents: [driveFolderId]
+                        },
+                        fields: 'id'
+                    });
+                    const yearFolderId = yearFolder.result.id;
+                    
+                    // Create subfolders
+                    for (const folderName of subFolders) {
+                        await gapi.client.drive.files.create({
+                            resource: {
+                                name: folderName,
+                                mimeType: 'application/vnd.google-apps.folder',
+                                parents: [yearFolderId]
+                            }
+                        });
+                    }
+                    console.log('Created Drive folders for year:', year);
+                } catch (e) {
+                    console.error('Error creating Drive folders:', e);
+                }
+            }
+            
+            // Create in local folder
+            if (localFolderHandle) {
+                try {
+                    const rootFolder = await localFolderHandle.getDirectoryHandle('john-finance', { create: true });
+                    const yearFolder = await rootFolder.getDirectoryHandle(year.toString(), { create: true });
+                    
+                    for (const folderName of subFolders) {
+                        await yearFolder.getDirectoryHandle(folderName, { create: true });
+                    }
+                    console.log('Created local folders for year:', year);
+                } catch (e) {
+                    console.error('Error creating local folders:', e);
+                }
+            }
         }
 
         function deleteYear(year) {
