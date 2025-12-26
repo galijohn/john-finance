@@ -2037,6 +2037,7 @@
         // Find or create john-finance root folder AND full structure
         async function findOrCreateDriveRootFolder() {
             // Find or create root folder
+            console.log('Looking for john-finance folder...');
             const search = await gapi.client.drive.files.list({
                 q: `name='john-finance' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
                 fields: 'files(id)'
@@ -2044,7 +2045,9 @@
             
             if (search.result.files.length > 0) {
                 driveFolderId = search.result.files[0].id;
+                console.log('Found existing folder:', driveFolderId);
             } else {
+                console.log('Creating john-finance folder...');
                 const create = await gapi.client.drive.files.create({
                     resource: {
                         name: 'john-finance',
@@ -2053,10 +2056,13 @@
                     fields: 'id'
                 });
                 driveFolderId = create.result.id;
+                console.log('Created folder:', driveFolderId);
             }
             
             // Create full folder structure automatically
+            console.log('Creating folder structure...');
             await createDriveFolderStructure();
+            console.log('Folder structure complete!');
         }
         
         // Create full folder structure in Drive
@@ -2073,8 +2079,10 @@
             
             // Create year folders for all years in data
             const years = data.years || [currentYear];
+            console.log('Creating folders for years:', years);
             
             for (const year of years) {
+                console.log('Processing year:', year);
                 // Find or create year folder
                 let yearFolderId;
                 const yearSearch = await gapi.client.drive.files.list({
@@ -2084,7 +2092,9 @@
                 
                 if (yearSearch.result.files.length > 0) {
                     yearFolderId = yearSearch.result.files[0].id;
+                    console.log('Found year folder:', year, yearFolderId);
                 } else {
+                    console.log('Creating year folder:', year);
                     const yearFolder = await gapi.client.drive.files.create({
                         resource: {
                             name: year.toString(),
@@ -2094,6 +2104,7 @@
                         fields: 'id'
                     });
                     yearFolderId = yearFolder.result.id;
+                    console.log('Created year folder:', year, yearFolderId);
                 }
                 
                 // Create subfolders inside year folder
@@ -2104,6 +2115,7 @@
                     });
                     
                     if (subSearch.result.files.length === 0) {
+                        console.log('Creating subfolder:', folderName);
                         await gapi.client.drive.files.create({
                             resource: {
                                 name: folderName,
