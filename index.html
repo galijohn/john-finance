@@ -4098,23 +4098,26 @@
             
             const brackets = yd.settings.blBrackets;
             let total = 0;
-            let details = [];
+            let reduced = 0;
+            let full = 0;
             
-            for (const bracket of brackets) {
+            for (let i = 0; i < brackets.length; i++) {
+                const bracket = brackets[i];
                 if (selfEmployedIncome <= bracket.min) break;
+                
                 const incomeInBracket = Math.min(selfEmployedIncome, bracket.max) - bracket.min;
-                const amountInBracket = incomeInBracket * (bracket.totalRate / 100);
+                const amountInBracket = incomeInBracket * ((bracket.totalRate || 0) / 100);
                 total += amountInBracket;
-                if (incomeInBracket > 0) {
-                    details.push({
-                        ...bracket,
-                        income: incomeInBracket,
-                        amount: amountInBracket
-                    });
+                
+                // First bracket = reduced, second = full
+                if (i === 0) {
+                    reduced = amountInBracket;
+                } else {
+                    full += amountInBracket;
                 }
             }
             
-            return { total, details };
+            return { total, reduced, full };
         }
 
         // ========== RENDERING ==========
