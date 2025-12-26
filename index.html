@@ -555,7 +555,9 @@
                 <h1 style="margin:0;font-size:1.5rem;color:var(--text);">ניהול עוסק</h1>
                 <p style="margin:5px 0 0;color:var(--primary);font-size:1.1rem;font-weight:500;">John Levy</p>
             </div>
-            <div style="border-top:1px solid var(--border);padding-top:25px;">
+            
+            <!-- PIN Entry (when data exists) -->
+            <div id="pinEntrySection" style="border-top:1px solid var(--border);padding-top:25px;">
                 <p id="pinMessage" style="color:var(--text-muted);margin-bottom:15px;">הזן קוד PIN</p>
                 <input type="password" id="pinInput" maxlength="6" 
                        style="font-size:2rem;text-align:center;width:150px;padding:15px;border-radius:8px;border:2px solid var(--border);background:var(--bg-input);color:var(--text);letter-spacing:10px;"
@@ -564,10 +566,15 @@
                     <button class="btn btn-primary" onclick="checkPin()" style="width:100%;padding:15px;">כניסה</button>
                 </div>
                 <div id="pinError" style="color:var(--danger);margin-top:15px;display:none;">קוד שגוי</div>
-                <div id="pinSetup" style="margin-top:20px;display:none;">
-                    <p style="color:var(--text-muted);font-size:0.9rem;">הגדרת PIN חדש</p>
-                    <button class="btn" onclick="setupPin()" style="width:100%;">שמור PIN</button>
-                </div>
+            </div>
+            
+            <!-- Cloud Connect (when no data) -->
+            <div id="cloudConnectSection" style="border-top:1px solid var(--border);padding-top:25px;display:none;">
+                <p style="color:var(--text-muted);margin-bottom:20px;">מכשיר חדש? התחבר לענן</p>
+                <button class="btn btn-primary" onclick="connectAndRestore()" style="width:100%;padding:15px;">
+                    <span id="connectBtnText">🔗 התחבר ל-Google Drive</span>
+                </button>
+                <p id="connectStatus" style="color:var(--text-muted);margin-top:15px;font-size:0.9rem;display:none;"></p>
             </div>
         </div>
     </div>
@@ -3133,32 +3140,136 @@
 
         // ========== INIT ==========
         // ===== PIN LOCK =====
-        function checkPinOnLoad() {
+        async function checkPinOnLoad() {
             const lockScreen = document.getElementById('pinLockScreen');
+            const pinEntrySection = document.getElementById('pinEntrySection');
+            const cloudConnectSection = document.getElementById('cloudConnectSection');
+            
+            // Check if we have local data with a PIN
+            const hasLocalData = localStorage.getItem('taxCalculatorV2');
             const savedPin = data.pin || null;
             
-            if (!savedPin) {
-                // No PIN set - show setup
-                lockScreen.style.display = 'flex';
-                document.getElementById('pinMessage').textContent = 'הגדר קוד PIN (4-6 ספרות)';
-                document.getElementById('pinSetup').style.display = 'block';
-                document.querySelector('#pinLockScreen .btn-primary').style.display = 'none';
-            } else {
-                // PIN exists - require it
+            if (hasLocalData && savedPin) {
+                // Has data with PIN - show PIN entry
+                pinEntrySection.style.display = 'block';
+                cloudConnectSection.style.display = 'none';
                 lockScreen.style.display = 'flex';
                 setTimeout(() => document.getElementById('pinInput').focus(), 100);
+            } else {
+                // No local data OR no PIN - check if we can auto-restore
+                const savedToken = localStorage.getItem('googleAccessToken');
+                const tokenExpiry = localStorage.getItem('googleTokenExpiry');
+                
+                if (savedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
+                    // Valid token exists - try auto-restore
+                    pinEntrySection.style.display = 'none';
+                    cloudConnectSection.style.display = 'block';
+                    lockScreen.style.display = 'flex';
+                    
+                    // Auto-trigger restore
+                    document.getElementById('connectBtnText').textContent = '⏳ מתחבר אוטומטית...';
+                    document.getElementById('connectStatus').style.display = 'block';
+                    document.getElementById('connectStatus').textContent = 'נמצא טוקן שמור, משחזר...';
+                    
+                    try {
+                        await connectAndRestore();
+                    } catch (e) {
+                        console.error('Auto-restore failed:', e);
+                    }
+                } else {
+                    // No valid token - show cloud connect button
+                    pinEntrySection.style.display = 'none';
+                    cloudConnectSection.style.display = 'block';
+                    lockScreen.style.display = 'flex';
+                }
             }
             
-            // Enter key to submit
+            // Enter key to submit PIN
             document.getElementById('pinInput').addEventListener('keyup', (e) => {
                 if (e.key === 'Enter') {
-                    if (!data.pin) {
-                        setupPin();
-                    } else {
-                        checkPin();
-                    }
+                    checkPin();
                 }
             });
+        }
+        
+        async function connectAndRestore() {
+            const statusEl = document.getElementById('connectStatus');
+            const btnText = document.getElementById('connectBtnText');
+            
+            try {
+                // Step 1: Load Google API
+                btnText.textContent = '⏳ מתחבר...';
+                statusEl.style.display = 'block';
+                statusEl.style.color = 'var(--text-muted)';
+                statusEl.textContent = 'טוען API...';
+                
+                await loadGoogleAPI();
+                
+                // Step 2: Get token
+                statusEl.textContent = 'מתחבר ל-Google...';
+                await getGoogleToken();
+                
+                // Step 3: Find folder (don't create if doesn't exist)
+                statusEl.textContent = 'מחפש תיקייה בענן...';
+                const search = await gapi.client.drive.files.list({
+                    q: "name='JohnFinance' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+                    fields: 'files(id, name)'
+                });
+                
+                if (search.result.files.length === 0) {
+                    statusEl.style.color = 'var(--danger)';
+                    statusEl.textContent = '❌ לא נמצאה תיקייה בענן';
+                    btnText.textContent = '🔗 נסה שוב';
+                    return;
+                }
+                
+                driveFolderId = search.result.files[0].id;
+                
+                // Step 4: Find data.json
+                statusEl.textContent = 'מחפש נתונים...';
+                btnText.textContent = '⏳ משחזר...';
+                
+                const dataSearch = await gapi.client.drive.files.list({
+                    q: `name='data.json' and '${driveFolderId}' in parents and trashed=false`,
+                    fields: 'files(id)'
+                });
+                
+                if (dataSearch.result.files.length === 0) {
+                    statusEl.style.color = 'var(--danger)';
+                    statusEl.textContent = '❌ לא נמצאו נתונים בענן';
+                    btnText.textContent = '🔗 נסה שוב';
+                    return;
+                }
+                
+                // Step 5: Download and restore
+                statusEl.textContent = 'משחזר נתונים...';
+                const response = await gapi.client.drive.files.get({
+                    fileId: dataSearch.result.files[0].id,
+                    alt: 'media'
+                });
+                
+                data = response.result;
+                saveData();
+                
+                // Step 6: Update drive status
+                updateDriveStatus(true);
+                
+                // Step 7: Check if restored data has PIN
+                if (data.pin) {
+                    statusEl.textContent = '✅ שוחזר! הזן PIN';
+                    document.getElementById('pinEntrySection').style.display = 'block';
+                    document.getElementById('cloudConnectSection').style.display = 'none';
+                    setTimeout(() => document.getElementById('pinInput').focus(), 100);
+                } else {
+                    // No PIN in cloud data - reload to enter
+                    location.reload();
+                }
+            } catch (error) {
+                console.error('Connect and restore error:', error);
+                statusEl.style.color = 'var(--danger)';
+                statusEl.textContent = '❌ שגיאה: ' + error.message;
+                btnText.textContent = '🔗 נסה שוב';
+            }
         }
         
         function setupPin() {
