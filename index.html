@@ -3477,7 +3477,7 @@
             const itemData = {
                 from: document.getElementById('miluimFrom').value,
                 to: document.getElementById('miluimTo').value,
-                days: parseInt(document.getElementById('miluimDays').value) || 0,
+                days: parseFloat(document.getElementById('miluimDays').value) || 0,
                 amount: parseFloat(document.getElementById('miluimAmount').value) || 0,
                 taxDeducted: parseFloat(document.getElementById('miluimTaxDeducted').value) || 0,
                 blDeducted: parseFloat(document.getElementById('miluimBLDeducted').value) || 0,
