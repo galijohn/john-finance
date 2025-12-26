@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מערכת ניהול מס מקיפה - שכיר + אבטלה + מילואים + עצמאי</title>
+    <title>ניהול עוסק - ג'ון לוי</title>
     <style>
         * {
             box-sizing: border-box;
@@ -44,6 +44,8 @@
             padding: 20px 0;
             z-index: 100;
             overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
         
         .logo {
@@ -542,8 +544,9 @@
 <body>
     <nav class="sidebar">
         <div class="logo">
-            <h1>📊 מחשבון מס</h1>
-            <small>שכיר + אבטלה + מילואים + עצמאי</small>
+            <h1>💼 ניהול עוסק</h1>
+            <small>ג'ון לוי</small>
+            <div id="headerClock" style="margin-top:10px;font-size:0.85rem;color:var(--text-muted);"></div>
         </div>
         <div class="nav-item active" onclick="showPage('dashboard')">
             <span class="icon">🏠</span>
@@ -584,6 +587,12 @@
         <div class="nav-item" onclick="showPage('settings')">
             <span class="icon">⚙️</span>
             <span class="nav-text">הגדרות</span>
+        </div>
+        <div id="sidebarSyncStatus" style="padding:15px;margin-top:auto;border-top:1px solid var(--border);font-size:0.8rem;">
+            <div id="syncIndicator" style="display:flex;align-items:center;gap:8px;">
+                <span id="syncIcon">⏳</span>
+                <span id="syncText">מתחבר...</span>
+            </div>
         </div>
     </nav>
 
@@ -2239,6 +2248,8 @@
             const statusEl = document.getElementById('driveStatusText');
             const connectBtn = document.getElementById('btnConnect');
             const restoreBtn = document.getElementById('btnRestore');
+            const syncIcon = document.getElementById('syncIcon');
+            const syncText = document.getElementById('syncText');
             
             if (connected) {
                 statusEl.innerHTML = '✅ מסונכרן';
@@ -2246,12 +2257,29 @@
                 connectBtn.style.display = 'none';
                 restoreBtn.style.display = 'inline-block';
                 restoreBtn.disabled = false;
+                // Update sidebar
+                syncIcon.textContent = '✅';
+                syncText.textContent = 'מסונכרן';
+                syncText.style.color = 'var(--success)';
             } else {
                 statusEl.innerHTML = '❌ לא מחובר' + (error ? ': ' + error : '');
                 statusEl.style.color = 'var(--danger)';
                 connectBtn.style.display = 'inline-block';
                 restoreBtn.style.display = 'none';
+                // Update sidebar
+                syncIcon.textContent = '❌';
+                syncText.textContent = 'לא מחובר';
+                syncText.style.color = 'var(--danger)';
             }
+        }
+        
+        // Show syncing indicator
+        function showSyncing() {
+            const syncIcon = document.getElementById('syncIcon');
+            const syncText = document.getElementById('syncText');
+            syncIcon.textContent = '🔄';
+            syncText.textContent = 'מסנכרן...';
+            syncText.style.color = 'var(--warning)';
         }
 
         // ===== RESTORE FROM CLOUD =====
@@ -3021,6 +3049,16 @@
         const MONTHS = ['', 'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
 
         // ========== INIT ==========
+        // ===== CLOCK UPDATE =====
+        function updateClock() {
+            const now = new Date();
+            const days = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+            const day = days[now.getDay()];
+            const date = now.toLocaleDateString('he-IL');
+            const time = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('headerClock').innerHTML = `יום ${day} | ${date}<br>${time}`;
+        }
+
         async function init() {
             const hasLocalData = loadData();
             
@@ -3039,6 +3077,10 @@
             
             // Try to auto-connect to Google Drive
             tryAutoConnect();
+            
+            // Start clock
+            updateClock();
+            setInterval(updateClock, 1000);
         }
         
         // Try to auto-restore from Google Drive
@@ -3207,8 +3249,14 @@
         function syncToCloudDebounced() {
             if (!googleAccessToken || !driveFolderId) return;
             if (syncTimeout) clearTimeout(syncTimeout);
-            syncTimeout = setTimeout(() => {
-                syncToCloud().catch(e => console.error('Auto-sync error:', e));
+            showSyncing();
+            syncTimeout = setTimeout(async () => {
+                try {
+                    await syncToCloud();
+                    updateDriveStatus(true);
+                } catch(e) {
+                    console.error('Auto-sync error:', e);
+                }
             }, 3000);
         }
         
