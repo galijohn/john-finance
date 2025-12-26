@@ -2053,34 +2053,59 @@
 
         function loadGoogleAPI() {
             return new Promise((resolve, reject) => {
-                if (window.gapi) {
+                // Load GAPI
+                if (!window.gapi) {
+                    const gapiScript = document.createElement('script');
+                    gapiScript.src = 'https://apis.google.com/js/api.js';
+                    gapiScript.onload = () => {
+                        gapi.load('client', async () => {
+                            await gapi.client.init({
+                                apiKey: GOOGLE_API_KEY,
+                                discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
+                            });
+                            resolve();
+                        });
+                    };
+                    gapiScript.onerror = reject;
+                    document.body.appendChild(gapiScript);
+                } else {
+                    resolve();
+                }
+            });
+        }
+        
+        function loadGISClient() {
+            return new Promise((resolve, reject) => {
+                if (window.google?.accounts?.oauth2) {
                     resolve();
                     return;
                 }
                 const script = document.createElement('script');
-                script.src = 'https://apis.google.com/js/api.js';
-                script.onload = () => {
-                    gapi.load('client:auth2', resolve);
-                };
+                script.src = 'https://accounts.google.com/gsi/client';
+                script.onload = resolve;
                 script.onerror = reject;
                 document.body.appendChild(script);
             });
         }
 
         async function authenticateGoogle() {
-            await gapi.client.init({
-                apiKey: GOOGLE_API_KEY,
-                clientId: GOOGLE_CLIENT_ID,
-                discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
-                scope: 'https://www.googleapis.com/auth/drive.file',
-                cookiePolicy: 'single_host_origin'
-            });
+            await loadGISClient();
             
-            const authInstance = gapi.auth2.getAuthInstance();
-            if (!authInstance.isSignedIn.get()) {
-                await authInstance.signIn();
-            }
-            googleAccessToken = authInstance.currentUser.get().getAuthResponse().access_token;
+            return new Promise((resolve, reject) => {
+                const tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: GOOGLE_CLIENT_ID,
+                    scope: 'https://www.googleapis.com/auth/drive.file',
+                    callback: (response) => {
+                        if (response.error) {
+                            reject(response);
+                            return;
+                        }
+                        googleAccessToken = response.access_token;
+                        resolve();
+                    }
+                });
+                tokenClient.requestAccessToken();
+            });
         }
 
         function updateDriveStatus(connected, error = null) {
@@ -2991,69 +3016,9 @@
         
         // Try to auto-restore from Google Drive
         async function tryAutoRestoreFromDrive() {
-            try {
-                // Try silent authentication
-                await loadGoogleAPI();
-                await gapi.client.init({
-                    apiKey: GOOGLE_API_KEY,
-                    clientId: GOOGLE_CLIENT_ID,
-                    discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
-                    scope: 'https://www.googleapis.com/auth/drive.file',
-                    cookiePolicy: 'single_host_origin'
-                });
-                
-                const authInstance = gapi.auth2.getAuthInstance();
-                if (authInstance.isSignedIn.get()) {
-                    // User is signed in, try to restore
-                    googleAccessToken = authInstance.currentUser.get().getAuthResponse().access_token;
-                    
-                    // Find john-finance folder
-                    const folderSearch = await gapi.client.drive.files.list({
-                        q: `name='john-finance' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-                        fields: 'files(id)'
-                    });
-                    
-                    if (folderSearch.result.files.length > 0) {
-                        driveFolderId = folderSearch.result.files[0].id;
-                        
-                        // Find data.json
-                        const fileSearch = await gapi.client.drive.files.list({
-                            q: `name='data.json' and '${driveFolderId}' in parents and trashed=false`,
-                            fields: 'files(id)'
-                        });
-                        
-                        if (fileSearch.result.files.length > 0) {
-                            const fileId = fileSearch.result.files[0].id;
-                            const response = await gapi.client.drive.files.get({
-                                fileId: fileId,
-                                alt: 'media'
-                            });
-                            
-                            data = response.result;
-                            
-                            // Ensure data structure is valid
-                            if (!data.years) data.years = [currentYear];
-                            if (!data.yearData) data.yearData = {};
-                            if (!data.yearData[currentYear]) {
-                                data.yearData[currentYear] = createEmptyYearData(currentYear);
-                            }
-                            
-                            localStorage.setItem('taxCalculatorV2', JSON.stringify(data));
-                            updateDriveStatus(true);
-                            loadCreditsToUI();
-                            console.log('✅ Data auto-restored from Google Drive!');
-                            
-                            // Show notification
-                            setTimeout(() => {
-                                alert('✅ הנתונים שוחזרו אוטומטית מ-Google Drive!');
-                            }, 500);
-                            return;
-                        }
-                    }
-                }
-            } catch (e) {
-                console.log('Auto-restore from Drive not available:', e.message);
-            }
+            // New GIS API doesn't support silent auth
+            // User needs to click "Connect to Google" button
+            console.log('Auto-restore from Drive: User needs to connect manually');
         }
 
         function loadData() {
