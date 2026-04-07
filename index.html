@@ -2840,11 +2840,59 @@
                         // Save for 55 minutes
                         localStorage.setItem('googleAccessToken', response.access_token);
                         localStorage.setItem('googleTokenExpiry', String(Date.now() + 55 * 60 * 1000));
+                        scheduleTokenRenewal();
                         resolve();
                     },
                     error_callback: (error) => reject(new Error(error.message || 'Auth failed'))
                 });
                 tokenClient.requestAccessToken();
+            });
+        }
+
+        // Auto-renew token before it expires
+        let tokenRenewTimer = null;
+        function scheduleTokenRenewal() {
+            if (tokenRenewTimer) clearTimeout(tokenRenewTimer);
+            const expiry = parseInt(localStorage.getItem('googleTokenExpiry') || '0');
+            const timeLeft = expiry - Date.now();
+            // Renew 5 minutes before expiry
+            const renewIn = Math.max(timeLeft - 5 * 60 * 1000, 10000);
+            console.log('Token renewal scheduled in', Math.round(renewIn/60000), 'minutes');
+            tokenRenewTimer = setTimeout(async () => {
+                console.log('🔄 Auto-renewing Google token...');
+                try {
+                    await renewTokenSilently();
+                } catch(e) {
+                    console.error('Token renewal failed:', e);
+                    updateDriveStatus(false, 'טוקן פג - יש להתחבר מחדש');
+                }
+            }, renewIn);
+        }
+
+        async function renewTokenSilently() {
+            await loadGISClient();
+            return new Promise((resolve, reject) => {
+                const tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: GOOGLE_CLIENT_ID,
+                    scope: 'https://www.googleapis.com/auth/drive.file',
+                    prompt: '',
+                    callback: (response) => {
+                        if (response.error) {
+                            reject(new Error(response.error));
+                            return;
+                        }
+                        googleAccessToken = response.access_token;
+                        gapi.client.setToken({ access_token: response.access_token });
+                        localStorage.setItem('googleAccessToken', response.access_token);
+                        localStorage.setItem('googleTokenExpiry', String(Date.now() + 55 * 60 * 1000));
+                        console.log('✅ Token renewed successfully');
+                        updateDriveStatus(true);
+                        scheduleTokenRenewal();
+                        resolve();
+                    },
+                    error_callback: (error) => reject(new Error(error.message || 'Renewal failed'))
+                });
+                tokenClient.requestAccessToken({ prompt: '' });
             });
         }
 
@@ -3021,6 +3069,7 @@
                     // Find folder
                     await findOrCreateFolder();
                     updateDriveStatus(true);
+                    scheduleTokenRenewal();
                     console.log('✅ Auto-connected!');
 
                     // Check if cloud has newer data
