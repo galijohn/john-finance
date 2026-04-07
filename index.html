@@ -3097,7 +3097,16 @@
             if (!cloudArr) return localArr || [];
             const map = new Map();
             localArr.forEach(item => { if (item.id) map.set(item.id, item); });
-            cloudArr.forEach(item => { if (item.id && !map.has(item.id)) map.set(item.id, item); });
+            cloudArr.forEach(item => {
+                if (!item.id) return;
+                const existing = map.get(item.id);
+                if (!existing) {
+                    map.set(item.id, item);
+                } else {
+                    // If either copy is deleted, keep the deleted version
+                    if (item._deleted && !existing._deleted) map.set(item.id, item);
+                }
+            });
             return Array.from(map.values());
         }
 
@@ -5062,7 +5071,8 @@
         function deleteTaxAdvance(id) {
             const yd = getYearData();
             if (confirm('למחוק?')) {
-                yd.taxAdvances = yd.taxAdvances.filter(p => p.id !== id);
+                const item = yd.taxAdvances.find(p => p.id === id);
+                if (item) { item._deleted = true; item._deletedAt = Date.now(); }
                 saveData();
                 renderAll();
             }
@@ -5128,7 +5138,8 @@
         function deleteBLAdvance(id) {
             const yd = getYearData();
             if (confirm('למחוק?')) {
-                yd.blAdvances = yd.blAdvances.filter(p => p.id !== id);
+                const item = yd.blAdvances.find(p => p.id === id);
+                if (item) { item._deleted = true; item._deletedAt = Date.now(); }
                 saveData();
                 renderAll();
             }
@@ -5230,7 +5241,8 @@
         function deleteVatReport(id) {
             const yd = getYearData();
             if (confirm('למחוק?')) {
-                yd.vatReports = yd.vatReports.filter(v => v.id !== id);
+                const item = yd.vatReports.find(v => v.id === id);
+                if (item) { item._deleted = true; item._deletedAt = Date.now(); }
                 saveData();
                 renderAll();
             }
@@ -5241,7 +5253,8 @@
             const tbody = document.getElementById('vatTable');
             if (!tbody) return;
             
-            if (!yd.vatReports || yd.vatReports.length === 0) {
+            const vatItems = active(yd.vatReports);
+            if (vatItems.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">📊</div><p>לחץ + להוסיף דיווח מע"מ</p></td></tr>';
                 document.getElementById('vatTotalRefund').textContent = '₪0';
                 document.getElementById('vatIncome').textContent = '₪0';
@@ -5264,7 +5277,7 @@
             let totalInputVat = 0;
             let totalOutputVat = 0;
             
-            tbody.innerHTML = [...yd.vatReports].sort((a, b) => parseInt(a.period) - parseInt(b.period)).map(v => {
+            tbody.innerHTML = [...vatItems].sort((a, b) => parseInt(a.period) - parseInt(b.period)).map(v => {
                 totalIncome += v.income;
                 totalExpenses += v.expenses;
                 totalInputVat += v.inputVat;
@@ -5305,7 +5318,8 @@
         function deleteItem(type, id) {
             const yd = getYearData();
             if (confirm('למחוק?')) {
-                yd[type] = yd[type].filter(i => i.id !== id);
+                const item = yd[type].find(i => i.id === id);
+                if (item) { item._deleted = true; item._deletedAt = Date.now(); }
                 saveData();
                 renderAll();
             }
@@ -5419,28 +5433,31 @@
         }
 
         // ========== TAX CALCULATIONS ==========
+        // Filter out soft-deleted items
+        const active = arr => (arr || []).filter(i => !i._deleted);
+
         function calculateTotals() {
             const yd = getYearData();
-            const totalSalary = yd.salary.reduce((sum, s) => sum + s.gross, 0);
-            const totalUnemployment = yd.unemployment.reduce((sum, u) => sum + u.gross, 0);
-            const totalMiluim = yd.miluim.reduce((sum, m) => sum + m.amount, 0);
-            const totalMiluimDays = yd.miluim.reduce((sum, m) => sum + m.days, 0);
-            const totalSelfEmployed = yd.selfEmployed.reduce((sum, s) => sum + s.amount, 0);
-            const totalExpenses = yd.expenses.reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
-            
+            const totalSalary = active(yd.salary).reduce((sum, s) => sum + s.gross, 0);
+            const totalUnemployment = active(yd.unemployment).reduce((sum, u) => sum + u.gross, 0);
+            const totalMiluim = active(yd.miluim).reduce((sum, m) => sum + m.amount, 0);
+            const totalMiluimDays = active(yd.miluim).reduce((sum, m) => sum + m.days, 0);
+            const totalSelfEmployed = active(yd.selfEmployed).reduce((sum, s) => sum + s.amount, 0);
+            const totalExpenses = active(yd.expenses).reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+
             // Tax deducted from each source
-            const taxFromSalary = yd.salary.reduce((sum, s) => sum + s.taxDeducted, 0);
-            const taxFromUnemployment = yd.unemployment.reduce((sum, u) => sum + u.taxDeducted, 0);
-            const taxFromMiluim = yd.miluim.reduce((sum, m) => sum + (m.taxDeducted || 0), 0);
-            
+            const taxFromSalary = active(yd.salary).reduce((sum, s) => sum + s.taxDeducted, 0);
+            const taxFromUnemployment = active(yd.unemployment).reduce((sum, u) => sum + u.taxDeducted, 0);
+            const taxFromMiluim = active(yd.miluim).reduce((sum, m) => sum + (m.taxDeducted || 0), 0);
+
             // BL deducted from each source
-            const blFromSalary = yd.salary.reduce((sum, s) => sum + (s.blDeducted || 0), 0);
-            const blFromUnemployment = yd.unemployment.reduce((sum, u) => sum + (u.blDeducted || 0), 0);
-            const blFromMiluim = yd.miluim.reduce((sum, m) => sum + (m.blDeducted || 0), 0);
-            
+            const blFromSalary = active(yd.salary).reduce((sum, s) => sum + (s.blDeducted || 0), 0);
+            const blFromUnemployment = active(yd.unemployment).reduce((sum, u) => sum + (u.blDeducted || 0), 0);
+            const blFromMiluim = active(yd.miluim).reduce((sum, m) => sum + (m.blDeducted || 0), 0);
+
             // Calculate from separate advance payment arrays
-            const taxFromSelf = yd.taxAdvances.reduce((sum, p) => sum + p.amount, 0);
-            const blFromSelf = yd.blAdvances.reduce((sum, p) => sum + p.amount, 0);
+            const taxFromSelf = active(yd.taxAdvances).reduce((sum, p) => sum + p.amount, 0);
+            const blFromSelf = active(yd.blAdvances).reduce((sum, p) => sum + p.amount, 0);
             
             // Total BL paid from all sources
             const totalBLPaid = blFromSalary + blFromUnemployment + blFromMiluim + blFromSelf;
@@ -5885,11 +5902,12 @@
         function renderSalaryTable() {
             const yd = getYearData();
             const tbody = document.getElementById('salaryTable');
-            if (yd.salary.length === 0) {
+            const salaryItems = active(yd.salary);
+            if (salaryItems.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">💼</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = [...yd.salary].sort((a, b) => a.fromMonth - b.fromMonth).map(s => `<tr>
+            tbody.innerHTML = [...salaryItems].sort((a, b) => a.fromMonth - b.fromMonth).map(s => `<tr>
                 <td>${s.employer || '-'} ${s.notes ? '<span data-tip="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${MONTHS[s.fromMonth]} - ${MONTHS[s.toMonth]}</td>
                 <td>${formatCurrency(s.gross)}</td>
@@ -5906,11 +5924,12 @@
         function renderUnemploymentTable() {
             const yd = getYearData();
             const tbody = document.getElementById('unemploymentTable');
-            if (yd.unemployment.length === 0) {
+            const unemploymentItems = active(yd.unemployment);
+            if (unemploymentItems.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">📋</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = [...yd.unemployment].sort((a, b) => a.fromMonth - b.fromMonth).map(u => `<tr>
+            tbody.innerHTML = [...unemploymentItems].sort((a, b) => a.fromMonth - b.fromMonth).map(u => `<tr>
                 <td>${MONTHS[u.fromMonth]} - ${MONTHS[u.toMonth]} ${u.notes ? '<span data-tip="'+u.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${formatCurrency(u.gross)}</td>
                 <td>${formatCurrency(u.taxDeducted)}</td>
@@ -5926,20 +5945,21 @@
         function renderMiluimTable(totalDays) {
             const yd = getYearData();
             const tbody = document.getElementById('miluimTable');
-            const totalAmount = yd.miluim.reduce((s,m) => s+m.amount, 0);
-            const totalTax = yd.miluim.reduce((s,m) => s+(m.taxDeducted || 0), 0);
-            const totalBL = yd.miluim.reduce((s,m) => s+(m.blDeducted || 0), 0);
+            const miluimItems = active(yd.miluim);
+            const totalAmount = miluimItems.reduce((s,m) => s+m.amount, 0);
+            const totalTax = miluimItems.reduce((s,m) => s+(m.taxDeducted || 0), 0);
+            const totalBL = miluimItems.reduce((s,m) => s+(m.blDeducted || 0), 0);
             
             document.getElementById('totalMiluimDays').textContent = totalDays;
             document.getElementById('totalMiluimAmount').textContent = formatCurrency(totalAmount);
             document.getElementById('totalMiluimTax').textContent = formatCurrency(totalTax);
             document.getElementById('totalMiluimBL').textContent = formatCurrency(totalBL);
             
-            if (yd.miluim.length === 0) {
+            if (miluimItems.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">🎖️</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = [...yd.miluim].sort((a, b) => (a.from || '').localeCompare(b.from || '')).map(m => `<tr>
+            tbody.innerHTML = [...miluimItems].sort((a, b) => (a.from || '').localeCompare(b.from || '')).map(m => `<tr>
                 <td>${formatDate(m.from)} - ${formatDate(m.to)} ${m.notes ? '<span data-tip="'+m.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${m.days}</td>
                 <td>${formatCurrency(m.amount)}</td>
@@ -5956,13 +5976,14 @@
         function renderSelfEmployedTable() {
             const yd = getYearData();
             const tbody = document.getElementById('selfEmployedTable');
-            document.getElementById('selfEmployedWarning').style.display = yd.selfEmployed.length > 0 ? 'block' : 'none';
-            
-            if (yd.selfEmployed.length === 0) {
+            const selfItems = active(yd.selfEmployed);
+            document.getElementById('selfEmployedWarning').style.display = selfItems.length > 0 ? 'block' : 'none';
+
+            if (selfItems.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><div class="icon">💰</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = [...yd.selfEmployed].sort((a, b) => a.month - b.month).map(s => `<tr>
+            tbody.innerHTML = [...selfItems].sort((a, b) => a.month - b.month).map(s => `<tr>
                 <td>${MONTHS[s.month]}</td>
                 <td>${s.description || '-'} ${s.notes ? '<span data-tip="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${formatCurrency(s.amount)}</td>
@@ -5978,7 +5999,7 @@
             const yd = getYearData();
             const el = document.getElementById('dashExpenses');
             if (!el) return;
-            const totalRecognized = yd.expenses.reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+            const totalRecognized = active(yd.expenses).reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
             el.textContent = formatCurrency(totalRecognized);
         }
 
@@ -6017,7 +6038,7 @@
 
         function buildExpenseFilterButtons() {
             const yd = getYearData();
-            const categories = [...new Set(yd.expenses.map(e => e.category))];
+            const categories = [...new Set(active(yd.expenses).map(e => e.category))];
             const container = document.getElementById('expenseFilterButtons');
             container.innerHTML = categories.map(c =>
                 `<button class="filter-btn ${expenseFilter === c ? 'active' : ''}" onclick="filterExpenses('${c}', this)">${c}</button>`
@@ -6035,9 +6056,11 @@
             const yd = getYearData();
             const tbody = document.getElementById('expenseTable');
 
+            const expenseItems = active(yd.expenses);
+
             // On first render, collapse all categories
             if (expenseFirstRender && expenseGrouped) {
-                const cats = [...new Set(yd.expenses.map(e => e.category))];
+                const cats = [...new Set(expenseItems.map(e => e.category))];
                 cats.forEach(c => { collapsedCategories[c] = true; });
                 expenseFirstRender = false;
             }
@@ -6046,18 +6069,18 @@
             buildExpenseFilterButtons();
 
             // Calculate totals with recognition
-            const totalGross = yd.expenses.reduce((sum, e) => sum + e.amount, 0);
-            const totalRecognized = yd.expenses.reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+            const totalGross = expenseItems.reduce((sum, e) => sum + e.amount, 0);
+            const totalRecognized = expenseItems.reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
             document.getElementById('totalExpensesGross').textContent = formatCurrency(totalGross);
             document.getElementById('totalExpenses').textContent = formatCurrency(totalRecognized);
 
-            if (yd.expenses.length === 0) {
+            if (expenseItems.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div class="icon">🧾</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
 
             // Filter
-            let filtered = expenseFilter === 'all' ? [...yd.expenses] : yd.expenses.filter(e => e.category === expenseFilter);
+            let filtered = expenseFilter === 'all' ? [...expenseItems] : expenseItems.filter(e => e.category === expenseFilter);
 
             // Sort by date
             filtered.sort((a, b) => {
@@ -6117,16 +6140,17 @@
             const tbody = document.getElementById('taxAdvanceTable');
             const tfoot = document.getElementById('taxAdvanceTotals');
             
-            if (!yd.taxAdvances || yd.taxAdvances.length === 0) {
+            const taxAdvItems = active(yd.taxAdvances);
+            if (taxAdvItems.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">🏛️</div><p>לחץ + להוסיף מקדמת מס</p></td></tr>';
                 tfoot.innerHTML = '';
                 return;
             }
-            
+
             let cumulative = 0;
             let total = 0;
-            
-            tbody.innerHTML = [...yd.taxAdvances].sort((a, b) => a.month - b.month).map(p => {
+
+            tbody.innerHTML = [...taxAdvItems].sort((a, b) => a.month - b.month).map(p => {
                 cumulative += p.amount;
                 total += p.amount;
 
@@ -6157,16 +6181,17 @@
             const tbody = document.getElementById('blAdvanceTable');
             const tfoot = document.getElementById('blAdvanceTotals');
             
-            if (!yd.blAdvances || yd.blAdvances.length === 0) {
+            const blAdvItems = active(yd.blAdvances);
+            if (blAdvItems.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">🏥</div><p>לחץ + להוסיף תשלום ביט"ל</p></td></tr>';
                 tfoot.innerHTML = '';
                 return;
             }
-            
+
             let cumulative = 0;
             let total = 0;
-            
-            tbody.innerHTML = [...yd.blAdvances].sort((a, b) => a.month - b.month).map(p => {
+
+            tbody.innerHTML = [...blAdvItems].sort((a, b) => a.month - b.month).map(p => {
                 cumulative += p.amount;
                 total += p.amount;
 
@@ -6384,33 +6409,33 @@
             switch (page) {
                 case 'salary':
                     headers = ['חודש', 'מעסיק', 'ברוטו', 'מס שנוכה', 'ביט"ל שנוכה'];
-                    rows = yd.salary.map(s => [MONTHS[s.month], s.employer || '', s.gross, s.taxDeducted, s.blDeducted || 0]);
+                    rows = active(yd.salary).map(s => [MONTHS[s.month], s.employer || '', s.gross, s.taxDeducted, s.blDeducted || 0]);
                     break;
                 case 'unemployment':
                     headers = ['חודש', 'ברוטו', 'מס שנוכה', 'ביט"ל שנוכה'];
-                    rows = yd.unemployment.map(u => [MONTHS[u.month], u.gross, u.taxDeducted, u.blDeducted || 0]);
+                    rows = active(yd.unemployment).map(u => [MONTHS[u.month], u.gross, u.taxDeducted, u.blDeducted || 0]);
                     break;
                 case 'miluim': {
                     headers = ['מתאריך', 'עד תאריך', 'ימים', 'סכום', 'מס שנוכה', 'ביט"ל שנוכה', 'הערות'];
-                    rows = yd.miluim.map(m => [formatDate(m.from), formatDate(m.to), m.days, m.amount, m.taxDeducted || 0, m.blDeducted || 0, m.notes || '']);
-                    const totalDays = yd.miluim.reduce((s, m) => s + m.days, 0);
-                    const totalAmount = yd.miluim.reduce((s, m) => s + m.amount, 0);
-                    const totalTax = yd.miluim.reduce((s, m) => s + (m.taxDeducted || 0), 0);
-                    const totalBL = yd.miluim.reduce((s, m) => s + (m.blDeducted || 0), 0);
+                    const ml = active(yd.miluim);
+                    rows = ml.map(m => [formatDate(m.from), formatDate(m.to), m.days, m.amount, m.taxDeducted || 0, m.blDeducted || 0, m.notes || '']);
+                    const totalDays = ml.reduce((s, m) => s + m.days, 0);
+                    const totalAmount = ml.reduce((s, m) => s + m.amount, 0);
+                    const totalTax = ml.reduce((s, m) => s + (m.taxDeducted || 0), 0);
+                    const totalBL = ml.reduce((s, m) => s + (m.blDeducted || 0), 0);
                     rows._summary = { totalDays, totalAmount, totalTax, totalBL, netAmount: totalAmount - totalTax - totalBL };
                     break;
                 }
                 case 'selfEmployed': {
                     headers = ['חודש', 'תיאור', 'סכום'];
-                    rows = yd.selfEmployed.map(s => [MONTHS[s.month], s.description || '', s.amount]);
-                    // Add tax advances section
-                    const taxAdv = yd.taxAdvances || [];
-                    const blAdv = yd.blAdvances || [];
-                    const totalIncome = yd.selfEmployed.reduce((s, se) => s + se.amount, 0);
-                    const totalExpenses = yd.expenses.reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+                    const se = active(yd.selfEmployed);
+                    rows = se.map(s => [MONTHS[s.month], s.description || '', s.amount]);
+                    const taxAdv = active(yd.taxAdvances);
+                    const blAdv = active(yd.blAdvances);
+                    const totalIncome = se.reduce((s, si) => s + si.amount, 0);
+                    const totalExpenses = active(yd.expenses).reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
                     const totalTaxAdv = taxAdv.reduce((s, t) => s + t.amount, 0);
                     const totalBLAdv = blAdv.reduce((s, b) => s + b.amount, 0);
-                    // Extra data for the report
                     title = 'הכנסה כעצמאי - דוח מלא';
                     rows._extras = {
                         taxAdvances: taxAdv,
@@ -6425,14 +6450,14 @@
                 }
                 case 'expenses':
                     headers = ['תאריך', 'תיאור', 'קטגוריה', 'סכום', '% הכרה', 'סכום מוכר', 'הערות'];
-                    rows = yd.expenses.map(e => {
+                    rows = active(yd.expenses).map(e => {
                         const pct = e.recognition ?? 100;
                         return [formatDate(e.date), e.description || '', e.category, e.amount, pct + '%', e.amount * (pct / 100), e.notes || ''];
                     });
                     break;
                 case 'vat':
                     headers = ['תקופה', 'הכנסות', 'מע"מ עסקאות', 'מע"מ תשומות', 'הפרש'];
-                    rows = (yd.vatReports || []).map(v => {
+                    rows = active(yd.vatReports).map(v => {
                         const diff = v.outputVat - v.inputVat;
                         return [v.period, v.income, v.outputVat, v.inputVat, diff];
                     });
@@ -6861,7 +6886,7 @@
             const records = [];
 
             function addRecordDocs(items, recordType) {
-                (items || []).forEach(item => {
+                active(items).forEach(item => {
                     if (item.fileName && (item.driveLink || item.driveId)) {
                         records.push({
                             fileName: item.fileName,
@@ -6986,10 +7011,11 @@
 
             let bodyContent = '';
 
-            if (page === 'expenses' && yd.expenses.length > 0) {
+            const activeExpenses = active(yd.expenses);
+            if (page === 'expenses' && activeExpenses.length > 0) {
                 const groups = {};
                 const catOrder = [];
-                yd.expenses.forEach(e => {
+                activeExpenses.forEach(e => {
                     if (!groups[e.category]) { groups[e.category] = []; catOrder.push(e.category); }
                     groups[e.category].push(e);
                 });
@@ -7270,6 +7296,14 @@
                 }
             }
 
+            // Open print window BEFORE any async work (prevents popup blocker)
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                alert('הדפדפן חסם את החלון. אנא אפשר חלונות קופצים עבור אתר זה.');
+                return;
+            }
+            printWindow.document.write('<html dir="rtl"><body style="text-align:center;padding:50px;font-family:Arial;"><h2>מכין דוח...</h2></body></html>');
+
             // Build appendices from attached documents
             const pageDocs = getPageDocuments(page);
             let appendicesHTML = '';
@@ -7303,10 +7337,10 @@
                 appendicesHTML +
                 '</body></html>';
 
-            const printWindow = window.open('', '_blank');
+            printWindow.document.open();
             printWindow.document.write(html);
             printWindow.document.close();
-            printWindow.onload = function() { printWindow.print(); };
+            setTimeout(() => { printWindow.print(); }, 300);
         }
 
         function exportData() {
