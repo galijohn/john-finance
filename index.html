@@ -3008,6 +3008,9 @@
                     await findOrCreateFolder();
                     updateDriveStatus(true);
                     console.log('✅ Auto-connected!');
+
+                    // Check if cloud has newer data
+                    await pullFromCloudIfNewer();
                 } catch (e) {
                     console.log('Auto-connect failed, clearing token:', e);
                     localStorage.removeItem('googleAccessToken');
@@ -3022,6 +3025,67 @@
                     localStorage.removeItem('googleTokenExpiry');
                 }
             }
+        }
+
+        // ===== AUTO-SYNC FROM CLOUD ON LOAD =====
+        async function pullFromCloudIfNewer() {
+            if (!googleAccessToken || !driveFolderId) return;
+
+            try {
+                // Find data.json in Drive
+                const search = await gapi.client.drive.files.list({
+                    q: `name='data.json' and '${driveFolderId}' in parents and trashed=false`,
+                    fields: 'files(id,modifiedTime)'
+                });
+
+                if (search.result.files.length === 0) return;
+
+                const fileId = search.result.files[0].id;
+
+                // Download cloud data
+                const response = await gapi.client.drive.files.get({
+                    fileId: fileId,
+                    alt: 'media'
+                });
+
+                const cloudData = response.result;
+                const cloudModified = cloudData.lastModified || 0;
+                const localModified = data.lastModified || 0;
+
+                if (cloudModified > localModified) {
+                    // Cloud is newer - update local
+                    console.log('☁️ Cloud data is newer, updating local...');
+                    data = cloudData;
+                    localStorage.setItem('taxCalculatorV2', JSON.stringify(data));
+
+                    // Refresh UI
+                    renderYearSelector();
+                    loadDashboardSettings();
+                    loadCreditsToUI();
+                    loadBusinessStatus();
+                    loadFavorites();
+                    renderAll();
+
+                    const now = new Date().toLocaleString('he-IL');
+                    document.getElementById('lastSyncTime').textContent = '📅 סונכרן מהענן: ' + now;
+                    localStorage.setItem('lastDriveBackup', now);
+
+                    // Show brief notification
+                    showSyncNotification('☁️ נתונים עודכנו מהענן');
+                } else {
+                    console.log('✅ Local data is up to date');
+                }
+            } catch(e) {
+                console.error('Pull from cloud error:', e);
+            }
+        }
+
+        function showSyncNotification(message) {
+            const notif = document.createElement('div');
+            notif.textContent = message;
+            notif.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--bg-card);color:var(--success);padding:12px 24px;border-radius:10px;border:1px solid var(--success);font-size:0.9rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.3);transition:opacity 0.5s;';
+            document.body.appendChild(notif);
+            setTimeout(() => { notif.style.opacity = '0'; setTimeout(() => notif.remove(), 500); }, 3000);
         }
 
         // ===== UPDATE STATUS =====
@@ -4236,6 +4300,20 @@
 
             // Check biometric support
             checkBiometricSupport();
+
+            // Periodic cloud sync check (every 5 minutes)
+            setInterval(() => {
+                if (googleAccessToken && driveFolderId) {
+                    pullFromCloudIfNewer();
+                }
+            }, 5 * 60 * 1000);
+
+            // Also sync when app regains focus (user switches back to tab/app)
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden && googleAccessToken && driveFolderId) {
+                    pullFromCloudIfNewer();
+                }
+            });
         }
         
         // Try to auto-restore from Google Drive
@@ -4393,6 +4471,7 @@
         }
 
         function saveData() {
+            data.lastModified = Date.now();
             localStorage.setItem('taxCalculatorV2', JSON.stringify(data));
             // Also save to local folder and Drive if available
             saveDataToLocalFolder();
