@@ -5732,21 +5732,86 @@
 
         function exportPageExcel(page) {
             const { headers, rows, title, year } = getPageData(page);
-            const wsData = [headers, ...rows];
-            const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-            // Auto-width columns
-            ws['!cols'] = headers.map((h, i) => {
-                let max = h.length;
-                rows.forEach(r => {
-                    const val = String(r[i] ?? '');
-                    if (val.length > max) max = val.length;
-                });
-                return { wch: Math.min(max + 4, 30) };
-            });
-
+            const yd = getYearData();
+            const dateStr = new Date().toLocaleDateString('he-IL');
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 31));
+
+            if (page === 'expenses' && yd.expenses.length > 0) {
+                // Grouped by category - tax authority style
+                const wsData = [];
+                // Header rows
+                wsData.push([title + ' - ' + year]);
+                wsData.push(['Name: John Levy', '', 'Date: ' + dateStr]);
+                wsData.push([]);
+
+                const groups = {};
+                const catOrder = [];
+                yd.expenses.forEach(e => {
+                    if (!groups[e.category]) { groups[e.category] = []; catOrder.push(e.category); }
+                    groups[e.category].push(e);
+                });
+
+                let grandTotal = 0, grandRecognized = 0;
+                const sectionLetters = ['A','B','C','D','E','F','G','H','I','J'];
+
+                catOrder.forEach((cat, idx) => {
+                    const items = groups[cat];
+                    items.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+                    const catTotal = items.reduce((s, e) => s + e.amount, 0);
+                    const catRecognized = items.reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+                    grandTotal += catTotal;
+                    grandRecognized += catRecognized;
+
+                    wsData.push([sectionLetters[idx] + '. ' + cat]);
+                    wsData.push(['Date', 'Description', 'Amount', '% Recognition', 'Recognized']);
+                    items.forEach(e => {
+                        const pct = e.recognition ?? 100;
+                        wsData.push([e.date, e.description || '', e.amount, pct + '%', e.amount * (pct / 100)]);
+                    });
+                    wsData.push(['', 'Subtotal ' + cat + ' (' + items.length + ')', catTotal, '', catRecognized]);
+                    wsData.push([]);
+                });
+
+                wsData.push([]);
+                wsData.push(['', 'TOTAL RECOGNIZED EXPENSES', grandTotal, '', grandRecognized]);
+                if (grandTotal !== grandRecognized) {
+                    wsData.push(['', 'Total before recognition', grandTotal]);
+                }
+
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                ws['!cols'] = [{ wch: 14 }, { wch: 30 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+                XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 31));
+
+            } else {
+                // Standard table for other pages
+                const wsData = [];
+                wsData.push([title + ' - ' + year]);
+                wsData.push(['Name: John Levy', '', 'Date: ' + dateStr]);
+                wsData.push([]);
+                wsData.push(headers);
+                rows.forEach(r => wsData.push(r));
+
+                // Totals row
+                const numericCols = rows[0] ? rows[0].map((c, i) => typeof c === 'number' ? i : -1).filter(i => i >= 0) : [];
+                if (numericCols.length > 0) {
+                    wsData.push([]);
+                    const totalRow = headers.map((h, i) => {
+                        if (numericCols.includes(i)) return rows.reduce((s, r) => s + (Number(r[i]) || 0), 0);
+                        if (i === 0) return 'TOTAL';
+                        return '';
+                    });
+                    wsData.push(totalRow);
+                }
+
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                ws['!cols'] = headers.map((h, i) => {
+                    let max = h.length;
+                    rows.forEach(r => { const v = String(r[i] ?? ''); if (v.length > max) max = v.length; });
+                    return { wch: Math.min(max + 4, 30) };
+                });
+                XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 31));
+            }
+
             XLSX.writeFile(wb, `${title}-${year}.xlsx`);
             document.querySelectorAll('.export-dropdown-content.show').forEach(d => d.classList.remove('show'));
         }
@@ -5754,99 +5819,220 @@
         function exportPagePDF(page) {
             const { jsPDF } = window.jspdf;
             const { headers, rows, title, year } = getPageData(page);
-            const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            const yd = getYearData();
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-            // Load Hebrew font (Noto Sans Hebrew embedded as base64 would be ideal,
-            // but for now use built-in with RTL workaround)
             const pageWidth = doc.internal.pageSize.getWidth();
             const pageHeight = doc.internal.pageSize.getHeight();
             const margin = 15;
-
-            // Header background
-            doc.setFillColor(30, 41, 59);
-            doc.rect(0, 0, pageWidth, 35, 'F');
-
-            // Title (right-aligned for RTL)
-            doc.setTextColor(241, 245, 249);
-            doc.setFontSize(18);
-            const titleText = title + ' - ' + year;
-            doc.text(titleText, pageWidth - margin, 18, { align: 'right' });
-
-            // Subtitle
-            doc.setFontSize(10);
-            doc.setTextColor(148, 163, 184);
+            const contentWidth = pageWidth - margin * 2;
             const dateStr = new Date().toLocaleDateString('he-IL');
-            doc.text('John Finance | ' + dateStr, pageWidth - margin, 28, { align: 'right' });
+            let y = 0;
 
-            // Reverse headers and rows for RTL display
-            const rtlHeaders = [...headers].reverse();
-            const rtlRows = rows.map(r => {
-                const rev = [...r].reverse();
-                return rev.map(cell => {
-                    if (typeof cell === 'number') return formatCurrency(cell).replace('₪', '') + ' ₪';
-                    return String(cell);
+            function fmtNum(n) {
+                const val = Number(n) || 0;
+                if (val === Math.floor(val)) return val.toLocaleString('he-IL') + ' ₪';
+                return val.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₪';
+            }
+
+            function addPageFooter(pageNum) {
+                // Double line at bottom
+                doc.setDrawColor(30, 41, 59);
+                doc.setLineWidth(0.3);
+                doc.line(margin, pageHeight - 18, pageWidth - margin, pageHeight - 18);
+                doc.line(margin, pageHeight - 17, pageWidth - margin, pageHeight - 17);
+                // Footer text
+                doc.setFontSize(7);
+                doc.setTextColor(148, 163, 184);
+                doc.text('John Finance', margin, pageHeight - 12);
+                doc.text(pageNum + ' :' + 'page', pageWidth - margin, pageHeight - 12, { align: 'right' });
+                doc.text('This document is not an official certificate', pageWidth / 2, pageHeight - 12, { align: 'center' });
+            }
+
+            function checkPageBreak(needed) {
+                if (y + needed > pageHeight - 25) {
+                    addPageFooter(doc.internal.getNumberOfPages());
+                    doc.addPage();
+                    y = 15;
+                }
+            }
+
+            // ===== HEADER: Double line border =====
+            doc.setDrawColor(30, 41, 59);
+            doc.setLineWidth(0.5);
+            doc.line(margin, 12, pageWidth - margin, 12);
+            doc.line(margin, 13.5, pageWidth - margin, 13.5);
+
+            // Title centered
+            doc.setFontSize(16);
+            doc.setTextColor(30, 41, 59);
+            doc.setFont('helvetica', 'bold');
+            const headerTitle = title + ' - ' + year;
+            doc.text(headerTitle, pageWidth / 2, 22, { align: 'center' });
+
+            // Info row
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(100, 116, 139);
+            y = 30;
+            doc.line(margin, y, pageWidth - margin, y);
+            y += 5;
+            doc.text(dateStr + ' :date', pageWidth - margin, y, { align: 'right' });
+            doc.text('John Levy :name', margin, y);
+            doc.text('Osek Murshe :type', pageWidth / 2, y, { align: 'center' });
+            y += 3;
+            doc.line(margin, y, pageWidth - margin, y);
+            y += 8;
+
+            // ===== GROUPED BY CATEGORY (for expenses) or standard table =====
+            if (page === 'expenses' && yd.expenses.length > 0) {
+                // Group expenses by category
+                const groups = {};
+                const catOrder = [];
+                yd.expenses.forEach(e => {
+                    if (!groups[e.category]) {
+                        groups[e.category] = [];
+                        catOrder.push(e.category);
+                    }
+                    groups[e.category].push(e);
                 });
-            });
 
-            // Table
-            doc.autoTable({
-                head: [rtlHeaders],
-                body: rtlRows,
-                startY: 42,
-                margin: { left: margin, right: margin },
-                theme: 'grid',
-                styles: {
-                    font: 'helvetica',
-                    fontSize: 10,
-                    cellPadding: 4,
-                    halign: 'center',
-                    textColor: [30, 41, 59],
-                    lineColor: [71, 85, 105],
-                    lineWidth: 0.3
-                },
-                headStyles: {
-                    fillColor: [37, 99, 235],
-                    textColor: [255, 255, 255],
-                    fontStyle: 'bold',
-                    fontSize: 11
-                },
-                alternateRowStyles: {
-                    fillColor: [241, 245, 249]
-                },
-                didDrawPage: function(data) {
-                    // Footer on each page
+                let grandTotal = 0;
+                let grandRecognized = 0;
+                const sectionLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+
+                catOrder.forEach((cat, catIdx) => {
+                    const items = groups[cat];
+                    const catTotal = items.reduce((s, e) => s + e.amount, 0);
+                    const catRecognized = items.reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+                    grandTotal += catTotal;
+                    grandRecognized += catRecognized;
+
+                    checkPageBreak(15 + items.length * 6);
+
+                    // Section header
+                    const sectionLabel = (sectionLetters[catIdx] || '') + '. ' + cat;
+                    doc.setFontSize(11);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(30, 41, 59);
+                    doc.text(sectionLabel, pageWidth - margin, y, { align: 'right' });
+                    y += 2;
+                    doc.setDrawColor(203, 213, 225);
+                    doc.line(margin, y, pageWidth - margin, y);
+                    y += 5;
+
+                    // Items
+                    doc.setFontSize(9);
+                    doc.setFont('helvetica', 'normal');
+                    items.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+                    items.forEach((e, i) => {
+                        checkPageBreak(7);
+                        // Alternate row background
+                        if (i % 2 === 0) {
+                            doc.setFillColor(248, 250, 252);
+                            doc.rect(margin, y - 3.5, contentWidth, 6, 'F');
+                        }
+                        const pct = e.recognition ?? 100;
+                        const recognized = e.amount * (pct / 100);
+                        doc.setTextColor(30, 41, 59);
+                        const itemText = (e.date || '') + '  |  ' + (e.description || '-');
+                        doc.text(itemText, pageWidth - margin - 2, y, { align: 'right' });
+                        doc.text(fmtNum(e.amount), margin + 40, y, { align: 'right' });
+                        if (pct < 100) {
+                            doc.setTextColor(245, 158, 11);
+                            doc.text(pct + '%', margin + 55, y, { align: 'right' });
+                            doc.text(fmtNum(recognized), margin + 2, y);
+                        } else {
+                            doc.text(fmtNum(recognized), margin + 2, y);
+                        }
+                        doc.setTextColor(30, 41, 59);
+                        y += 6;
+                    });
+
+                    // Category subtotal
+                    checkPageBreak(10);
+                    doc.setDrawColor(148, 163, 184);
+                    doc.line(margin, y - 1, pageWidth - margin, y - 1);
+                    y += 3;
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(9);
+                    const subtotalLabel = cat + ' (' + items.length + ')';
+                    doc.text(subtotalLabel, pageWidth - margin - 2, y, { align: 'right' });
+                    doc.text(fmtNum(catRecognized), margin + 2, y);
+                    y += 10;
+                });
+
+                // ===== GRAND TOTAL =====
+                checkPageBreak(16);
+                doc.setFillColor(30, 41, 59);
+                doc.rect(margin, y - 2, contentWidth, 12, 'F');
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(241, 245, 249);
+                doc.text('Total recognized expenses', pageWidth - margin - 5, y + 6, { align: 'right' });
+                doc.text(fmtNum(grandRecognized), margin + 5, y + 6);
+                y += 18;
+
+                if (grandTotal !== grandRecognized) {
                     doc.setFontSize(8);
                     doc.setTextColor(148, 163, 184);
-                    const pageNum = doc.internal.getNumberOfPages();
-                    doc.text(
-                        pageNum + ' / ' + data.pageNumber,
-                        pageWidth / 2, pageHeight - 8,
-                        { align: 'center' }
-                    );
+                    doc.text('Total before recognition: ' + fmtNum(grandTotal), pageWidth - margin, y, { align: 'right' });
                 }
-            });
 
-            // Summary row after table
-            const finalY = doc.lastAutoTable.finalY + 10;
-            if (finalY < pageHeight - 30) {
-                // Summary box
-                doc.setFillColor(30, 41, 59);
-                doc.roundedRect(margin, finalY, pageWidth - margin * 2, 18, 3, 3, 'F');
+            } else {
+                // Standard table for other pages
+                const rtlHeaders = [...headers].reverse();
+                const rtlRows = rows.map(r => {
+                    const rev = [...r].reverse();
+                    return rev.map(cell => {
+                        if (typeof cell === 'number') return fmtNum(cell);
+                        return String(cell);
+                    });
+                });
 
-                // Total
-                const totalRow = rows.reduce((sum, r) => {
-                    const numCols = r.filter(c => typeof c === 'number');
-                    return sum + (numCols[0] || 0);
-                }, 0);
+                doc.autoTable({
+                    head: [rtlHeaders],
+                    body: rtlRows,
+                    startY: y,
+                    margin: { left: margin, right: margin },
+                    theme: 'grid',
+                    styles: {
+                        font: 'helvetica',
+                        fontSize: 9,
+                        cellPadding: 3,
+                        halign: 'center',
+                        textColor: [30, 41, 59],
+                        lineColor: [203, 213, 225],
+                        lineWidth: 0.3
+                    },
+                    headStyles: {
+                        fillColor: [30, 41, 59],
+                        textColor: [255, 255, 255],
+                        fontStyle: 'bold'
+                    },
+                    alternateRowStyles: {
+                        fillColor: [248, 250, 252]
+                    }
+                });
 
-                doc.setFontSize(12);
-                doc.setTextColor(241, 245, 249);
-                const summaryText = formatCurrency(totalRow).replace('₪', '') + ' ₪';
-                doc.text(summaryText, margin + 15, finalY + 12);
-
-                doc.setTextColor(148, 163, 184);
-                doc.text('Total', pageWidth - margin - 15, finalY + 12, { align: 'right' });
+                // Grand total for standard tables
+                const finalY = doc.lastAutoTable.finalY + 8;
+                const numericCols = rows[0] ? rows[0].map((c, i) => typeof c === 'number' ? i : -1).filter(i => i >= 0) : [];
+                if (numericCols.length > 0) {
+                    const mainCol = numericCols[0];
+                    const total = rows.reduce((s, r) => s + (Number(r[mainCol]) || 0), 0);
+                    doc.setFillColor(30, 41, 59);
+                    doc.rect(margin, finalY, contentWidth, 10, 'F');
+                    doc.setFontSize(11);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(241, 245, 249);
+                    doc.text('Total', pageWidth - margin - 5, finalY + 7, { align: 'right' });
+                    doc.text(fmtNum(total), margin + 5, finalY + 7);
+                }
             }
+
+            // Footer
+            addPageFooter(doc.internal.getNumberOfPages());
 
             doc.save(`${title}-${year}.pdf`);
             document.querySelectorAll('.export-dropdown-content.show').forEach(d => d.classList.remove('show'));
