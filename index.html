@@ -7382,24 +7382,24 @@
                 '</body></html>';
 
             printWindow.document.write(html);
-            // Load appendices, then close and print
+            printWindow.document.close();
+
             const pageDocs = getPageDocuments(page);
-            console.log('PDF docs found:', pageDocs.length, 'token:', !!googleAccessToken);
-            if (pageDocs.length > 0 && googleAccessToken) {
-                printWindow.document.close();
+            if (pageDocs.length > 0) {
                 const area = printWindow.document.getElementById('appendicesArea');
                 area.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">טוען ' + pageDocs.length + ' מסמכים...</div>';
-                buildAppendicesHTML(pageDocs).then(html => {
-                    console.log('Appendices HTML length:', html.length);
+                // Ensure valid token before fetching files
+                (googleAccessToken ? Promise.resolve() : ensureValidToken()).then(() => {
+                    return buildAppendicesHTML(pageDocs);
+                }).then(html => {
                     area.innerHTML = html;
                     setTimeout(() => { printWindow.print(); }, 500);
                 }).catch(e => {
                     console.error('Appendices error:', e);
-                    area.innerHTML = '<div style="padding:10px;color:red;">שגיאה בטעינת מסמכים: ' + e.message + '</div>';
+                    area.innerHTML = '';
                     setTimeout(() => { printWindow.print(); }, 300);
                 });
             } else {
-                printWindow.document.close();
                 setTimeout(() => { printWindow.print(); }, 300);
             }
         }
