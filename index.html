@@ -1582,7 +1582,7 @@
             <div class="card">
                 <h3 style="margin:0 0 20px;">בחר את נקודות הזיכוי שמגיעות לך:</h3>
                 
-                <div class="section-title">🏠 בסיס</div>
+                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">🏠 בסיס</div>
                 <div class="credit-points-grid">
                     <div class="credit-item">
                         <input type="checkbox" id="credit_resident" checked disabled>
@@ -1596,7 +1596,7 @@
                     </div>
                 </div>
 
-                <div class="section-title">👨‍👩‍👧‍👦 משפחה</div>
+                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">👨‍👩‍👧‍👦 משפחה</div>
                 <div class="credit-points-grid">
                     <div class="credit-item" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);">
                         <input type="checkbox" id="credit_divorced_alimony" onchange="updateCredits()">
@@ -1622,7 +1622,7 @@
                     </div>
                 </div>
 
-                <div class="section-title">🎖️ שירות</div>
+                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">🎖️ שירות</div>
                 <div class="credit-points-grid">
                     <div class="credit-item">
                         <input type="checkbox" id="credit_army" onchange="updateCredits()">
@@ -1631,7 +1631,7 @@
                     </div>
                 </div>
 
-                <div class="section-title">🎓 השכלה</div>
+                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">🎓 השכלה</div>
                 <div class="credit-points-grid">
                     <div class="credit-item">
                         <input type="checkbox" id="credit_degree" onchange="updateCredits()">
@@ -1645,7 +1645,7 @@
                     </div>
                 </div>
 
-                <div class="section-title">🌍 אחר</div>
+                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">🌍 אחר</div>
                 <div class="credit-points-grid">
                     <div class="credit-item">
                         <input type="checkbox" id="credit_oleh" onchange="updateCredits()">
@@ -6993,179 +6993,179 @@
                     grandTotal += catTotal;
                     grandRecognized += catRecognized;
 
-                    bodyContent += '<h3 class="section-title">' + letters[idx] + '. ' + cat + '</h3>';
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">' + letters[idx] + '. ' + cat + '</h3>';
                     bodyContent += '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>סכום</th><th>% הכרה</th><th>מוכר</th></tr></thead><tbody>';
                     items.forEach(e => {
                         const pct = e.recognition ?? 100;
                         const recognized = e.amount * (pct / 100);
                         bodyContent += '<tr><td>' + formatDate(e.date) + '</td><td>' + (e.description || '-') + '</td>';
-                        bodyContent += '<td class="num">' + fmtNum(e.amount) + '</td>';
-                        bodyContent += '<td class="num' + (pct < 100 ? ' warn' : '') + '">' + pct + '%</td>';
-                        bodyContent += '<td class="num">' + fmtNum(recognized) + '</td></tr>';
+                        bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(e.amount) + '</td>';
+                        bodyContent += '<td style="text-align:left;direction:ltr;' + (pct < 100 ? 'color:#d97706;' : '') + '">' + pct + '%</td>';
+                        bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(recognized) + '</td></tr>';
                     });
                     bodyContent += '</tbody></table>';
-                    bodyContent += '<div class="subtotal"><span>סה"כ ' + cat + ' (' + items.length + ' פריטים)</span><span>' + fmtNum(catRecognized) + '</span></div>';
+                    bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ ' + cat + ' (' + items.length + ' פריטים)</span><span>' + fmtNum(catRecognized) + '</span></div>';
                 });
 
-                bodyContent += '<div class="grand-total"><span>סה"כ הוצאות מוכרות</span><span>' + fmtNum(grandRecognized) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:15px;"><span>סה"כ הוצאות מוכרות</span><span>' + fmtNum(grandRecognized) + '</span></div>';
                 if (grandTotal !== grandRecognized) {
-                    bodyContent += '<div class="note">סה"כ לפני הכרה: ' + fmtNum(grandTotal) + '</div>';
+                    bodyContent += '<div style="text-align:left;color:#94a3b8;font-size:9px;margin-top:5px;">סה"כ לפני הכרה: ' + fmtNum(grandTotal) + '</div>';
                 }
             } else if (page === 'selfEmployed') {
                 // Self-employed full report
                 const extras = rows._extras || {};
 
                 // Income table
-                bodyContent += '<h3 class="section-title">א. הכנסות כעצמאי</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">א. הכנסות כעצמאי</h3>';
                 bodyContent += '<table><thead><tr><th>חודש</th><th>תיאור</th><th>סכום</th></tr></thead><tbody>';
                 rows.forEach(r => {
-                    bodyContent += '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td class="num">' + fmtNum(r[2]) + '</td></tr>';
+                    bodyContent += '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(r[2]) + '</td></tr>';
                 });
                 bodyContent += '</tbody></table>';
-                bodyContent += '<div class="subtotal"><span>סה"כ הכנסות (' + rows.length + ')</span><span>' + fmtNum(extras.totalIncome || 0) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ הכנסות (' + rows.length + ')</span><span>' + fmtNum(extras.totalIncome || 0) + '</span></div>';
 
                 // Expenses summary
-                bodyContent += '<h3 class="section-title">ב. הוצאות מוכרות</h3>';
-                bodyContent += '<div class="subtotal"><span>סה"כ הוצאות מוכרות</span><span>' + fmtNum(extras.expenses || 0) + '</span></div>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ב. הוצאות מוכרות</h3>';
+                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ הוצאות מוכרות</span><span>' + fmtNum(extras.expenses || 0) + '</span></div>';
 
                 // Net income
-                bodyContent += '<div class="grand-total" style="margin-top:5px;"><span>הכנסה נטו (הכנסות - הוצאות)</span><span>' + fmtNum(extras.netIncome || 0) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:15px;" style="margin-top:5px;"><span>הכנסה נטו (הכנסות - הוצאות)</span><span>' + fmtNum(extras.netIncome || 0) + '</span></div>';
 
                 // Tax advances
                 if (extras.taxAdvances && extras.taxAdvances.length > 0) {
-                    bodyContent += '<h3 class="section-title">ג. מקדמות מס הכנסה</h3>';
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ג. מקדמות מס הכנסה</h3>';
                     bodyContent += '<table><thead><tr><th>חודש</th><th>סכום</th><th>הערות</th></tr></thead><tbody>';
                     extras.taxAdvances.forEach(t => {
-                        bodyContent += '<tr><td>' + MONTHS[t.month] + '</td><td class="num">' + fmtNum(t.amount) + '</td><td>' + (t.notes || '') + '</td></tr>';
+                        bodyContent += '<tr><td>' + MONTHS[t.month] + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.amount) + '</td><td>' + (t.notes || '') + '</td></tr>';
                     });
                     bodyContent += '</tbody></table>';
-                    bodyContent += '<div class="subtotal"><span>סה"כ מקדמות מס</span><span>' + fmtNum(extras.totalTaxAdv || 0) + '</span></div>';
+                    bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ מקדמות מס</span><span>' + fmtNum(extras.totalTaxAdv || 0) + '</span></div>';
                 }
 
                 // BL advances
                 if (extras.blAdvances && extras.blAdvances.length > 0) {
-                    bodyContent += '<h3 class="section-title">ד. מקדמות ביטוח לאומי</h3>';
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ד. מקדמות ביטוח לאומי</h3>';
                     bodyContent += '<table><thead><tr><th>חודש</th><th>סכום</th><th>הערות</th></tr></thead><tbody>';
                     extras.blAdvances.forEach(b => {
-                        bodyContent += '<tr><td>' + MONTHS[b.month] + '</td><td class="num">' + fmtNum(b.amount) + '</td><td>' + (b.notes || '') + '</td></tr>';
+                        bodyContent += '<tr><td>' + MONTHS[b.month] + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(b.amount) + '</td><td>' + (b.notes || '') + '</td></tr>';
                     });
                     bodyContent += '</tbody></table>';
-                    bodyContent += '<div class="subtotal"><span>סה"כ מקדמות ביט"ל</span><span>' + fmtNum(extras.totalBLAdv || 0) + '</span></div>';
+                    bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ מקדמות ביט"ל</span><span>' + fmtNum(extras.totalBLAdv || 0) + '</span></div>';
                 }
 
             } else if (rows._custom === 'dashboard') {
                 const d = rows._data;
-                bodyContent += '<h3 class="section-title">א. סיכום הכנסות</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">א. סיכום הכנסות</h3>';
                 bodyContent += '<table><thead><tr><th>מקור</th><th>סכום</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>הכנסה כשכיר</td><td class="num">' + fmtNum(d.totals.salary) + '</td></tr>';
-                bodyContent += '<tr><td>דמי אבטלה</td><td class="num">' + fmtNum(d.totals.unemployment) + '</td></tr>';
-                bodyContent += '<tr><td>מילואים</td><td class="num">' + fmtNum(d.totals.miluim) + '</td></tr>';
-                bodyContent += '<tr><td>הכנסה כעצמאי</td><td class="num">' + fmtNum(d.totals.selfEmployed) + '</td></tr>';
-                bodyContent += '<tr><td>(-) הוצאות מוכרות</td><td class="num">' + fmtNum(d.totals.expenses) + '</td></tr>';
+                bodyContent += '<tr><td>הכנסה כשכיר</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.salary) + '</td></tr>';
+                bodyContent += '<tr><td>דמי אבטלה</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.unemployment) + '</td></tr>';
+                bodyContent += '<tr><td>מילואים</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.miluim) + '</td></tr>';
+                bodyContent += '<tr><td>הכנסה כעצמאי</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.selfEmployed) + '</td></tr>';
+                bodyContent += '<tr><td>(-) הוצאות מוכרות</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.expenses) + '</td></tr>';
                 bodyContent += '</tbody></table>';
-                bodyContent += '<div class="subtotal"><span>הכנסה חייבת</span><span>' + fmtNum(d.totals.taxableIncome) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>הכנסה חייבת</span><span>' + fmtNum(d.totals.taxableIncome) + '</span></div>';
 
-                bodyContent += '<h3 class="section-title">ב. מס הכנסה</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ב. מס הכנסה</h3>';
                 bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>מס ברוטו</td><td class="num">' + fmtNum(d.grossTax) + '</td></tr>';
-                bodyContent += '<tr><td>נקודות זיכוי: ' + d.credits.toFixed(2) + '</td><td class="num">-' + fmtNum(Math.min(d.creditValue, d.grossTax)) + '</td></tr>';
-                bodyContent += '<tr><td>מס נטו לתשלום</td><td class="num">' + fmtNum(d.netTax) + '</td></tr>';
-                bodyContent += '<tr><td>מס ששולם</td><td class="num">' + fmtNum(d.totals.totalTaxPaid) + '</td></tr>';
+                bodyContent += '<tr><td>מס ברוטו</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.grossTax) + '</td></tr>';
+                bodyContent += '<tr><td>נקודות זיכוי: ' + d.credits.toFixed(2) + '</td><td style="text-align:left;direction:ltr;">-' + fmtNum(Math.min(d.creditValue, d.grossTax)) + '</td></tr>';
+                bodyContent += '<tr><td>מס נטו לתשלום</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.netTax) + '</td></tr>';
+                bodyContent += '<tr><td>מס ששולם</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.totalTaxPaid) + '</td></tr>';
                 bodyContent += '</tbody></table>';
-                bodyContent += '<div class="subtotal"><span>' + (d.taxDiff > 0 ? 'החזר מס' : d.taxDiff < 0 ? 'יתרה לתשלום' : 'מאוזן') + '</span><span>' + fmtNum(Math.abs(d.taxDiff)) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>' + (d.taxDiff > 0 ? 'החזר מס' : d.taxDiff < 0 ? 'יתרה לתשלום' : 'מאוזן') + '</span><span>' + fmtNum(Math.abs(d.taxDiff)) + '</span></div>';
 
-                bodyContent += '<h3 class="section-title">ג. ביטוח לאומי</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ג. ביטוח לאומי</h3>';
                 bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>ביט"ל חייב</td><td class="num">' + fmtNum(d.bl.total) + '</td></tr>';
-                bodyContent += '<tr><td>ביט"ל ששולם</td><td class="num">' + fmtNum(d.totals.totalBLPaid) + '</td></tr>';
+                bodyContent += '<tr><td>ביט"ל חייב</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.bl.total) + '</td></tr>';
+                bodyContent += '<tr><td>ביט"ל ששולם</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.totalBLPaid) + '</td></tr>';
                 bodyContent += '</tbody></table>';
-                bodyContent += '<div class="subtotal"><span>' + (d.blDiff > 0 ? 'שילמת יותר' : d.blDiff < 0 ? 'יתרה לתשלום' : 'מאוזן') + '</span><span>' + fmtNum(Math.abs(d.blDiff)) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>' + (d.blDiff > 0 ? 'שילמת יותר' : d.blDiff < 0 ? 'יתרה לתשלום' : 'מאוזן') + '</span><span>' + fmtNum(Math.abs(d.blDiff)) + '</span></div>';
 
             } else if (rows._custom === 'taxCalc') {
                 const t = rows._data;
-                bodyContent += '<h3 class="section-title">א. סיכום הכנסות</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">א. סיכום הכנסות</h3>';
                 bodyContent += '<table><thead><tr><th>מקור</th><th>סכום</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>הכנסה כשכיר</td><td class="num">' + fmtNum(t.totals.salary) + '</td></tr>';
-                bodyContent += '<tr><td>דמי אבטלה</td><td class="num">' + fmtNum(t.totals.unemployment) + '</td></tr>';
-                bodyContent += '<tr><td>הכנסה כעצמאי</td><td class="num">' + fmtNum(t.totals.selfEmployed) + '</td></tr>';
-                bodyContent += '<tr><td>(-) הוצאות מוכרות</td><td class="num">' + fmtNum(t.totals.expenses) + '</td></tr>';
-                bodyContent += '<tr><td>מילואים</td><td class="num">' + fmtNum(t.totals.miluim) + '</td></tr>';
+                bodyContent += '<tr><td>הכנסה כשכיר</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.salary) + '</td></tr>';
+                bodyContent += '<tr><td>דמי אבטלה</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.unemployment) + '</td></tr>';
+                bodyContent += '<tr><td>הכנסה כעצמאי</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.selfEmployed) + '</td></tr>';
+                bodyContent += '<tr><td>(-) הוצאות מוכרות</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.expenses) + '</td></tr>';
+                bodyContent += '<tr><td>מילואים</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.miluim) + '</td></tr>';
                 bodyContent += '</tbody></table>';
-                bodyContent += '<div class="subtotal"><span>הכנסה חייבת</span><span>' + fmtNum(t.totals.taxableIncome) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>הכנסה חייבת</span><span>' + fmtNum(t.totals.taxableIncome) + '</span></div>';
 
-                bodyContent += '<h3 class="section-title">ב. חישוב מס הכנסה - מדרגות מס</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ב. חישוב מס הכנסה - מדרגות מס</h3>';
                 bodyContent += '<table><thead><tr><th>מדרגה</th><th>שיעור</th><th>הכנסה במדרגה</th><th>מס</th></tr></thead><tbody>';
                 t.taxDetails.forEach(d => {
-                    bodyContent += '<tr><td>' + fmtNum(d.min) + ' - ' + fmtNum(d.max) + '</td><td class="num">' + d.rate + '%</td><td class="num">' + fmtNum(d.amount) + '</td><td class="num">' + fmtNum(d.tax) + '</td></tr>';
+                    bodyContent += '<tr><td>' + fmtNum(d.min) + ' - ' + fmtNum(d.max) + '</td><td style="text-align:left;direction:ltr;">' + d.rate + '%</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.amount) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.tax) + '</td></tr>';
                 });
                 bodyContent += '</tbody></table>';
-                bodyContent += '<div class="subtotal"><span>מס ברוטו</span><span>' + fmtNum(t.grossTax) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>מס ברוטו</span><span>' + fmtNum(t.grossTax) + '</span></div>';
 
                 bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>נקודות זיכוי: ' + t.credits.toFixed(2) + '</td><td class="num">-' + fmtNum(Math.min(t.creditValue, t.grossTax)) + '</td></tr>';
+                bodyContent += '<tr><td>נקודות זיכוי: ' + t.credits.toFixed(2) + '</td><td style="text-align:left;direction:ltr;">-' + fmtNum(Math.min(t.creditValue, t.grossTax)) + '</td></tr>';
                 bodyContent += '</tbody></table>';
-                bodyContent += '<div class="grand-total"><span>מס הכנסה נטו</span><span>' + fmtNum(t.netTax) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:15px;"><span>מס הכנסה נטו</span><span>' + fmtNum(t.netTax) + '</span></div>';
 
-                bodyContent += '<h3 class="section-title">ג. ביטוח לאומי - עצמאי</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ג. ביטוח לאומי - עצמאי</h3>';
                 bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>הכנסה כעצמאי (נטו)</td><td class="num">' + fmtNum(t.totals.selfEmployedNet) + '</td></tr>';
-                bodyContent += '<tr><td>שיעור מופחת 7.70% (עד ' + fmtNum(t.bl.reducedThreshold) + ')</td><td class="num">' + fmtNum(t.bl.reduced) + '</td></tr>';
-                bodyContent += '<tr><td>שיעור מלא 18% (עד ' + fmtNum(t.bl.maxThreshold) + ')</td><td class="num">' + fmtNum(t.bl.full) + '</td></tr>';
+                bodyContent += '<tr><td>הכנסה כעצמאי (נטו)</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.selfEmployedNet) + '</td></tr>';
+                bodyContent += '<tr><td>שיעור מופחת 7.70% (עד ' + fmtNum(t.bl.reducedThreshold) + ')</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.bl.reduced) + '</td></tr>';
+                bodyContent += '<tr><td>שיעור מלא 18% (עד ' + fmtNum(t.bl.maxThreshold) + ')</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.bl.full) + '</td></tr>';
                 bodyContent += '</tbody></table>';
-                bodyContent += '<div class="subtotal"><span>סה"כ ביטוח לאומי</span><span>' + fmtNum(t.bl.total) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ ביטוח לאומי</span><span>' + fmtNum(t.bl.total) + '</span></div>';
 
-                bodyContent += '<h3 class="section-title">ד. מס ששולם / נוכה</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ד. מס ששולם / נוכה</h3>';
                 bodyContent += '<table><thead><tr><th>מקור</th><th>מס הכנסה</th><th>ביט"ל</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>שכיר</td><td class="num">' + fmtNum(t.totals.taxFromSalary) + '</td><td class="num">' + fmtNum(t.totals.blFromSalary) + '</td></tr>';
-                bodyContent += '<tr><td>אבטלה</td><td class="num">' + fmtNum(t.totals.taxFromUnemployment) + '</td><td class="num">' + fmtNum(t.totals.blFromUnemployment) + '</td></tr>';
-                bodyContent += '<tr><td>מילואים</td><td class="num">' + fmtNum(t.totals.taxFromMiluim) + '</td><td class="num">' + fmtNum(t.totals.blFromMiluim) + '</td></tr>';
-                bodyContent += '<tr><td>מקדמות עצמאי</td><td class="num">' + fmtNum(t.totals.taxFromSelf) + '</td><td class="num">' + fmtNum(t.totals.blFromSelf) + '</td></tr>';
+                bodyContent += '<tr><td>שכיר</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.taxFromSalary) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.blFromSalary) + '</td></tr>';
+                bodyContent += '<tr><td>אבטלה</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.taxFromUnemployment) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.blFromUnemployment) + '</td></tr>';
+                bodyContent += '<tr><td>מילואים</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.taxFromMiluim) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.blFromMiluim) + '</td></tr>';
+                bodyContent += '<tr><td>מקדמות עצמאי</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.taxFromSelf) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.blFromSelf) + '</td></tr>';
                 bodyContent += '</tbody></table>';
-                bodyContent += '<div class="subtotal"><span>סה"כ ששולם</span><span>מס: ' + fmtNum(t.totals.totalTaxPaid) + ' | ביט"ל: ' + fmtNum(t.totals.totalBLPaid) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ ששולם</span><span>מס: ' + fmtNum(t.totals.totalTaxPaid) + ' | ביט"ל: ' + fmtNum(t.totals.totalBLPaid) + '</span></div>';
 
-                bodyContent += '<h3 class="section-title">ה. תוצאה</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ה. תוצאה</h3>';
                 bodyContent += '<table><thead><tr><th>פריט</th><th>חייב</th><th>שולם</th><th>הפרש</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>מס הכנסה</td><td class="num">' + fmtNum(t.netTax) + '</td><td class="num">' + fmtNum(t.totals.totalTaxPaid) + '</td><td class="num">' + fmtNum(t.taxDiff) + '</td></tr>';
-                bodyContent += '<tr><td>ביטוח לאומי</td><td class="num">' + fmtNum(t.bl.total) + '</td><td class="num">' + fmtNum(t.totals.blFromSelf) + '</td><td class="num">' + fmtNum(t.blDiff) + '</td></tr>';
+                bodyContent += '<tr><td>מס הכנסה</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.netTax) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.totalTaxPaid) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.taxDiff) + '</td></tr>';
+                bodyContent += '<tr><td>ביטוח לאומי</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.bl.total) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.blFromSelf) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.blDiff) + '</td></tr>';
                 bodyContent += '</tbody></table>';
                 const totalResult = t.taxDiff + t.blDiff;
-                bodyContent += '<div class="grand-total"><span>' + (totalResult > 0 ? 'סה"כ החזר' : totalResult < 0 ? 'סה"כ לתשלום' : 'מאוזן') + '</span><span>' + fmtNum(Math.abs(totalResult)) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:15px;"><span>' + (totalResult > 0 ? 'סה"כ החזר' : totalResult < 0 ? 'סה"כ לתשלום' : 'מאוזן') + '</span><span>' + fmtNum(Math.abs(totalResult)) + '</span></div>';
 
             } else if (rows._custom === 'forecast') {
                 const f = rows._data;
-                bodyContent += '<h3 class="section-title">א. נתוני תחזית</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">א. נתוני תחזית</h3>';
                 bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>הכנסה כעצמאי (צפי)</td><td class="num">' + fmtNum(f.income) + '</td></tr>';
-                bodyContent += '<tr><td>(-) הוצאות מוכרות (צפי)</td><td class="num">' + fmtNum(f.expenses) + '</td></tr>';
-                bodyContent += '<tr><td>הכנסה נטו כעצמאי</td><td class="num">' + fmtNum(f.netSelfEmployed) + '</td></tr>';
-                bodyContent += '<tr><td>הכנסות אחרות (שכיר/אבטלה/מילואים)</td><td class="num">' + fmtNum(f.otherIncome) + '</td></tr>';
-                bodyContent += '<tr><td>הכנסה חייבת כוללת</td><td class="num">' + fmtNum(f.taxableIncome) + '</td></tr>';
+                bodyContent += '<tr><td>הכנסה כעצמאי (צפי)</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.income) + '</td></tr>';
+                bodyContent += '<tr><td>(-) הוצאות מוכרות (צפי)</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.expenses) + '</td></tr>';
+                bodyContent += '<tr><td>הכנסה נטו כעצמאי</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.netSelfEmployed) + '</td></tr>';
+                bodyContent += '<tr><td>הכנסות אחרות (שכיר/אבטלה/מילואים)</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.otherIncome) + '</td></tr>';
+                bodyContent += '<tr><td>הכנסה חייבת כוללת</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.taxableIncome) + '</td></tr>';
                 bodyContent += '</tbody></table>';
 
-                bodyContent += '<h3 class="section-title">ב. חישוב מס צפוי</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ב. חישוב מס צפוי</h3>';
                 bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>מס ברוטו</td><td class="num">' + fmtNum(f.grossTax) + '</td></tr>';
-                bodyContent += '<tr><td>נקודות זיכוי: ' + f.credits.toFixed(2) + '</td><td class="num">-' + fmtNum(Math.min(f.creditValue, f.grossTax)) + '</td></tr>';
-                bodyContent += '<tr><td>מס נטו</td><td class="num">' + fmtNum(f.netTax) + '</td></tr>';
-                bodyContent += '<tr><td>(-) מס ממקורות אחרים</td><td class="num">' + fmtNum(f.otherTax) + '</td></tr>';
-                bodyContent += '<tr><td>מס כעצמאי לתשלום</td><td class="num">' + fmtNum(f.selfTax) + '</td></tr>';
+                bodyContent += '<tr><td>מס ברוטו</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.grossTax) + '</td></tr>';
+                bodyContent += '<tr><td>נקודות זיכוי: ' + f.credits.toFixed(2) + '</td><td style="text-align:left;direction:ltr;">-' + fmtNum(Math.min(f.creditValue, f.grossTax)) + '</td></tr>';
+                bodyContent += '<tr><td>מס נטו</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.netTax) + '</td></tr>';
+                bodyContent += '<tr><td>(-) מס ממקורות אחרים</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.otherTax) + '</td></tr>';
+                bodyContent += '<tr><td>מס כעצמאי לתשלום</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.selfTax) + '</td></tr>';
                 bodyContent += '</tbody></table>';
 
-                bodyContent += '<h3 class="section-title">ג. ביטוח לאומי צפוי</h3>';
-                bodyContent += '<div class="subtotal"><span>סה"כ ביטוח לאומי</span><span>' + fmtNum(f.bl.total) + '</span></div>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ג. ביטוח לאומי צפוי</h3>';
+                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ ביטוח לאומי</span><span>' + fmtNum(f.bl.total) + '</span></div>';
 
-                bodyContent += '<div class="grand-total"><span>סה"כ לתשלום שנתי (מס + ביט"ל)</span><span>' + fmtNum(f.totalDue) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:15px;"><span>סה"כ לתשלום שנתי (מס + ביט"ל)</span><span>' + fmtNum(f.totalDue) + '</span></div>';
 
-                bodyContent += '<h3 class="section-title">ד. המלצה לתשלום חודשי</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ד. המלצה לתשלום חודשי</h3>';
                 bodyContent += '<table><thead><tr><th>חודש</th><th>מס הכנסה</th><th>ביט"ל</th><th>סה"כ חודשי</th><th>מצטבר</th></tr></thead><tbody>';
                 let cumulative = 0;
                 for (let i = 1; i <= 12; i++) {
                     const monthTotal = f.monthlyTax + f.monthlyBL;
                     cumulative += monthTotal;
-                    bodyContent += '<tr><td>' + MONTHS[i] + '</td><td class="num">' + fmtNum(f.monthlyTax) + '</td><td class="num">' + fmtNum(f.monthlyBL) + '</td><td class="num">' + fmtNum(monthTotal) + '</td><td class="num">' + fmtNum(cumulative) + '</td></tr>';
+                    bodyContent += '<tr><td>' + MONTHS[i] + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.monthlyTax) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.monthlyBL) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(monthTotal) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(cumulative) + '</td></tr>';
                 }
                 bodyContent += '</tbody></table>';
-                bodyContent += '<div class="subtotal"><span>סה"כ שנתי</span><span>מס: ' + fmtNum(f.monthlyTax * 12) + ' | ביט"ל: ' + fmtNum(f.monthlyBL * 12) + ' | סה"כ: ' + fmtNum(f.monthlyTotal * 12) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ שנתי</span><span>מס: ' + fmtNum(f.monthlyTax * 12) + ' | ביט"ל: ' + fmtNum(f.monthlyBL * 12) + ' | סה"כ: ' + fmtNum(f.monthlyTotal * 12) + '</span></div>';
 
             } else if (page === 'miluim' && rows._summary) {
                 const sm = rows._summary;
@@ -7176,7 +7176,7 @@
                     if (!Array.isArray(r)) return;
                     bodyContent += '<tr>';
                     r.forEach(cell => {
-                        if (typeof cell === 'number') bodyContent += '<td class="num">' + fmtNum(cell) + '</td>';
+                        if (typeof cell === 'number') bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(cell) + '</td>';
                         else bodyContent += '<td>' + String(cell) + '</td>';
                     });
                     bodyContent += '</tr>';
@@ -7184,54 +7184,54 @@
                 bodyContent += '</tbody></table>';
                 bodyContent += '<div style="margin-top:15px;"></div>';
                 bodyContent += '<table><thead><tr><th>סיכום</th><th>סכום</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>סה"כ ימים</td><td class="num">' + sm.totalDays + '</td></tr>';
-                bodyContent += '<tr><td>סה"כ תשלום</td><td class="num">' + fmtNum(sm.totalAmount) + '</td></tr>';
-                bodyContent += '<tr><td>סה"כ מס שנוכה</td><td class="num">' + fmtNum(sm.totalTax) + '</td></tr>';
-                bodyContent += '<tr><td>סה"כ ביט"ל שנוכה</td><td class="num">' + fmtNum(sm.totalBL) + '</td></tr>';
+                bodyContent += '<tr><td>סה"כ ימים</td><td style="text-align:left;direction:ltr;">' + sm.totalDays + '</td></tr>';
+                bodyContent += '<tr><td>סה"כ תשלום</td><td style="text-align:left;direction:ltr;">' + fmtNum(sm.totalAmount) + '</td></tr>';
+                bodyContent += '<tr><td>סה"כ מס שנוכה</td><td style="text-align:left;direction:ltr;">' + fmtNum(sm.totalTax) + '</td></tr>';
+                bodyContent += '<tr><td>סה"כ ביט"ל שנוכה</td><td style="text-align:left;direction:ltr;">' + fmtNum(sm.totalBL) + '</td></tr>';
                 bodyContent += '</tbody></table>';
-                bodyContent += '<div class="grand-total"><span>נטו לאחר ניכויים</span><span>' + fmtNum(sm.netAmount) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:15px;"><span>נטו לאחר ניכויים</span><span>' + fmtNum(sm.netAmount) + '</span></div>';
 
             } else if (rows._custom === 'settings') {
                 const s = rows._data;
-                bodyContent += '<h3 class="section-title">א. מעמד עסקי</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">א. מעמד עסקי</h3>';
                 bodyContent += '<table><thead><tr><th>פריט</th><th>ערך</th></tr></thead><tbody>';
                 bodyContent += '<tr><td>סוג עוסק</td><td>' + s.businessStatus + '</td></tr>';
                 bodyContent += '<tr><td>חודשים כעצמאי</td><td>' + s.selfMonths + '</td></tr>';
                 bodyContent += '</tbody></table>';
 
-                bodyContent += '<h3 class="section-title">ב. מדרגות מס הכנסה</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ב. מדרגות מס הכנסה</h3>';
                 bodyContent += '<table><thead><tr><th>מדרגה</th><th>מ-סכום</th><th>עד-סכום</th><th>שיעור</th></tr></thead><tbody>';
                 s.taxBrackets.forEach((b, i) => {
                     const isLast = i === s.taxBrackets.length - 1;
-                    bodyContent += '<tr><td>' + (i+1) + '</td><td class="num">' + fmtNum(b.min) + '</td><td class="num">' + (isLast ? '∞' : fmtNum(b.max)) + '</td><td class="num">' + b.rate + '%</td></tr>';
+                    bodyContent += '<tr><td>' + (i+1) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(b.min) + '</td><td style="text-align:left;direction:ltr;">' + (isLast ? '∞' : fmtNum(b.max)) + '</td><td style="text-align:left;direction:ltr;">' + b.rate + '%</td></tr>';
                 });
                 bodyContent += '</tbody></table>';
 
                 if (s.blBrackets.length > 0) {
-                    bodyContent += '<h3 class="section-title">ג. ביטוח לאומי + בריאות לעצמאים</h3>';
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ג. ביטוח לאומי + בריאות לעצמאים</h3>';
                     bodyContent += '<table><thead><tr><th>מדרגה</th><th>מ-סכום</th><th>עד-סכום</th><th>ביט"ל %</th><th>בריאות %</th><th>סה"כ %</th></tr></thead><tbody>';
                     s.blBrackets.forEach(b => {
-                        bodyContent += '<tr><td>' + (b.label || '') + '</td><td class="num">' + fmtNum(b.min) + '</td><td class="num">' + fmtNum(b.max) + '</td><td class="num">' + b.blRate + '%</td><td class="num">' + b.healthRate + '%</td><td class="num">' + b.totalRate.toFixed(2) + '%</td></tr>';
+                        bodyContent += '<tr><td>' + (b.label || '') + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(b.min) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(b.max) + '</td><td style="text-align:left;direction:ltr;">' + b.blRate + '%</td><td style="text-align:left;direction:ltr;">' + b.healthRate + '%</td><td style="text-align:left;direction:ltr;">' + b.totalRate.toFixed(2) + '%</td></tr>';
                     });
                     bodyContent += '</tbody></table>';
                 }
 
-                bodyContent += '<h3 class="section-title">ד. נקודות זיכוי</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ד. נקודות זיכוי</h3>';
                 bodyContent += '<table><thead><tr><th>פריט</th><th>ערך</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>תושב ישראל (בסיס)</td><td class="num">2.25</td></tr>';
-                if (s.credits.woman) bodyContent += '<tr><td>אישה</td><td class="num">0.5</td></tr>';
-                if (s.credits.divorcedAlimony) bodyContent += '<tr><td>גרושה עם מזונות</td><td class="num">1</td></tr>';
-                if (s.credits.singleParent) bodyContent += '<tr><td>הורה יחיד</td><td class="num">1</td></tr>';
-                if (s.credits.army) bodyContent += '<tr><td>שירות צבאי/לאומי</td><td class="num">2</td></tr>';
-                if (s.credits.degree) bodyContent += '<tr><td>תואר ראשון</td><td class="num">1</td></tr>';
-                if (s.credits.degree2) bodyContent += '<tr><td>תואר שני</td><td class="num">0.5</td></tr>';
-                if (s.credits.oleh) bodyContent += '<tr><td>עולה חדש</td><td class="num">2.25</td></tr>';
-                if (s.credits.childrenYoung > 0) bodyContent += '<tr><td>ילדים עד גיל 6 (' + s.credits.childrenYoung + ')</td><td class="num">' + (s.credits.childrenYoung * 2.5) + '</td></tr>';
-                if (s.credits.childrenOld > 0) bodyContent += '<tr><td>ילדים 6-18 (' + s.credits.childrenOld + ')</td><td class="num">' + (s.credits.childrenOld * 1) + '</td></tr>';
+                bodyContent += '<tr><td>תושב ישראל (בסיס)</td><td style="text-align:left;direction:ltr;">2.25</td></tr>';
+                if (s.credits.woman) bodyContent += '<tr><td>אישה</td><td style="text-align:left;direction:ltr;">0.5</td></tr>';
+                if (s.credits.divorcedAlimony) bodyContent += '<tr><td>גרושה עם מזונות</td><td style="text-align:left;direction:ltr;">1</td></tr>';
+                if (s.credits.singleParent) bodyContent += '<tr><td>הורה יחיד</td><td style="text-align:left;direction:ltr;">1</td></tr>';
+                if (s.credits.army) bodyContent += '<tr><td>שירות צבאי/לאומי</td><td style="text-align:left;direction:ltr;">2</td></tr>';
+                if (s.credits.degree) bodyContent += '<tr><td>תואר ראשון</td><td style="text-align:left;direction:ltr;">1</td></tr>';
+                if (s.credits.degree2) bodyContent += '<tr><td>תואר שני</td><td style="text-align:left;direction:ltr;">0.5</td></tr>';
+                if (s.credits.oleh) bodyContent += '<tr><td>עולה חדש</td><td style="text-align:left;direction:ltr;">2.25</td></tr>';
+                if (s.credits.childrenYoung > 0) bodyContent += '<tr><td>ילדים עד גיל 6 (' + s.credits.childrenYoung + ')</td><td style="text-align:left;direction:ltr;">' + (s.credits.childrenYoung * 2.5) + '</td></tr>';
+                if (s.credits.childrenOld > 0) bodyContent += '<tr><td>ילדים 6-18 (' + s.credits.childrenOld + ')</td><td style="text-align:left;direction:ltr;">' + (s.credits.childrenOld * 1) + '</td></tr>';
                 bodyContent += '</tbody></table>';
-                bodyContent += '<div class="subtotal"><span>סה"כ נקודות זיכוי</span><span>' + s.totalCredits.toFixed(2) + '</span></div>';
-                bodyContent += '<div class="subtotal"><span>ערך נקודה חודשי</span><span>' + fmtNum(s.creditValue) + '</span></div>';
-                bodyContent += '<div class="grand-total"><span>שווי זיכוי שנתי</span><span>' + fmtNum(s.creditValueYearly) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ נקודות זיכוי</span><span>' + s.totalCredits.toFixed(2) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>ערך נקודה חודשי</span><span>' + fmtNum(s.creditValue) + '</span></div>';
+                bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:15px;"><span>שווי זיכוי שנתי</span><span>' + fmtNum(s.creditValueYearly) + '</span></div>';
 
             } else {
                 // Standard table for other pages
@@ -7242,7 +7242,7 @@
                     if (!Array.isArray(r)) return;
                     bodyContent += '<tr>';
                     r.forEach(cell => {
-                        if (typeof cell === 'number') bodyContent += '<td class="num">' + fmtNum(cell) + '</td>';
+                        if (typeof cell === 'number') bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(cell) + '</td>';
                         else bodyContent += '<td>' + String(cell) + '</td>';
                     });
                     bodyContent += '</tr>';
@@ -7254,21 +7254,11 @@
                 const numericCols = validRows[0] ? validRows[0].map((c, i) => typeof c === 'number' ? i : -1).filter(i => i >= 0) : [];
                 if (numericCols.length > 0 && validRows.length > 0) {
                     const total = validRows.reduce((s, r) => s + (Number(r[numericCols[0]]) || 0), 0);
-                    bodyContent += '<div class="grand-total"><span>סה"כ</span><span>' + fmtNum(total) + '</span></div>';
+                    bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:15px;"><span>סה"כ</span><span>' + fmtNum(total) + '</span></div>';
                 }
             }
 
-            // Inject PDF styles into document head (html2canvas ignores <style> inside rendered elements)
-            const pdfStyle = document.createElement('style');
-            pdfStyle.id = 'pdfReportCSS';
-            pdfStyle.textContent = '#pdfContainer th { background:#1e293b !important; color:white !important; padding:6px 10px; }' +
-                '#pdfContainer .section-title { color:#1e293b !important; font-size:13px; font-weight:bold; margin:20px 0 5px; padding-bottom:4px; border-bottom:1px solid #cbd5e1; }' +
-                '#pdfContainer .grand-total { background:#1e293b !important; color:white !important; }' +
-                '#pdfContainer .subtotal { width:100%; border-top:1px solid #94a3b8; margin-bottom:10px; font-weight:bold; font-size:11px; }' +
-                '#pdfContainer .subtotal span:last-child { float:left; }';
-            document.head.appendChild(pdfStyle);
-
-            // Build report HTML for pdf conversion
+            // Build report HTML for pdf conversion (all inline styles - html2canvas ignores CSS classes)
             const reportHTML = '<div dir="rtl" style="font-family:Segoe UI,Tahoma,Arial,sans-serif; color:#1e293b; padding:20px 25px; font-size:11px; width:700px; background:white;">' +
                 '<div style="border-top:3px double #1e293b; border-bottom:3px double #1e293b; padding:15px 0; margin-bottom:5px; text-align:center;">' +
                 '<h1 style="font-size:20px; margin:0 0 5px;">' + title + ' לשנת המס ' + year + '</h1></div>' +
@@ -7292,11 +7282,32 @@
             container.innerHTML = reportHTML;
             document.body.appendChild(container);
 
-            // Fix Hebrew spacing: walk ALL text nodes and replace spaces with non-breaking spaces
+            // Fix Hebrew spacing: replace spaces with non-breaking spaces in all text nodes
             const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
             while (walker.nextNode()) {
                 walker.currentNode.textContent = walker.currentNode.textContent.replace(/ /g, '\u00A0');
             }
+
+            // Fix subtotal/grand-total: float the number span to the left
+            container.querySelectorAll('div[style*="overflow:hidden"] > span:last-child').forEach(s => {
+                s.style.cssText = 'float:left;';
+            });
+
+            // Fix th inline styles (html2canvas needs inline)
+            container.querySelectorAll('th').forEach(th => {
+                th.style.background = '#1e293b';
+                th.style.color = 'white';
+                th.style.padding = '6px 10px';
+                th.style.textAlign = 'right';
+                th.style.fontSize = '10px';
+            });
+
+            // Fix td padding
+            container.querySelectorAll('td').forEach(td => {
+                if (!td.style.padding) td.style.padding = '5px 10px';
+                if (!td.style.borderBottom) td.style.borderBottom = '1px solid #e2e8f0';
+                if (!td.style.fontSize) td.style.fontSize = '10px';
+            });
 
             const pageDocs = getPageDocuments(page);
 
@@ -7319,7 +7330,6 @@
                     }).from(container.firstChild).outputPdf('arraybuffer');
 
                     document.body.removeChild(container);
-                    document.getElementById('pdfReportCSS')?.remove();
 
                     const { PDFDocument } = PDFLib;
                     const finalPdf = await PDFDocument.create();
