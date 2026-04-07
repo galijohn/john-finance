@@ -7020,6 +7020,7 @@
         }
 
         async function exportPagePDF(page) {
+          try {
             const { headers, rows, title, year } = getPageData(page);
             const yd = getYearData();
             const dateStr = new Date().toLocaleDateString('he-IL');
@@ -7324,7 +7325,6 @@
                 alert('הדפדפן חסם את החלון. אנא אפשר חלונות קופצים עבור אתר זה.');
                 return;
             }
-            printWindow.document.write('<html dir="rtl"><body style="text-align:center;padding:50px;font-family:Arial;"><h2>מכין דוח...</h2></body></html>');
 
             // Build appendices from attached documents
             const pageDocs = getPageDocuments(page);
@@ -7359,10 +7359,13 @@
                 appendicesHTML +
                 '</body></html>';
 
-            printWindow.document.open();
             printWindow.document.write(html);
             printWindow.document.close();
-            setTimeout(() => { printWindow.print(); }, 300);
+            setTimeout(() => { printWindow.print(); }, 500);
+          } catch (e) {
+            console.error('PDF export error:', e);
+            alert('שגיאה בהפקת הדוח: ' + e.message);
+          }
         }
 
         function exportData() {
