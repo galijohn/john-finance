@@ -5278,7 +5278,7 @@
                 tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">🎖️</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = yd.miluim.map(m => `<tr>
+            tbody.innerHTML = [...yd.miluim].sort((a, b) => (a.from || '').localeCompare(b.from || '')).map(m => `<tr>
                 <td>${formatDate(m.from)} - ${formatDate(m.to)} ${m.notes ? '<span data-tip="'+m.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${m.days}</td>
                 <td>${formatCurrency(m.amount)}</td>
