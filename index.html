@@ -2849,17 +2849,28 @@
             });
         }
 
+        // Check if token is still valid, renew if needed
+        async function ensureValidToken() {
+            if (!googleAccessToken) return false;
+            const expiry = parseInt(localStorage.getItem('googleTokenExpiry') || '0');
+            if (Date.now() < expiry - 60000) return true; // valid, >1min left
+            try {
+                await renewTokenSilently();
+                return true;
+            } catch(e) {
+                return false;
+            }
+        }
+
         // Auto-renew token before it expires
         let tokenRenewTimer = null;
         function scheduleTokenRenewal() {
             if (tokenRenewTimer) clearTimeout(tokenRenewTimer);
             const expiry = parseInt(localStorage.getItem('googleTokenExpiry') || '0');
             const timeLeft = expiry - Date.now();
-            // Renew 5 minutes before expiry
             const renewIn = Math.max(timeLeft - 5 * 60 * 1000, 10000);
             console.log('Token renewal scheduled in', Math.round(renewIn/60000), 'minutes');
             tokenRenewTimer = setTimeout(async () => {
-                console.log('🔄 Auto-renewing Google token...');
                 try {
                     await renewTokenSilently();
                 } catch(e) {
@@ -2868,6 +2879,13 @@
                 }
             }, renewIn);
         }
+
+        // Renew token when tab becomes visible again
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible' && googleAccessToken) {
+                await ensureValidToken();
+            }
+        });
 
         async function renewTokenSilently() {
             await loadGISClient();
