@@ -6,8 +6,6 @@
     <title>John Finance</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230891b2'/%3E%3Cpolygon points='50,15 85,32 85,68 50,85 15,68 15,32' fill='none' stroke='white' stroke-width='4'/%3E%3Ctext x='50' y='62' text-anchor='middle' font-family='Arial' font-size='30' font-weight='bold' fill='white'%3EJL%3C/text%3E%3C/svg%3E">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -5741,7 +5739,7 @@
                 const wsData = [];
                 // Header rows
                 wsData.push([title + ' - ' + year]);
-                wsData.push(['Name: John Levy', '', 'Date: ' + dateStr]);
+                wsData.push(['שם: John Levy', '', 'תאריך: ' + dateStr]);
                 wsData.push([]);
 
                 const groups = {};
@@ -5763,19 +5761,19 @@
                     grandRecognized += catRecognized;
 
                     wsData.push([sectionLetters[idx] + '. ' + cat]);
-                    wsData.push(['Date', 'Description', 'Amount', '% Recognition', 'Recognized']);
+                    wsData.push(['תאריך', 'תיאור', 'סכום', '% הכרה', 'מוכר']);
                     items.forEach(e => {
                         const pct = e.recognition ?? 100;
                         wsData.push([e.date, e.description || '', e.amount, pct + '%', e.amount * (pct / 100)]);
                     });
-                    wsData.push(['', 'Subtotal ' + cat + ' (' + items.length + ')', catTotal, '', catRecognized]);
+                    wsData.push(['', 'סה"כ ' + cat + ' (' + items.length + ')', catTotal, '', catRecognized]);
                     wsData.push([]);
                 });
 
                 wsData.push([]);
-                wsData.push(['', 'TOTAL RECOGNIZED EXPENSES', grandTotal, '', grandRecognized]);
+                wsData.push(['', 'סה"כ הוצאות מוכרות', grandTotal, '', grandRecognized]);
                 if (grandTotal !== grandRecognized) {
-                    wsData.push(['', 'Total before recognition', grandTotal]);
+                    wsData.push(['', 'סה"כ לפני הכרה', grandTotal]);
                 }
 
                 const ws = XLSX.utils.aoa_to_sheet(wsData);
@@ -5786,7 +5784,7 @@
                 // Standard table for other pages
                 const wsData = [];
                 wsData.push([title + ' - ' + year]);
-                wsData.push(['Name: John Levy', '', 'Date: ' + dateStr]);
+                wsData.push(['שם: John Levy', '', 'תאריך: ' + dateStr]);
                 wsData.push([]);
                 wsData.push(headers);
                 rows.forEach(r => wsData.push(r));
@@ -5797,7 +5795,7 @@
                     wsData.push([]);
                     const totalRow = headers.map((h, i) => {
                         if (numericCols.includes(i)) return rows.reduce((s, r) => s + (Number(r[i]) || 0), 0);
-                        if (i === 0) return 'TOTAL';
+                        if (i === 0) return 'סה"כ';
                         return '';
                     });
                     wsData.push(totalRow);
@@ -5817,225 +5815,108 @@
         }
 
         function exportPagePDF(page) {
-            const { jsPDF } = window.jspdf;
             const { headers, rows, title, year } = getPageData(page);
             const yd = getYearData();
-            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const pageHeight = doc.internal.pageSize.getHeight();
-            const margin = 15;
-            const contentWidth = pageWidth - margin * 2;
             const dateStr = new Date().toLocaleDateString('he-IL');
-            let y = 0;
+            document.querySelectorAll('.export-dropdown-content.show').forEach(d => d.classList.remove('show'));
 
             function fmtNum(n) {
                 const val = Number(n) || 0;
-                if (val === Math.floor(val)) return val.toLocaleString('he-IL') + ' ₪';
-                return val.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₪';
+                if (val === Math.floor(val)) return '₪' + val.toLocaleString('he-IL');
+                return '₪' + val.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             }
 
-            function addPageFooter(pageNum) {
-                // Double line at bottom
-                doc.setDrawColor(30, 41, 59);
-                doc.setLineWidth(0.3);
-                doc.line(margin, pageHeight - 18, pageWidth - margin, pageHeight - 18);
-                doc.line(margin, pageHeight - 17, pageWidth - margin, pageHeight - 17);
-                // Footer text
-                doc.setFontSize(7);
-                doc.setTextColor(148, 163, 184);
-                doc.text('John Finance', margin, pageHeight - 12);
-                doc.text(pageNum + ' :' + 'page', pageWidth - margin, pageHeight - 12, { align: 'right' });
-                doc.text('This document is not an official certificate', pageWidth / 2, pageHeight - 12, { align: 'center' });
-            }
+            let bodyContent = '';
 
-            function checkPageBreak(needed) {
-                if (y + needed > pageHeight - 25) {
-                    addPageFooter(doc.internal.getNumberOfPages());
-                    doc.addPage();
-                    y = 15;
-                }
-            }
-
-            // ===== HEADER: Double line border =====
-            doc.setDrawColor(30, 41, 59);
-            doc.setLineWidth(0.5);
-            doc.line(margin, 12, pageWidth - margin, 12);
-            doc.line(margin, 13.5, pageWidth - margin, 13.5);
-
-            // Title centered
-            doc.setFontSize(16);
-            doc.setTextColor(30, 41, 59);
-            doc.setFont('helvetica', 'bold');
-            const headerTitle = title + ' - ' + year;
-            doc.text(headerTitle, pageWidth / 2, 22, { align: 'center' });
-
-            // Info row
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(100, 116, 139);
-            y = 30;
-            doc.line(margin, y, pageWidth - margin, y);
-            y += 5;
-            doc.text(dateStr + ' :date', pageWidth - margin, y, { align: 'right' });
-            doc.text('John Levy :name', margin, y);
-            doc.text('Osek Murshe :type', pageWidth / 2, y, { align: 'center' });
-            y += 3;
-            doc.line(margin, y, pageWidth - margin, y);
-            y += 8;
-
-            // ===== GROUPED BY CATEGORY (for expenses) or standard table =====
             if (page === 'expenses' && yd.expenses.length > 0) {
-                // Group expenses by category
                 const groups = {};
                 const catOrder = [];
                 yd.expenses.forEach(e => {
-                    if (!groups[e.category]) {
-                        groups[e.category] = [];
-                        catOrder.push(e.category);
-                    }
+                    if (!groups[e.category]) { groups[e.category] = []; catOrder.push(e.category); }
                     groups[e.category].push(e);
                 });
 
-                let grandTotal = 0;
-                let grandRecognized = 0;
-                const sectionLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+                let grandTotal = 0, grandRecognized = 0;
+                const letters = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י'];
 
-                catOrder.forEach((cat, catIdx) => {
+                catOrder.forEach((cat, idx) => {
                     const items = groups[cat];
+                    items.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
                     const catTotal = items.reduce((s, e) => s + e.amount, 0);
                     const catRecognized = items.reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
                     grandTotal += catTotal;
                     grandRecognized += catRecognized;
 
-                    checkPageBreak(15 + items.length * 6);
-
-                    // Section header
-                    const sectionLabel = (sectionLetters[catIdx] || '') + '. ' + cat;
-                    doc.setFontSize(11);
-                    doc.setFont('helvetica', 'bold');
-                    doc.setTextColor(30, 41, 59);
-                    doc.text(sectionLabel, pageWidth - margin, y, { align: 'right' });
-                    y += 2;
-                    doc.setDrawColor(203, 213, 225);
-                    doc.line(margin, y, pageWidth - margin, y);
-                    y += 5;
-
-                    // Items
-                    doc.setFontSize(9);
-                    doc.setFont('helvetica', 'normal');
-                    items.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-                    items.forEach((e, i) => {
-                        checkPageBreak(7);
-                        // Alternate row background
-                        if (i % 2 === 0) {
-                            doc.setFillColor(248, 250, 252);
-                            doc.rect(margin, y - 3.5, contentWidth, 6, 'F');
-                        }
+                    bodyContent += '<h3 class="section-title">' + letters[idx] + '. ' + cat + '</h3>';
+                    bodyContent += '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>סכום</th><th>% הכרה</th><th>מוכר</th></tr></thead><tbody>';
+                    items.forEach(e => {
                         const pct = e.recognition ?? 100;
                         const recognized = e.amount * (pct / 100);
-                        doc.setTextColor(30, 41, 59);
-                        const itemText = (e.date || '') + '  |  ' + (e.description || '-');
-                        doc.text(itemText, pageWidth - margin - 2, y, { align: 'right' });
-                        doc.text(fmtNum(e.amount), margin + 40, y, { align: 'right' });
-                        if (pct < 100) {
-                            doc.setTextColor(245, 158, 11);
-                            doc.text(pct + '%', margin + 55, y, { align: 'right' });
-                            doc.text(fmtNum(recognized), margin + 2, y);
-                        } else {
-                            doc.text(fmtNum(recognized), margin + 2, y);
-                        }
-                        doc.setTextColor(30, 41, 59);
-                        y += 6;
+                        bodyContent += '<tr><td>' + (e.date || '') + '</td><td>' + (e.description || '-') + '</td>';
+                        bodyContent += '<td class="num">' + fmtNum(e.amount) + '</td>';
+                        bodyContent += '<td class="num' + (pct < 100 ? ' warn' : '') + '">' + pct + '%</td>';
+                        bodyContent += '<td class="num">' + fmtNum(recognized) + '</td></tr>';
                     });
-
-                    // Category subtotal
-                    checkPageBreak(10);
-                    doc.setDrawColor(148, 163, 184);
-                    doc.line(margin, y - 1, pageWidth - margin, y - 1);
-                    y += 3;
-                    doc.setFont('helvetica', 'bold');
-                    doc.setFontSize(9);
-                    const subtotalLabel = cat + ' (' + items.length + ')';
-                    doc.text(subtotalLabel, pageWidth - margin - 2, y, { align: 'right' });
-                    doc.text(fmtNum(catRecognized), margin + 2, y);
-                    y += 10;
+                    bodyContent += '</tbody></table>';
+                    bodyContent += '<div class="subtotal"><span>סה"כ ' + cat + ' (' + items.length + ' פריטים)</span><span>' + fmtNum(catRecognized) + '</span></div>';
                 });
 
-                // ===== GRAND TOTAL =====
-                checkPageBreak(16);
-                doc.setFillColor(30, 41, 59);
-                doc.rect(margin, y - 2, contentWidth, 12, 'F');
-                doc.setFontSize(12);
-                doc.setFont('helvetica', 'bold');
-                doc.setTextColor(241, 245, 249);
-                doc.text('Total recognized expenses', pageWidth - margin - 5, y + 6, { align: 'right' });
-                doc.text(fmtNum(grandRecognized), margin + 5, y + 6);
-                y += 18;
-
+                bodyContent += '<div class="grand-total"><span>סה"כ הוצאות מוכרות</span><span>' + fmtNum(grandRecognized) + '</span></div>';
                 if (grandTotal !== grandRecognized) {
-                    doc.setFontSize(8);
-                    doc.setTextColor(148, 163, 184);
-                    doc.text('Total before recognition: ' + fmtNum(grandTotal), pageWidth - margin, y, { align: 'right' });
+                    bodyContent += '<div class="note">סה"כ לפני הכרה: ' + fmtNum(grandTotal) + '</div>';
                 }
-
             } else {
-                // Standard table for other pages
-                const rtlHeaders = [...headers].reverse();
-                const rtlRows = rows.map(r => {
-                    const rev = [...r].reverse();
-                    return rev.map(cell => {
-                        if (typeof cell === 'number') return fmtNum(cell);
-                        return String(cell);
+                // Standard table
+                bodyContent += '<table><thead><tr>';
+                headers.forEach(h => { bodyContent += '<th>' + h + '</th>'; });
+                bodyContent += '</tr></thead><tbody>';
+                rows.forEach(r => {
+                    bodyContent += '<tr>';
+                    r.forEach(cell => {
+                        if (typeof cell === 'number') bodyContent += '<td class="num">' + fmtNum(cell) + '</td>';
+                        else bodyContent += '<td>' + String(cell) + '</td>';
                     });
+                    bodyContent += '</tr>';
                 });
+                bodyContent += '</tbody></table>';
 
-                doc.autoTable({
-                    head: [rtlHeaders],
-                    body: rtlRows,
-                    startY: y,
-                    margin: { left: margin, right: margin },
-                    theme: 'grid',
-                    styles: {
-                        font: 'helvetica',
-                        fontSize: 9,
-                        cellPadding: 3,
-                        halign: 'center',
-                        textColor: [30, 41, 59],
-                        lineColor: [203, 213, 225],
-                        lineWidth: 0.3
-                    },
-                    headStyles: {
-                        fillColor: [30, 41, 59],
-                        textColor: [255, 255, 255],
-                        fontStyle: 'bold'
-                    },
-                    alternateRowStyles: {
-                        fillColor: [248, 250, 252]
-                    }
-                });
-
-                // Grand total for standard tables
-                const finalY = doc.lastAutoTable.finalY + 8;
+                // Total
                 const numericCols = rows[0] ? rows[0].map((c, i) => typeof c === 'number' ? i : -1).filter(i => i >= 0) : [];
-                if (numericCols.length > 0) {
-                    const mainCol = numericCols[0];
-                    const total = rows.reduce((s, r) => s + (Number(r[mainCol]) || 0), 0);
-                    doc.setFillColor(30, 41, 59);
-                    doc.rect(margin, finalY, contentWidth, 10, 'F');
-                    doc.setFontSize(11);
-                    doc.setFont('helvetica', 'bold');
-                    doc.setTextColor(241, 245, 249);
-                    doc.text('Total', pageWidth - margin - 5, finalY + 7, { align: 'right' });
-                    doc.text(fmtNum(total), margin + 5, finalY + 7);
+                if (numericCols.length > 0 && rows.length > 0) {
+                    const total = rows.reduce((s, r) => s + (Number(r[numericCols[0]]) || 0), 0);
+                    bodyContent += '<div class="grand-total"><span>סה"כ</span><span>' + fmtNum(total) + '</span></div>';
                 }
             }
 
-            // Footer
-            addPageFooter(doc.internal.getNumberOfPages());
+            const html = '<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><title>' + title + '</title><style>' +
+                '* { box-sizing: border-box; margin: 0; padding: 0; }' +
+                'body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; color: #1e293b; padding: 30px 40px; font-size: 11px; }' +
+                '.header { border-top: 3px double #1e293b; border-bottom: 3px double #1e293b; padding: 15px 0; margin-bottom: 5px; text-align: center; }' +
+                '.header h1 { font-size: 20px; margin-bottom: 5px; }' +
+                '.info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #cbd5e1; margin-bottom: 20px; font-size: 10px; color: #64748b; }' +
+                '.section-title { font-size: 13px; margin: 20px 0 5px; padding-bottom: 4px; border-bottom: 1px solid #cbd5e1; }' +
+                'table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }' +
+                'th { background: #1e293b; color: white; padding: 6px 10px; text-align: right; font-size: 10px; }' +
+                'td { padding: 5px 10px; border-bottom: 1px solid #e2e8f0; font-size: 10px; }' +
+                'tr:nth-child(even) { background: #f8fafc; }' +
+                '.num { text-align: left; direction: ltr; }' +
+                '.warn { color: #d97706; }' +
+                '.subtotal { display: flex; justify-content: space-between; padding: 6px 10px; font-weight: bold; border-top: 1px solid #94a3b8; margin-bottom: 10px; font-size: 11px; }' +
+                '.grand-total { display: flex; justify-content: space-between; padding: 10px 15px; background: #1e293b; color: white; font-weight: bold; font-size: 14px; margin-top: 15px; }' +
+                '.note { text-align: left; color: #94a3b8; font-size: 9px; margin-top: 5px; }' +
+                '.footer { margin-top: 30px; padding-top: 10px; border-top: 3px double #1e293b; display: flex; justify-content: space-between; font-size: 8px; color: #94a3b8; }' +
+                '@media print { body { padding: 15px 25px; } @page { size: A4; margin: 15mm; } }' +
+                '</style></head><body>' +
+                '<div class="header"><h1>' + title + ' לשנת המס ' + year + '</h1></div>' +
+                '<div class="info-row"><span>שם: John Levy</span><span>סוג עוסק: עוסק מורשה</span><span>תאריך הפקה: ' + dateStr + '</span></div>' +
+                bodyContent +
+                '<div class="footer"><span>John Finance - מערכת ניהול מס</span><span>מסמך זה אינו מהווה אישור רשמי</span></div>' +
+                '</body></html>';
 
-            doc.save(`${title}-${year}.pdf`);
-            document.querySelectorAll('.export-dropdown-content.show').forEach(d => d.classList.remove('show'));
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(html);
+            printWindow.document.close();
+            printWindow.onload = function() { printWindow.print(); };
         }
 
         function exportData() {
