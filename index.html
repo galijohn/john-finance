@@ -2189,8 +2189,10 @@
                 </div>
                 <div class="form-group">
                     <label>📄 צרף מסמך</label>
-                    <div style="display:flex;gap:10px;align-items:center;">
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <input type="file" id="salaryFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <button type="button" class="btn btn-sm" onclick="document.getElementById('salaryFileCamera').click()" style="white-space:nowrap;">📷 צלם</button>
+                        <input type="file" id="salaryFileCamera" accept="image/*" capture="environment" style="display:none;" onchange="document.getElementById('salaryFile').files=this.files;">
                         <span id="salaryFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
                     </div>
                     <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
@@ -2271,8 +2273,10 @@
                 </div>
                 <div class="form-group">
                     <label>📄 צרף אישור מביטוח לאומי</label>
-                    <div style="display:flex;gap:10px;align-items:center;">
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <input type="file" id="unemploymentFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <button type="button" class="btn btn-sm" onclick="document.getElementById('unemploymentFileCamera').click()" style="white-space:nowrap;">📷 צלם</button>
+                        <input type="file" id="unemploymentFileCamera" accept="image/*" capture="environment" style="display:none;" onchange="document.getElementById('unemploymentFile').files=this.files;">
                         <span id="unemploymentFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
                     </div>
                     <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
@@ -2328,8 +2332,10 @@
                 </div>
                 <div class="form-group">
                     <label>📄 צרף אישור מילואים</label>
-                    <div style="display:flex;gap:10px;align-items:center;">
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <input type="file" id="miluimFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <button type="button" class="btn btn-sm" onclick="document.getElementById('miluimFileCamera').click()" style="white-space:nowrap;">📷 צלם</button>
+                        <input type="file" id="miluimFileCamera" accept="image/*" capture="environment" style="display:none;" onchange="document.getElementById('miluimFile').files=this.files;">
                         <span id="miluimFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
                     </div>
                     <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
@@ -2382,8 +2388,10 @@
                 </div>
                 <div class="form-group">
                     <label>📄 צרף חשבונית</label>
-                    <div style="display:flex;gap:10px;align-items:center;">
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <input type="file" id="selfFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <button type="button" class="btn btn-sm" onclick="document.getElementById('selfFileCamera').click()" style="white-space:nowrap;">📷 צלם</button>
+                        <input type="file" id="selfFileCamera" accept="image/*" capture="environment" style="display:none;" onchange="document.getElementById('selfFile').files=this.files;">
                         <span id="selfFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
                     </div>
                     <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
@@ -2443,8 +2451,10 @@
                 </div>
                 <div class="form-group">
                     <label>📄 צרף קבלה/חשבונית</label>
-                    <div style="display:flex;gap:10px;align-items:center;">
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <input type="file" id="expenseFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <button type="button" class="btn btn-sm" onclick="document.getElementById('expenseFileCamera').click()" style="white-space:nowrap;">📷 צלם</button>
+                        <input type="file" id="expenseFileCamera" accept="image/*" capture="environment" style="display:none;" onchange="document.getElementById('expenseFile').files=this.files;">
                         <span id="expenseFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
                     </div>
                     <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
@@ -2539,8 +2549,10 @@
                 </div>
                 <div class="form-group">
                     <label>📄 צרף אישור תשלום</label>
-                    <div style="display:flex;gap:10px;align-items:center;">
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <input type="file" id="taxAdvanceFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <button type="button" class="btn btn-sm" onclick="document.getElementById('taxAdvanceFileCamera').click()" style="white-space:nowrap;">📷 צלם</button>
+                        <input type="file" id="taxAdvanceFileCamera" accept="image/*" capture="environment" style="display:none;" onchange="document.getElementById('taxAdvanceFile').files=this.files;">
                         <span id="taxAdvanceFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
                     </div>
                     <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
@@ -2589,8 +2601,10 @@
                 </div>
                 <div class="form-group">
                     <label>📄 צרף אישור תשלום</label>
-                    <div style="display:flex;gap:10px;align-items:center;">
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <input type="file" id="blAdvanceFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <button type="button" class="btn btn-sm" onclick="document.getElementById('blAdvanceFileCamera').click()" style="white-space:nowrap;">📷 צלם</button>
+                        <input type="file" id="blAdvanceFileCamera" accept="image/*" capture="environment" style="display:none;" onchange="document.getElementById('blAdvanceFile').files=this.files;">
                         <span id="blAdvanceFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
                     </div>
                     <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
