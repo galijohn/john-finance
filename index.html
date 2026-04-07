@@ -7384,16 +7384,17 @@
             printWindow.document.write(html);
             printWindow.document.close();
 
-            // Load appendices in background, then auto-print
+            // Load appendices, then print
             const pageDocs = getPageDocuments(page);
             if (pageDocs.length > 0 && googleAccessToken) {
                 const area = printWindow.document.getElementById('appendicesArea');
                 area.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">טוען ' + pageDocs.length + ' מסמכים...</div>';
-                buildAppendicesHTML(pageDocs).then(appendicesHTML => {
-                    area.innerHTML = appendicesHTML;
+                buildAppendicesHTML(pageDocs).then(html => {
+                    area.innerHTML = html;
                     setTimeout(() => { printWindow.print(); }, 500);
-                }).catch(() => {
-                    area.innerHTML = '';
+                }).catch(e => {
+                    console.error('Appendices error:', e);
+                    area.innerHTML = '<div style="padding:10px;color:red;">שגיאה בטעינת מסמכים: ' + e.message + '</div>';
                     setTimeout(() => { printWindow.print(); }, 300);
                 });
             } else {
