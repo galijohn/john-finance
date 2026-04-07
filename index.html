@@ -5254,7 +5254,7 @@
                 return;
             }
             tbody.innerHTML = yd.miluim.map(m => `<tr>
-                <td>${m.from} - ${m.to} ${m.notes ? '<span title="'+m.notes+'" style="cursor:help;">📎</span>' : ''}</td>
+                <td>${formatDate(m.from)} - ${formatDate(m.to)} ${m.notes ? '<span title="'+m.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${m.days}</td>
                 <td>${formatCurrency(m.amount)}</td>
                 <td style="color:var(--danger)">${formatCurrency(m.taxDeducted || 0)}</td>
@@ -5412,7 +5412,7 @@
             const pct = e.recognition ?? 100;
             const recognized = e.amount * (pct / 100);
             return `<tr>
-                <td>${e.date}</td>
+                <td>${formatDate(e.date)}</td>
                 <td>${e.description || '-'} ${e.notes ? '<span title="'+e.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${e.category}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
@@ -5653,6 +5653,13 @@
             return '₪' + val.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
+        function formatDate(d) {
+            if (!d) return '';
+            const parts = String(d).split('-');
+            if (parts.length === 3) return parts[2] + '/' + parts[1] + '/' + parts[0];
+            return d;
+        }
+
         // ========== EXPORT FUNCTIONS ==========
         function toggleExportMenu(btn) {
             const dropdown = btn.nextElementSibling;
@@ -5699,7 +5706,7 @@
                     break;
                 case 'miluim': {
                     headers = ['מתאריך', 'עד תאריך', 'ימים', 'סכום', 'מס שנוכה', 'ביט"ל שנוכה', 'הערות'];
-                    rows = yd.miluim.map(m => [m.from || '', m.to || '', m.days, m.amount, m.taxDeducted || 0, m.blDeducted || 0, m.notes || '']);
+                    rows = yd.miluim.map(m => [formatDate(m.from), formatDate(m.to), m.days, m.amount, m.taxDeducted || 0, m.blDeducted || 0, m.notes || '']);
                     const totalDays = yd.miluim.reduce((s, m) => s + m.days, 0);
                     const totalAmount = yd.miluim.reduce((s, m) => s + m.amount, 0);
                     const totalTax = yd.miluim.reduce((s, m) => s + (m.taxDeducted || 0), 0);
@@ -5734,7 +5741,7 @@
                     headers = ['תאריך', 'תיאור', 'קטגוריה', 'סכום', '% הכרה', 'סכום מוכר', 'הערות'];
                     rows = yd.expenses.map(e => {
                         const pct = e.recognition ?? 100;
-                        return [e.date, e.description || '', e.category, e.amount, pct + '%', e.amount * (pct / 100), e.notes || ''];
+                        return [formatDate(e.date), e.description || '', e.category, e.amount, pct + '%', e.amount * (pct / 100), e.notes || ''];
                     });
                     break;
                 case 'vat':
@@ -5845,7 +5852,7 @@
             const altFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
             const whiteFont = { bold: true, size: 10, color: { argb: 'FFFFFFFF' }, name: 'Segoe UI' };
             const normalFont = { size: 10, name: 'Segoe UI' };
-            const NUM_FMT = '#,##0';
+            const NUM_FMT = '₪#,##0';
 
             // === Helpers ===
             function addTitle(span) {
@@ -5945,7 +5952,7 @@
 
                     addSection(letters[idx] + '. ' + cat, S);
                     addHdr(['תאריך', 'תיאור', 'סכום', '% הכרה', 'מוכר']);
-                    items.forEach((e, i) => { const pct = e.recognition ?? 100; addDR([e.date || '', e.description || '', e.amount, pct + '%', e.amount * (pct / 100)], i); });
+                    items.forEach((e, i) => { const pct = e.recognition ?? 100; addDR([formatDate(e.date), e.description || '', e.amount, pct + '%', e.amount * (pct / 100)], i); });
                     addSub(['סה"כ ' + cat + ' (' + items.length + ')', '', catTotal, '', catRecognized]);
                 });
                 addGrand(['סה"כ הוצאות מוכרות', '', grandTotal, '', grandRecognized]);
@@ -6200,7 +6207,7 @@
                     items.forEach(e => {
                         const pct = e.recognition ?? 100;
                         const recognized = e.amount * (pct / 100);
-                        bodyContent += '<tr><td>' + (e.date || '') + '</td><td>' + (e.description || '-') + '</td>';
+                        bodyContent += '<tr><td>' + formatDate(e.date) + '</td><td>' + (e.description || '-') + '</td>';
                         bodyContent += '<td class="num">' + fmtNum(e.amount) + '</td>';
                         bodyContent += '<td class="num' + (pct < 100 ? ' warn' : '') + '">' + pct + '%</td>';
                         bodyContent += '<td class="num">' + fmtNum(recognized) + '</td></tr>';
