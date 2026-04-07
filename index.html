@@ -5687,13 +5687,32 @@
                     rows = yd.unemployment.map(u => [MONTHS[u.month], u.gross, u.taxDeducted, u.blDeducted || 0]);
                     break;
                 case 'miluim':
-                    headers = ['חודש', 'ימים', 'סכום', 'מס שנוכה', 'ביט"ל שנוכה'];
-                    rows = yd.miluim.map(m => [MONTHS[m.month], m.days, m.amount, m.taxDeducted || 0, m.blDeducted || 0]);
+                    headers = ['מתאריך', 'עד תאריך', 'ימים', 'סכום', 'מס שנוכה', 'ביט"ל שנוכה', 'הערות'];
+                    rows = yd.miluim.map(m => [m.from || '', m.to || '', m.days, m.amount, m.taxDeducted || 0, m.blDeducted || 0, m.notes || '']);
                     break;
-                case 'selfEmployed':
+                case 'selfEmployed': {
                     headers = ['חודש', 'תיאור', 'סכום'];
                     rows = yd.selfEmployed.map(s => [MONTHS[s.month], s.description || '', s.amount]);
+                    // Add tax advances section
+                    const taxAdv = yd.taxAdvances || [];
+                    const blAdv = yd.blAdvances || [];
+                    const totalIncome = yd.selfEmployed.reduce((s, se) => s + se.amount, 0);
+                    const totalExpenses = yd.expenses.reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+                    const totalTaxAdv = taxAdv.reduce((s, t) => s + t.amount, 0);
+                    const totalBLAdv = blAdv.reduce((s, b) => s + b.amount, 0);
+                    // Extra data for the report
+                    title = 'הכנסה כעצמאי - דוח מלא';
+                    rows._extras = {
+                        taxAdvances: taxAdv,
+                        blAdvances: blAdv,
+                        expenses: totalExpenses,
+                        totalIncome,
+                        totalTaxAdv,
+                        totalBLAdv,
+                        netIncome: Math.max(0, totalIncome - totalExpenses)
+                    };
                     break;
+                }
                 case 'expenses':
                     headers = ['תאריך', 'תיאור', 'קטגוריה', 'סכום', '% הכרה', 'סכום מוכר', 'הערות'];
                     rows = yd.expenses.map(e => {
@@ -5712,15 +5731,21 @@
                 case 'taxCalc':
                 case 'forecast': {
                     const totals = calculateTotals();
+                    const credits = calculateCredits();
+                    const creditValue = credits * (yd.taxBrackets?.[0] ? 2904 : 2904);
                     headers = ['פריט', 'סכום'];
                     rows = [
                         ['הכנסה כשכיר', totals.salary],
                         ['דמי אבטלה', totals.unemployment],
                         ['מילואים', totals.miluim],
                         ['הכנסה כעצמאי', totals.selfEmployed],
-                        ['הוצאות מוכרות', totals.expenses],
+                        ['(-) הוצאות מוכרות', totals.expenses],
                         ['הכנסה חייבת', totals.taxableIncome],
+                        ['נקודות זיכוי', credits],
+                        ['שווי נקודות זיכוי', creditValue],
+                        ['מס הכנסה מחושב', totals.taxableIncome > 0 ? '(ראה חישוב מפורט)' : 0],
                         ['מס הכנסה ששולם', totals.totalTaxPaid],
+                        ['מקדמות ביט"ל ששולמו', totals.blFromSelf || 0],
                     ];
                     break;
                 }
@@ -5778,6 +5803,52 @@
 
                 const ws = XLSX.utils.aoa_to_sheet(wsData);
                 ws['!cols'] = [{ wch: 14 }, { wch: 30 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+                ws['!views'] = [{ RTL: true }];
+                XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 31));
+
+            } else if (page === 'selfEmployed' && rows._extras) {
+                // Self-employed full report
+                const extras = rows._extras;
+                const wsData = [];
+                wsData.push([title + ' - ' + year]);
+                wsData.push(['שם: John Levy', '', 'תאריך: ' + dateStr]);
+                wsData.push([]);
+
+                // Income
+                wsData.push(['א. הכנסות כעצמאי']);
+                wsData.push(['חודש', 'תיאור', 'סכום']);
+                rows.forEach(r => wsData.push(r));
+                wsData.push(['', 'סה"כ הכנסות', extras.totalIncome]);
+                wsData.push([]);
+
+                // Expenses
+                wsData.push(['ב. הוצאות מוכרות']);
+                wsData.push(['', 'סה"כ הוצאות מוכרות', extras.expenses]);
+                wsData.push([]);
+
+                // Net
+                wsData.push(['', 'הכנסה נטו (הכנסות - הוצאות)', extras.netIncome]);
+                wsData.push([]);
+
+                // Tax advances
+                if (extras.taxAdvances && extras.taxAdvances.length > 0) {
+                    wsData.push(['ג. מקדמות מס הכנסה']);
+                    wsData.push(['חודש', 'סכום', 'הערות']);
+                    extras.taxAdvances.forEach(t => wsData.push([MONTHS[t.month], t.amount, t.notes || '']));
+                    wsData.push(['', extras.totalTaxAdv]);
+                    wsData.push([]);
+                }
+
+                // BL advances
+                if (extras.blAdvances && extras.blAdvances.length > 0) {
+                    wsData.push(['ד. מקדמות ביטוח לאומי']);
+                    wsData.push(['חודש', 'סכום', 'הערות']);
+                    extras.blAdvances.forEach(b => wsData.push([MONTHS[b.month], b.amount, b.notes || '']));
+                    wsData.push(['', extras.totalBLAdv]);
+                }
+
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                ws['!cols'] = [{ wch: 14 }, { wch: 30 }, { wch: 14 }];
                 ws['!views'] = [{ RTL: true }];
                 XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 31));
 
@@ -5867,8 +5938,50 @@
                 if (grandTotal !== grandRecognized) {
                     bodyContent += '<div class="note">סה"כ לפני הכרה: ' + fmtNum(grandTotal) + '</div>';
                 }
+            } else if (page === 'selfEmployed') {
+                // Self-employed full report
+                const extras = rows._extras || {};
+
+                // Income table
+                bodyContent += '<h3 class="section-title">א. הכנסות כעצמאי</h3>';
+                bodyContent += '<table><thead><tr><th>חודש</th><th>תיאור</th><th>סכום</th></tr></thead><tbody>';
+                rows.forEach(r => {
+                    bodyContent += '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td class="num">' + fmtNum(r[2]) + '</td></tr>';
+                });
+                bodyContent += '</tbody></table>';
+                bodyContent += '<div class="subtotal"><span>סה"כ הכנסות (' + rows.length + ')</span><span>' + fmtNum(extras.totalIncome || 0) + '</span></div>';
+
+                // Expenses summary
+                bodyContent += '<h3 class="section-title">ב. הוצאות מוכרות</h3>';
+                bodyContent += '<div class="subtotal"><span>סה"כ הוצאות מוכרות</span><span>' + fmtNum(extras.expenses || 0) + '</span></div>';
+
+                // Net income
+                bodyContent += '<div class="grand-total" style="margin-top:5px;"><span>הכנסה נטו (הכנסות - הוצאות)</span><span>' + fmtNum(extras.netIncome || 0) + '</span></div>';
+
+                // Tax advances
+                if (extras.taxAdvances && extras.taxAdvances.length > 0) {
+                    bodyContent += '<h3 class="section-title">ג. מקדמות מס הכנסה</h3>';
+                    bodyContent += '<table><thead><tr><th>חודש</th><th>סכום</th><th>הערות</th></tr></thead><tbody>';
+                    extras.taxAdvances.forEach(t => {
+                        bodyContent += '<tr><td>' + MONTHS[t.month] + '</td><td class="num">' + fmtNum(t.amount) + '</td><td>' + (t.notes || '') + '</td></tr>';
+                    });
+                    bodyContent += '</tbody></table>';
+                    bodyContent += '<div class="subtotal"><span>סה"כ מקדמות מס</span><span>' + fmtNum(extras.totalTaxAdv || 0) + '</span></div>';
+                }
+
+                // BL advances
+                if (extras.blAdvances && extras.blAdvances.length > 0) {
+                    bodyContent += '<h3 class="section-title">ד. מקדמות ביטוח לאומי</h3>';
+                    bodyContent += '<table><thead><tr><th>חודש</th><th>סכום</th><th>הערות</th></tr></thead><tbody>';
+                    extras.blAdvances.forEach(b => {
+                        bodyContent += '<tr><td>' + MONTHS[b.month] + '</td><td class="num">' + fmtNum(b.amount) + '</td><td>' + (b.notes || '') + '</td></tr>';
+                    });
+                    bodyContent += '</tbody></table>';
+                    bodyContent += '<div class="subtotal"><span>סה"כ מקדמות ביט"ל</span><span>' + fmtNum(extras.totalBLAdv || 0) + '</span></div>';
+                }
+
             } else {
-                // Standard table
+                // Standard table for other pages
                 bodyContent += '<table><thead><tr>';
                 headers.forEach(h => { bodyContent += '<th>' + h + '</th>'; });
                 bodyContent += '</tr></thead><tbody>';
