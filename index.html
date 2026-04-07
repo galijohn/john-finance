@@ -5686,10 +5686,16 @@
                     headers = ['חודש', 'ברוטו', 'מס שנוכה', 'ביט"ל שנוכה'];
                     rows = yd.unemployment.map(u => [MONTHS[u.month], u.gross, u.taxDeducted, u.blDeducted || 0]);
                     break;
-                case 'miluim':
+                case 'miluim': {
                     headers = ['מתאריך', 'עד תאריך', 'ימים', 'סכום', 'מס שנוכה', 'ביט"ל שנוכה', 'הערות'];
                     rows = yd.miluim.map(m => [m.from || '', m.to || '', m.days, m.amount, m.taxDeducted || 0, m.blDeducted || 0, m.notes || '']);
+                    const totalDays = yd.miluim.reduce((s, m) => s + m.days, 0);
+                    const totalAmount = yd.miluim.reduce((s, m) => s + m.amount, 0);
+                    const totalTax = yd.miluim.reduce((s, m) => s + (m.taxDeducted || 0), 0);
+                    const totalBL = yd.miluim.reduce((s, m) => s + (m.blDeducted || 0), 0);
+                    rows._summary = { totalDays, totalAmount, totalTax, totalBL, netAmount: totalAmount - totalTax - totalBL };
                     break;
+                }
                 case 'selfEmployed': {
                     headers = ['חודש', 'תיאור', 'סכום'];
                     rows = yd.selfEmployed.map(s => [MONTHS[s.month], s.description || '', s.amount]);
@@ -5727,26 +5733,66 @@
                         return [v.period, v.income, v.outputVat, v.inputVat, diff];
                     });
                     break;
-                case 'dashboard':
-                case 'taxCalc':
+                case 'dashboard': {
+                    const dTotals = calculateTotals();
+                    const dCredits = calculateCredits();
+                    const dCreditValue = dCredits * yd.settings.creditValue * 12;
+                    const { gross: dGrossTax } = calculateIncomeTax(dTotals.taxableIncome);
+                    const dNetTax = Math.max(0, dGrossTax - dCreditValue);
+                    const dBL = calculateBituachLeumi(dTotals.selfEmployedNet);
+                    const dTaxDiff = dTotals.totalTaxPaid - dNetTax;
+                    const dBLDiff = dTotals.blFromSelf - dBL.total;
+                    rows._custom = 'dashboard';
+                    rows._data = {
+                        totals: dTotals, credits: dCredits, creditValue: dCreditValue,
+                        grossTax: dGrossTax, netTax: dNetTax, bl: dBL,
+                        taxDiff: dTaxDiff, blDiff: dBLDiff
+                    };
+                    break;
+                }
+                case 'taxCalc': {
+                    const tTotals = calculateTotals();
+                    const tCredits = calculateCredits();
+                    const tCreditValue = tCredits * yd.settings.creditValue * 12;
+                    const { gross: tGrossTax, details: tTaxDetails } = calculateIncomeTax(tTotals.taxableIncome);
+                    const tNetTax = Math.max(0, tGrossTax - tCreditValue);
+                    const tBL = calculateBituachLeumi(tTotals.selfEmployedNet);
+                    const tTaxDiff = tTotals.totalTaxPaid - tNetTax;
+                    const tBLDiff = tTotals.blFromSelf - tBL.total;
+                    rows._custom = 'taxCalc';
+                    rows._data = {
+                        totals: tTotals, credits: tCredits, creditValue: tCreditValue,
+                        grossTax: tGrossTax, netTax: tNetTax, taxDetails: tTaxDetails,
+                        bl: tBL, taxDiff: tTaxDiff, blDiff: tBLDiff
+                    };
+                    break;
+                }
                 case 'forecast': {
-                    const totals = calculateTotals();
-                    const credits = calculateCredits();
-                    const creditValue = credits * (yd.taxBrackets?.[0] ? 2904 : 2904);
-                    headers = ['פריט', 'סכום'];
-                    rows = [
-                        ['הכנסה כשכיר', totals.salary],
-                        ['דמי אבטלה', totals.unemployment],
-                        ['מילואים', totals.miluim],
-                        ['הכנסה כעצמאי', totals.selfEmployed],
-                        ['(-) הוצאות מוכרות', totals.expenses],
-                        ['הכנסה חייבת', totals.taxableIncome],
-                        ['נקודות זיכוי', credits],
-                        ['שווי נקודות זיכוי', creditValue],
-                        ['מס הכנסה מחושב', totals.taxableIncome > 0 ? '(ראה חישוב מפורט)' : 0],
-                        ['מס הכנסה ששולם', totals.totalTaxPaid],
-                        ['מקדמות ביט"ל ששולמו', totals.blFromSelf || 0],
-                    ];
+                    const fyd = getYearData();
+                    const fIncome = parseFloat(document.getElementById('forecastIncome')?.value) || 0;
+                    const fExpenses = parseFloat(document.getElementById('forecastExpenses')?.value) || 0;
+                    const fOtherIncome = parseFloat(document.getElementById('forecastOtherIncome')?.value) || 0;
+                    const fOtherTax = parseFloat(document.getElementById('forecastOtherTax')?.value) || 0;
+                    const fNetSE = Math.max(0, fIncome - fExpenses);
+                    const fTaxableIncome = fNetSE + fOtherIncome;
+                    const fCredits = calculateCredits();
+                    const fCreditValue = fCredits * fyd.settings.creditValue * 12;
+                    const { gross: fGrossTax } = calculateIncomeTax(fTaxableIncome);
+                    const fNetTax = Math.max(0, fGrossTax - fCreditValue);
+                    const fSelfTax = Math.max(0, fNetTax - fOtherTax);
+                    const fBL = calculateBituachLeumi(fNetSE, 12);
+                    const fTotalDue = fSelfTax + fBL.total;
+                    const fMonthlyTax = Math.ceil(fSelfTax / 12);
+                    const fMonthlyBL = Math.ceil(fBL.total / 12);
+                    rows._custom = 'forecast';
+                    rows._data = {
+                        income: fIncome, expenses: fExpenses, otherIncome: fOtherIncome, otherTax: fOtherTax,
+                        netSelfEmployed: fNetSE, taxableIncome: fTaxableIncome,
+                        credits: fCredits, creditValue: fCreditValue,
+                        grossTax: fGrossTax, netTax: fNetTax, selfTax: fSelfTax,
+                        bl: fBL, totalDue: fTotalDue,
+                        monthlyTax: fMonthlyTax, monthlyBL: fMonthlyBL, monthlyTotal: fMonthlyTax + fMonthlyBL
+                    };
                     break;
                 }
             }
@@ -5852,6 +5898,149 @@
                 ws['!views'] = [{ RTL: true }];
                 XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 31));
 
+            } else if (rows._custom === 'dashboard') {
+                const d = rows._data;
+                const wsData = [];
+                wsData.push([title + ' - ' + year]);
+                wsData.push(['שם: John Levy', '', 'תאריך: ' + dateStr]);
+                wsData.push([]);
+                wsData.push(['א. סיכום הכנסות']);
+                wsData.push(['מקור', 'סכום']);
+                wsData.push(['הכנסה כשכיר', d.totals.salary]);
+                wsData.push(['דמי אבטלה', d.totals.unemployment]);
+                wsData.push(['מילואים', d.totals.miluim]);
+                wsData.push(['הכנסה כעצמאי', d.totals.selfEmployed]);
+                wsData.push(['(-) הוצאות מוכרות', d.totals.expenses]);
+                wsData.push(['הכנסה חייבת', d.totals.taxableIncome]);
+                wsData.push([]);
+                wsData.push(['ב. מס הכנסה']);
+                wsData.push(['מס ברוטו', d.grossTax]);
+                wsData.push(['נקודות זיכוי: ' + d.credits.toFixed(2), -Math.min(d.creditValue, d.grossTax)]);
+                wsData.push(['מס נטו לתשלום', d.netTax]);
+                wsData.push(['מס ששולם', d.totals.totalTaxPaid]);
+                wsData.push([d.taxDiff > 0 ? 'החזר מס' : d.taxDiff < 0 ? 'יתרה לתשלום' : 'מאוזן', Math.abs(d.taxDiff)]);
+                wsData.push([]);
+                wsData.push(['ג. ביטוח לאומי']);
+                wsData.push(['ביט"ל חייב', d.bl.total]);
+                wsData.push(['ביט"ל ששולם', d.totals.totalBLPaid]);
+                wsData.push([d.blDiff > 0 ? 'שילמת יותר' : d.blDiff < 0 ? 'יתרה לתשלום' : 'מאוזן', Math.abs(d.blDiff)]);
+
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                ws['!cols'] = [{ wch: 30 }, { wch: 18 }, { wch: 18 }];
+                ws['!views'] = [{ RTL: true }];
+                XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 31));
+
+            } else if (rows._custom === 'taxCalc') {
+                const t = rows._data;
+                const wsData = [];
+                wsData.push([title + ' - ' + year]);
+                wsData.push(['שם: John Levy', '', '', 'תאריך: ' + dateStr]);
+                wsData.push([]);
+                wsData.push(['א. סיכום הכנסות']);
+                wsData.push(['מקור', 'סכום']);
+                wsData.push(['הכנסה כשכיר', t.totals.salary]);
+                wsData.push(['דמי אבטלה', t.totals.unemployment]);
+                wsData.push(['הכנסה כעצמאי', t.totals.selfEmployed]);
+                wsData.push(['(-) הוצאות מוכרות', t.totals.expenses]);
+                wsData.push(['מילואים', t.totals.miluim]);
+                wsData.push(['הכנסה חייבת', t.totals.taxableIncome]);
+                wsData.push([]);
+                wsData.push(['ב. חישוב מס הכנסה - מדרגות מס']);
+                wsData.push(['מדרגה', 'שיעור', 'הכנסה במדרגה', 'מס']);
+                t.taxDetails.forEach(d => {
+                    wsData.push([d.min + ' - ' + d.max, d.rate + '%', d.amount, d.tax]);
+                });
+                wsData.push(['מס ברוטו', '', '', t.grossTax]);
+                wsData.push(['נקודות זיכוי: ' + t.credits.toFixed(2), '', '', -Math.min(t.creditValue, t.grossTax)]);
+                wsData.push(['מס הכנסה נטו', '', '', t.netTax]);
+                wsData.push([]);
+                wsData.push(['ג. ביטוח לאומי - עצמאי']);
+                wsData.push(['הכנסה כעצמאי (נטו)', t.totals.selfEmployedNet]);
+                wsData.push(['שיעור מופחת 7.70%', t.bl.reduced]);
+                wsData.push(['שיעור מלא 18%', t.bl.full]);
+                wsData.push(['סה"כ ביטוח לאומי', t.bl.total]);
+                wsData.push([]);
+                wsData.push(['ד. מס ששולם / נוכה']);
+                wsData.push(['מקור', 'מס הכנסה', 'ביט"ל']);
+                wsData.push(['שכיר', t.totals.taxFromSalary, t.totals.blFromSalary]);
+                wsData.push(['אבטלה', t.totals.taxFromUnemployment, t.totals.blFromUnemployment]);
+                wsData.push(['מילואים', t.totals.taxFromMiluim, t.totals.blFromMiluim]);
+                wsData.push(['מקדמות עצמאי', t.totals.taxFromSelf, t.totals.blFromSelf]);
+                wsData.push(['סה"כ ששולם', t.totals.totalTaxPaid, t.totals.totalBLPaid]);
+                wsData.push([]);
+                wsData.push(['ה. תוצאה']);
+                wsData.push(['', 'חייב', 'שולם', 'הפרש']);
+                wsData.push(['מס הכנסה', t.netTax, t.totals.totalTaxPaid, t.taxDiff]);
+                wsData.push(['ביטוח לאומי', t.bl.total, t.totals.blFromSelf, t.blDiff]);
+                const totalResult = t.taxDiff + t.blDiff;
+                wsData.push([totalResult > 0 ? 'סה"כ החזר' : totalResult < 0 ? 'סה"כ לתשלום' : 'מאוזן', '', '', Math.abs(totalResult)]);
+
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                ws['!cols'] = [{ wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
+                ws['!views'] = [{ RTL: true }];
+                XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 31));
+
+            } else if (rows._custom === 'forecast') {
+                const f = rows._data;
+                const wsData = [];
+                wsData.push([title + ' - ' + year]);
+                wsData.push(['שם: John Levy', '', '', '', 'תאריך: ' + dateStr]);
+                wsData.push([]);
+                wsData.push(['א. נתוני תחזית']);
+                wsData.push(['פריט', 'סכום']);
+                wsData.push(['הכנסה כעצמאי (צפי)', f.income]);
+                wsData.push(['(-) הוצאות מוכרות (צפי)', f.expenses]);
+                wsData.push(['הכנסה נטו כעצמאי', f.netSelfEmployed]);
+                wsData.push(['הכנסות אחרות', f.otherIncome]);
+                wsData.push(['הכנסה חייבת כוללת', f.taxableIncome]);
+                wsData.push([]);
+                wsData.push(['ב. חישוב מס צפוי']);
+                wsData.push(['מס ברוטו', f.grossTax]);
+                wsData.push(['נקודות זיכוי: ' + f.credits.toFixed(2), -Math.min(f.creditValue, f.grossTax)]);
+                wsData.push(['מס נטו', f.netTax]);
+                wsData.push(['(-) מס ממקורות אחרים', f.otherTax]);
+                wsData.push(['מס כעצמאי לתשלום', f.selfTax]);
+                wsData.push([]);
+                wsData.push(['ג. ביטוח לאומי צפוי', f.bl.total]);
+                wsData.push([]);
+                wsData.push(['סה"כ לתשלום שנתי (מס + ביט"ל)', f.totalDue]);
+                wsData.push([]);
+                wsData.push(['ד. המלצה לתשלום חודשי']);
+                wsData.push(['חודש', 'מס הכנסה', 'ביט"ל', 'סה"כ חודשי', 'מצטבר']);
+                let cumul = 0;
+                for (let i = 1; i <= 12; i++) {
+                    const mTotal = f.monthlyTax + f.monthlyBL;
+                    cumul += mTotal;
+                    wsData.push([MONTHS[i], f.monthlyTax, f.monthlyBL, mTotal, cumul]);
+                }
+                wsData.push(['סה"כ שנתי', f.monthlyTax * 12, f.monthlyBL * 12, f.monthlyTotal * 12, '']);
+
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                ws['!cols'] = [{ wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
+                ws['!views'] = [{ RTL: true }];
+                XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 31));
+
+            } else if (page === 'miluim' && rows._summary) {
+                const sm = rows._summary;
+                const wsData = [];
+                wsData.push([title + ' - ' + year]);
+                wsData.push(['שם: John Levy', '', '', '', '', '', 'תאריך: ' + dateStr]);
+                wsData.push([]);
+                wsData.push(headers);
+                rows.forEach(r => { if (Array.isArray(r)) wsData.push(r); });
+                wsData.push([]);
+                wsData.push(['סיכום']);
+                wsData.push(['סה"כ ימים', '', sm.totalDays]);
+                wsData.push(['סה"כ תשלום', '', '', sm.totalAmount]);
+                wsData.push(['סה"כ מס שנוכה', '', '', '', sm.totalTax]);
+                wsData.push(['סה"כ ביט"ל שנוכה', '', '', '', '', sm.totalBL]);
+                wsData.push(['נטו לאחר ניכויים', '', '', sm.netAmount]);
+
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 20 }];
+                ws['!views'] = [{ RTL: true }];
+                XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 31));
+
             } else {
                 // Standard table for other pages
                 const wsData = [];
@@ -5859,14 +6048,15 @@
                 wsData.push(['שם: John Levy', '', 'תאריך: ' + dateStr]);
                 wsData.push([]);
                 wsData.push(headers);
-                rows.forEach(r => wsData.push(r));
+                rows.forEach(r => { if (Array.isArray(r)) wsData.push(r); });
 
                 // Totals row
-                const numericCols = rows[0] ? rows[0].map((c, i) => typeof c === 'number' ? i : -1).filter(i => i >= 0) : [];
+                const validRows = rows.filter(r => Array.isArray(r));
+                const numericCols = validRows[0] ? validRows[0].map((c, i) => typeof c === 'number' ? i : -1).filter(i => i >= 0) : [];
                 if (numericCols.length > 0) {
                     wsData.push([]);
                     const totalRow = headers.map((h, i) => {
-                        if (numericCols.includes(i)) return rows.reduce((s, r) => s + (Number(r[i]) || 0), 0);
+                        if (numericCols.includes(i)) return validRows.reduce((s, r) => s + (Number(r[i]) || 0), 0);
                         if (i === 0) return 'סה"כ';
                         return '';
                     });
@@ -5876,7 +6066,7 @@
                 const ws = XLSX.utils.aoa_to_sheet(wsData);
                 ws['!cols'] = headers.map((h, i) => {
                     let max = h.length;
-                    rows.forEach(r => { const v = String(r[i] ?? ''); if (v.length > max) max = v.length; });
+                    validRows.forEach(r => { const v = String(r[i] ?? ''); if (v.length > max) max = v.length; });
                     return { wch: Math.min(max + 4, 30) };
                 });
                 ws['!views'] = [{ RTL: true }];
@@ -5980,12 +6170,151 @@
                     bodyContent += '<div class="subtotal"><span>סה"כ מקדמות ביט"ל</span><span>' + fmtNum(extras.totalBLAdv || 0) + '</span></div>';
                 }
 
+            } else if (rows._custom === 'dashboard') {
+                const d = rows._data;
+                bodyContent += '<h3 class="section-title">א. סיכום הכנסות</h3>';
+                bodyContent += '<table><thead><tr><th>מקור</th><th>סכום</th></tr></thead><tbody>';
+                bodyContent += '<tr><td>הכנסה כשכיר</td><td class="num">' + fmtNum(d.totals.salary) + '</td></tr>';
+                bodyContent += '<tr><td>דמי אבטלה</td><td class="num">' + fmtNum(d.totals.unemployment) + '</td></tr>';
+                bodyContent += '<tr><td>מילואים</td><td class="num">' + fmtNum(d.totals.miluim) + '</td></tr>';
+                bodyContent += '<tr><td>הכנסה כעצמאי</td><td class="num">' + fmtNum(d.totals.selfEmployed) + '</td></tr>';
+                bodyContent += '<tr><td>(-) הוצאות מוכרות</td><td class="num">' + fmtNum(d.totals.expenses) + '</td></tr>';
+                bodyContent += '</tbody></table>';
+                bodyContent += '<div class="subtotal"><span>הכנסה חייבת</span><span>' + fmtNum(d.totals.taxableIncome) + '</span></div>';
+
+                bodyContent += '<h3 class="section-title">ב. מס הכנסה</h3>';
+                bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
+                bodyContent += '<tr><td>מס ברוטו</td><td class="num">' + fmtNum(d.grossTax) + '</td></tr>';
+                bodyContent += '<tr><td>נקודות זיכוי: ' + d.credits.toFixed(2) + '</td><td class="num">-' + fmtNum(Math.min(d.creditValue, d.grossTax)) + '</td></tr>';
+                bodyContent += '<tr><td>מס נטו לתשלום</td><td class="num">' + fmtNum(d.netTax) + '</td></tr>';
+                bodyContent += '<tr><td>מס ששולם</td><td class="num">' + fmtNum(d.totals.totalTaxPaid) + '</td></tr>';
+                bodyContent += '</tbody></table>';
+                bodyContent += '<div class="subtotal"><span>' + (d.taxDiff > 0 ? 'החזר מס' : d.taxDiff < 0 ? 'יתרה לתשלום' : 'מאוזן') + '</span><span>' + fmtNum(Math.abs(d.taxDiff)) + '</span></div>';
+
+                bodyContent += '<h3 class="section-title">ג. ביטוח לאומי</h3>';
+                bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
+                bodyContent += '<tr><td>ביט"ל חייב</td><td class="num">' + fmtNum(d.bl.total) + '</td></tr>';
+                bodyContent += '<tr><td>ביט"ל ששולם</td><td class="num">' + fmtNum(d.totals.totalBLPaid) + '</td></tr>';
+                bodyContent += '</tbody></table>';
+                bodyContent += '<div class="subtotal"><span>' + (d.blDiff > 0 ? 'שילמת יותר' : d.blDiff < 0 ? 'יתרה לתשלום' : 'מאוזן') + '</span><span>' + fmtNum(Math.abs(d.blDiff)) + '</span></div>';
+
+            } else if (rows._custom === 'taxCalc') {
+                const t = rows._data;
+                bodyContent += '<h3 class="section-title">א. סיכום הכנסות</h3>';
+                bodyContent += '<table><thead><tr><th>מקור</th><th>סכום</th></tr></thead><tbody>';
+                bodyContent += '<tr><td>הכנסה כשכיר</td><td class="num">' + fmtNum(t.totals.salary) + '</td></tr>';
+                bodyContent += '<tr><td>דמי אבטלה</td><td class="num">' + fmtNum(t.totals.unemployment) + '</td></tr>';
+                bodyContent += '<tr><td>הכנסה כעצמאי</td><td class="num">' + fmtNum(t.totals.selfEmployed) + '</td></tr>';
+                bodyContent += '<tr><td>(-) הוצאות מוכרות</td><td class="num">' + fmtNum(t.totals.expenses) + '</td></tr>';
+                bodyContent += '<tr><td>מילואים</td><td class="num">' + fmtNum(t.totals.miluim) + '</td></tr>';
+                bodyContent += '</tbody></table>';
+                bodyContent += '<div class="subtotal"><span>הכנסה חייבת</span><span>' + fmtNum(t.totals.taxableIncome) + '</span></div>';
+
+                bodyContent += '<h3 class="section-title">ב. חישוב מס הכנסה - מדרגות מס</h3>';
+                bodyContent += '<table><thead><tr><th>מדרגה</th><th>שיעור</th><th>הכנסה במדרגה</th><th>מס</th></tr></thead><tbody>';
+                t.taxDetails.forEach(d => {
+                    bodyContent += '<tr><td>' + fmtNum(d.min) + ' - ' + fmtNum(d.max) + '</td><td class="num">' + d.rate + '%</td><td class="num">' + fmtNum(d.amount) + '</td><td class="num">' + fmtNum(d.tax) + '</td></tr>';
+                });
+                bodyContent += '</tbody></table>';
+                bodyContent += '<div class="subtotal"><span>מס ברוטו</span><span>' + fmtNum(t.grossTax) + '</span></div>';
+
+                bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
+                bodyContent += '<tr><td>נקודות זיכוי: ' + t.credits.toFixed(2) + '</td><td class="num">-' + fmtNum(Math.min(t.creditValue, t.grossTax)) + '</td></tr>';
+                bodyContent += '</tbody></table>';
+                bodyContent += '<div class="grand-total"><span>מס הכנסה נטו</span><span>' + fmtNum(t.netTax) + '</span></div>';
+
+                bodyContent += '<h3 class="section-title">ג. ביטוח לאומי - עצמאי</h3>';
+                bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
+                bodyContent += '<tr><td>הכנסה כעצמאי (נטו)</td><td class="num">' + fmtNum(t.totals.selfEmployedNet) + '</td></tr>';
+                bodyContent += '<tr><td>שיעור מופחת 7.70% (עד ' + fmtNum(t.bl.reducedThreshold) + ')</td><td class="num">' + fmtNum(t.bl.reduced) + '</td></tr>';
+                bodyContent += '<tr><td>שיעור מלא 18% (עד ' + fmtNum(t.bl.maxThreshold) + ')</td><td class="num">' + fmtNum(t.bl.full) + '</td></tr>';
+                bodyContent += '</tbody></table>';
+                bodyContent += '<div class="subtotal"><span>סה"כ ביטוח לאומי</span><span>' + fmtNum(t.bl.total) + '</span></div>';
+
+                bodyContent += '<h3 class="section-title">ד. מס ששולם / נוכה</h3>';
+                bodyContent += '<table><thead><tr><th>מקור</th><th>מס הכנסה</th><th>ביט"ל</th></tr></thead><tbody>';
+                bodyContent += '<tr><td>שכיר</td><td class="num">' + fmtNum(t.totals.taxFromSalary) + '</td><td class="num">' + fmtNum(t.totals.blFromSalary) + '</td></tr>';
+                bodyContent += '<tr><td>אבטלה</td><td class="num">' + fmtNum(t.totals.taxFromUnemployment) + '</td><td class="num">' + fmtNum(t.totals.blFromUnemployment) + '</td></tr>';
+                bodyContent += '<tr><td>מילואים</td><td class="num">' + fmtNum(t.totals.taxFromMiluim) + '</td><td class="num">' + fmtNum(t.totals.blFromMiluim) + '</td></tr>';
+                bodyContent += '<tr><td>מקדמות עצמאי</td><td class="num">' + fmtNum(t.totals.taxFromSelf) + '</td><td class="num">' + fmtNum(t.totals.blFromSelf) + '</td></tr>';
+                bodyContent += '</tbody></table>';
+                bodyContent += '<div class="subtotal"><span>סה"כ ששולם</span><span>מס: ' + fmtNum(t.totals.totalTaxPaid) + ' | ביט"ל: ' + fmtNum(t.totals.totalBLPaid) + '</span></div>';
+
+                bodyContent += '<h3 class="section-title">ה. תוצאה</h3>';
+                bodyContent += '<table><thead><tr><th>פריט</th><th>חייב</th><th>שולם</th><th>הפרש</th></tr></thead><tbody>';
+                bodyContent += '<tr><td>מס הכנסה</td><td class="num">' + fmtNum(t.netTax) + '</td><td class="num">' + fmtNum(t.totals.totalTaxPaid) + '</td><td class="num">' + fmtNum(t.taxDiff) + '</td></tr>';
+                bodyContent += '<tr><td>ביטוח לאומי</td><td class="num">' + fmtNum(t.bl.total) + '</td><td class="num">' + fmtNum(t.totals.blFromSelf) + '</td><td class="num">' + fmtNum(t.blDiff) + '</td></tr>';
+                bodyContent += '</tbody></table>';
+                const totalResult = t.taxDiff + t.blDiff;
+                bodyContent += '<div class="grand-total"><span>' + (totalResult > 0 ? 'סה"כ החזר' : totalResult < 0 ? 'סה"כ לתשלום' : 'מאוזן') + '</span><span>' + fmtNum(Math.abs(totalResult)) + '</span></div>';
+
+            } else if (rows._custom === 'forecast') {
+                const f = rows._data;
+                bodyContent += '<h3 class="section-title">א. נתוני תחזית</h3>';
+                bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
+                bodyContent += '<tr><td>הכנסה כעצמאי (צפי)</td><td class="num">' + fmtNum(f.income) + '</td></tr>';
+                bodyContent += '<tr><td>(-) הוצאות מוכרות (צפי)</td><td class="num">' + fmtNum(f.expenses) + '</td></tr>';
+                bodyContent += '<tr><td>הכנסה נטו כעצמאי</td><td class="num">' + fmtNum(f.netSelfEmployed) + '</td></tr>';
+                bodyContent += '<tr><td>הכנסות אחרות (שכיר/אבטלה/מילואים)</td><td class="num">' + fmtNum(f.otherIncome) + '</td></tr>';
+                bodyContent += '<tr><td>הכנסה חייבת כוללת</td><td class="num">' + fmtNum(f.taxableIncome) + '</td></tr>';
+                bodyContent += '</tbody></table>';
+
+                bodyContent += '<h3 class="section-title">ב. חישוב מס צפוי</h3>';
+                bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
+                bodyContent += '<tr><td>מס ברוטו</td><td class="num">' + fmtNum(f.grossTax) + '</td></tr>';
+                bodyContent += '<tr><td>נקודות זיכוי: ' + f.credits.toFixed(2) + '</td><td class="num">-' + fmtNum(Math.min(f.creditValue, f.grossTax)) + '</td></tr>';
+                bodyContent += '<tr><td>מס נטו</td><td class="num">' + fmtNum(f.netTax) + '</td></tr>';
+                bodyContent += '<tr><td>(-) מס ממקורות אחרים</td><td class="num">' + fmtNum(f.otherTax) + '</td></tr>';
+                bodyContent += '<tr><td>מס כעצמאי לתשלום</td><td class="num">' + fmtNum(f.selfTax) + '</td></tr>';
+                bodyContent += '</tbody></table>';
+
+                bodyContent += '<h3 class="section-title">ג. ביטוח לאומי צפוי</h3>';
+                bodyContent += '<div class="subtotal"><span>סה"כ ביטוח לאומי</span><span>' + fmtNum(f.bl.total) + '</span></div>';
+
+                bodyContent += '<div class="grand-total"><span>סה"כ לתשלום שנתי (מס + ביט"ל)</span><span>' + fmtNum(f.totalDue) + '</span></div>';
+
+                bodyContent += '<h3 class="section-title">ד. המלצה לתשלום חודשי</h3>';
+                bodyContent += '<table><thead><tr><th>חודש</th><th>מס הכנסה</th><th>ביט"ל</th><th>סה"כ חודשי</th><th>מצטבר</th></tr></thead><tbody>';
+                let cumulative = 0;
+                for (let i = 1; i <= 12; i++) {
+                    const monthTotal = f.monthlyTax + f.monthlyBL;
+                    cumulative += monthTotal;
+                    bodyContent += '<tr><td>' + MONTHS[i] + '</td><td class="num">' + fmtNum(f.monthlyTax) + '</td><td class="num">' + fmtNum(f.monthlyBL) + '</td><td class="num">' + fmtNum(monthTotal) + '</td><td class="num">' + fmtNum(cumulative) + '</td></tr>';
+                }
+                bodyContent += '</tbody></table>';
+                bodyContent += '<div class="subtotal"><span>סה"כ שנתי</span><span>מס: ' + fmtNum(f.monthlyTax * 12) + ' | ביט"ל: ' + fmtNum(f.monthlyBL * 12) + ' | סה"כ: ' + fmtNum(f.monthlyTotal * 12) + '</span></div>';
+
+            } else if (page === 'miluim' && rows._summary) {
+                const sm = rows._summary;
+                bodyContent += '<table><thead><tr>';
+                headers.forEach(h => { bodyContent += '<th>' + h + '</th>'; });
+                bodyContent += '</tr></thead><tbody>';
+                rows.forEach(r => {
+                    if (!Array.isArray(r)) return;
+                    bodyContent += '<tr>';
+                    r.forEach(cell => {
+                        if (typeof cell === 'number') bodyContent += '<td class="num">' + fmtNum(cell) + '</td>';
+                        else bodyContent += '<td>' + String(cell) + '</td>';
+                    });
+                    bodyContent += '</tr>';
+                });
+                bodyContent += '</tbody></table>';
+                bodyContent += '<div style="margin-top:15px;"></div>';
+                bodyContent += '<table><thead><tr><th>סיכום</th><th>סכום</th></tr></thead><tbody>';
+                bodyContent += '<tr><td>סה"כ ימים</td><td class="num">' + sm.totalDays + '</td></tr>';
+                bodyContent += '<tr><td>סה"כ תשלום</td><td class="num">' + fmtNum(sm.totalAmount) + '</td></tr>';
+                bodyContent += '<tr><td>סה"כ מס שנוכה</td><td class="num">' + fmtNum(sm.totalTax) + '</td></tr>';
+                bodyContent += '<tr><td>סה"כ ביט"ל שנוכה</td><td class="num">' + fmtNum(sm.totalBL) + '</td></tr>';
+                bodyContent += '</tbody></table>';
+                bodyContent += '<div class="grand-total"><span>נטו לאחר ניכויים</span><span>' + fmtNum(sm.netAmount) + '</span></div>';
+
             } else {
                 // Standard table for other pages
                 bodyContent += '<table><thead><tr>';
                 headers.forEach(h => { bodyContent += '<th>' + h + '</th>'; });
                 bodyContent += '</tr></thead><tbody>';
                 rows.forEach(r => {
+                    if (!Array.isArray(r)) return;
                     bodyContent += '<tr>';
                     r.forEach(cell => {
                         if (typeof cell === 'number') bodyContent += '<td class="num">' + fmtNum(cell) + '</td>';
@@ -5996,9 +6325,10 @@
                 bodyContent += '</tbody></table>';
 
                 // Total
-                const numericCols = rows[0] ? rows[0].map((c, i) => typeof c === 'number' ? i : -1).filter(i => i >= 0) : [];
-                if (numericCols.length > 0 && rows.length > 0) {
-                    const total = rows.reduce((s, r) => s + (Number(r[numericCols[0]]) || 0), 0);
+                const validRows = rows.filter(r => Array.isArray(r));
+                const numericCols = validRows[0] ? validRows[0].map((c, i) => typeof c === 'number' ? i : -1).filter(i => i >= 0) : [];
+                if (numericCols.length > 0 && validRows.length > 0) {
+                    const total = validRows.reduce((s, r) => s + (Number(r[numericCols[0]]) || 0), 0);
                     bodyContent += '<div class="grand-total"><span>סה"כ</span><span>' + fmtNum(total) + '</span></div>';
                 }
             }
