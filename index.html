@@ -1806,7 +1806,10 @@
                         <span id="localFolderPath" style="font-weight:bold;">לא מחובר</span>
                         <div id="localFolderHint" style="font-size:0.85rem;color:var(--text-muted);margin-top:5px;">בחר תיקייה לגיבוי מקומי</div>
                     </div>
-                    <button class="btn btn-primary" onclick="selectLocalFolder()" id="btnSelectFolder">📂 בחר תיקייה</button>
+                    <div style="display:flex;gap:10px;">
+                        <button class="btn btn-primary" onclick="selectLocalFolder()" id="btnSelectFolder">📂 בחר תיקייה</button>
+                        <button class="btn btn-success" onclick="openLocalFolder()" id="btnOpenFolder" style="display:none;">📂 פתח תיקייה</button>
+                    </div>
                 </div>
                 <div id="localFolderBrowserWarning" style="display:none;margin-top:10px;padding:10px;background:rgba(245,158,11,0.1);border-radius:8px;color:var(--warning);">
                     ⚠️ הדפדפן שלך לא תומך בגישה לתיקיות. השתמש ב-Chrome או Edge.
@@ -3026,19 +3029,57 @@
             const hintEl = document.getElementById('localFolderHint');
             const btnSelect = document.getElementById('btnSelectFolder');
             
+            const btnOpen = document.getElementById('btnOpenFolder');
             if (localFolderHandle) {
                 pathEl.textContent = '✅ ' + localFolderHandle.name + '/john-finance/';
                 pathEl.style.color = 'var(--success)';
                 hintEl.textContent = 'נתונים נשמרים אוטומטית';
                 btnSelect.textContent = '📂 שנה תיקייה';
+                if (btnOpen) btnOpen.style.display = '';
             } else {
                 pathEl.textContent = 'לא מחובר';
                 pathEl.style.color = 'var(--text-muted)';
                 hintEl.textContent = 'בחר תיקייה לגיבוי מקומי';
                 btnSelect.textContent = '📂 בחר תיקייה';
+                if (btnOpen) btnOpen.style.display = 'none';
             }
         }
         
+        async function openLocalFolder() {
+            if (!localFolderHandle) { alert('⚠️ יש לבחור תיקייה קודם'); return; }
+            try {
+                const perm = await localFolderHandle.queryPermission({ mode: 'read' });
+                if (perm !== 'granted') {
+                    const req = await localFolderHandle.requestPermission({ mode: 'read' });
+                    if (req !== 'granted') { alert('❌ אין הרשאה לקרוא את התיקייה'); return; }
+                }
+                let jfHandle;
+                try { jfHandle = await localFolderHandle.getDirectoryHandle('john-finance'); } catch { alert('❌ תיקיית john-finance לא נמצאה'); return; }
+                const files = [];
+                for await (const entry of jfHandle.values()) {
+                    if (entry.kind === 'file') {
+                        const file = await entry.getFile();
+                        files.push({ name: entry.name, size: file.size, modified: new Date(file.lastModified) });
+                    }
+                }
+                files.sort((a, b) => b.modified - a.modified);
+                const list = files.map(f => {
+                    const sizeKB = (f.size / 1024).toFixed(1);
+                    const date = f.modified.toLocaleDateString('he-IL') + ' ' + f.modified.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+                    return `<tr><td>${f.name}</td><td>${sizeKB} KB</td><td>${date}</td></tr>`;
+                }).join('');
+                const html = `<div style="max-height:400px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+                    <thead><tr style="background:var(--bg-input);"><th style="padding:8px;text-align:right;border-bottom:1px solid var(--border);">שם קובץ</th><th style="padding:8px;text-align:right;border-bottom:1px solid var(--border);">גודל</th><th style="padding:8px;text-align:right;border-bottom:1px solid var(--border);">תאריך</th></tr></thead>
+                    <tbody>${list || '<tr><td colspan="3" style="padding:15px;text-align:center;color:var(--text-muted);">תיקייה ריקה</td></tr>'}</tbody></table></div>
+                    <div style="margin-top:10px;font-size:0.8rem;color:var(--text-muted);">📁 ${localFolderHandle.name}/john-finance/ (${files.length} קבצים)</div>`;
+                const modal = document.createElement('div');
+                modal.className = 'modal-overlay';
+                modal.style.display = 'flex';
+                modal.innerHTML = `<div class="modal" style="max-width:500px;"><div class="modal-header"><h3>📁 קבצים בתיקייה</h3><button class="btn btn-icon" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">${html}</div></div>`;
+                document.body.appendChild(modal);
+            } catch (e) { alert('❌ שגיאה: ' + e.message); }
+        }
+
         // Manual restore from local folder
         async function restoreFromLocalFolder() {
             if (!localFolderHandle) {
