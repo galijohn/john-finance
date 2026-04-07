@@ -7382,14 +7382,15 @@
                 '</body></html>';
 
             printWindow.document.write(html);
-            printWindow.document.close();
-
-            // Load appendices, then print
+            // Load appendices, then close and print
             const pageDocs = getPageDocuments(page);
+            console.log('PDF docs found:', pageDocs.length, 'token:', !!googleAccessToken);
             if (pageDocs.length > 0 && googleAccessToken) {
+                printWindow.document.close();
                 const area = printWindow.document.getElementById('appendicesArea');
                 area.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">טוען ' + pageDocs.length + ' מסמכים...</div>';
                 buildAppendicesHTML(pageDocs).then(html => {
+                    console.log('Appendices HTML length:', html.length);
                     area.innerHTML = html;
                     setTimeout(() => { printWindow.print(); }, 500);
                 }).catch(e => {
@@ -7398,6 +7399,7 @@
                     setTimeout(() => { printWindow.print(); }, 300);
                 });
             } else {
+                printWindow.document.close();
                 setTimeout(() => { printWindow.print(); }, 300);
             }
         }
