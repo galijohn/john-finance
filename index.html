@@ -6932,44 +6932,7 @@
             }
         }
 
-        // Load pdf.js v2 (stable) on startup
-        (function loadPdfJs() {
-            const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
-            script.onload = () => {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-                console.log('✅ pdf.js v2 loaded');
-            };
-            document.head.appendChild(script);
-        })();
-
-        // Convert PDF base64 to page images using pdf.js
-        async function pdfToImages(dataUrl) {
-            if (!window.pdfjsLib) throw new Error('pdf.js not loaded');
-            const raw = atob(dataUrl.split(',')[1]);
-            const arr = new Uint8Array(raw.length);
-            for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-            const pdf = await pdfjsLib.getDocument({
-                data: arr,
-                cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/cmaps/',
-                cMapPacked: true
-            }).promise;
-            console.log('pdf.js: parsed PDF, pages:', pdf.numPages);
-            const images = [];
-            for (let p = 1; p <= pdf.numPages; p++) {
-                const page = await pdf.getPage(p);
-                const viewport = page.getViewport({ scale: 1.5 });
-                const canvas = document.createElement('canvas');
-                canvas.width = viewport.width;
-                canvas.height = viewport.height;
-                const ctx = canvas.getContext('2d');
-                await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-                images.push(canvas.toDataURL('image/jpeg', 0.8));
-                console.log('pdf.js: rendered page', p);
-            }
-            pdf.destroy();
-            return images;
-        }
+        // No pdf.js needed - using native browser PDF rendering via embed
 
         async function buildAppendicesHTML(docs) {
             if (!docs || docs.length === 0) return '';
@@ -7017,16 +6980,7 @@
                     if (file.type.startsWith('image/')) {
                         html += '<img src="' + file.data + '" style="max-width:100%;max-height:90vh;display:block;margin:0 auto;" />';
                     } else if (file.type === 'application/pdf') {
-                        // Convert PDF pages to images - one continuous document
-                        try {
-                            const pageImages = await pdfToImages(file.data);
-                            pageImages.forEach((imgSrc, pi) => {
-                                if (pi > 0) html += '<div style="page-break-before:always;"></div>';
-                                html += '<img src="' + imgSrc + '" style="max-width:100%;display:block;margin:0 auto;" />';
-                            });
-                        } catch(e) {
-                            html += '<div style="padding:8px;background:#fef2f2;border-radius:4px;font-size:10px;color:#dc2626;">שגיאה בטעינת PDF: ' + doc.fileName + '</div>';
-                        }
+                        html += '<embed src="' + file.data + '#toolbar=0&navpanes=0&scrollbar=0&view=FitH" type="application/pdf" style="width:100%;height:90vh;border:none;" />';
                     }
                 }
             }
