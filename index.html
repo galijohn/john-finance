@@ -6981,6 +6981,12 @@
         async function buildAppendicesHTML(docs) {
             if (!docs || docs.length === 0) return '';
 
+            // Fetch ALL files in parallel
+            const docsWithDrive = docs.filter(d => d.driveId);
+            const files = await Promise.all(docsWithDrive.map(d => fetchDriveFileAsBase64(d.driveId)));
+            const fileMap = new Map();
+            docsWithDrive.forEach((d, i) => { fileMap.set(d.driveId, files[i]); });
+
             // Group by category
             const groups = {};
             docs.forEach(doc => {
@@ -7003,7 +7009,7 @@
                         continue;
                     }
 
-                    const file = await fetchDriveFileAsBase64(doc.driveId);
+                    const file = fileMap.get(doc.driveId);
                     if (!file) {
                         html += '<div style="padding:8px;margin-bottom:5px;background:#f8fafc;border-radius:4px;font-size:10px;">נספח ' + docIndex + ': ' + doc.fileName + ' (לא זמין)</div>';
                         continue;
