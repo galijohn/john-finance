@@ -974,6 +974,11 @@
                     <button class="btn btn-primary" onclick="checkPin()" style="width:100%;padding:15px;">כניסה</button>
                 </div>
                 <div id="pinError" style="color:var(--danger);margin-top:15px;display:none;">קוד שגוי</div>
+                <div id="biometricLoginSection" style="display:none;margin-top:20px;border-top:1px solid var(--border);padding-top:20px;">
+                    <button class="btn" onclick="biometricLogin()" style="width:100%;padding:15px;background:linear-gradient(135deg, #06b6d4, #0891b2);color:white;font-size:1rem;">
+                        🔓 כניסה ביומטרית
+                    </button>
+                </div>
             </div>
             
             <!-- Cloud Connect (when no data) -->
@@ -2096,6 +2101,18 @@
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
                     <button class="btn btn-primary" onclick="changePin()">🔑 שנה PIN</button>
                     <button class="btn btn-danger" onclick="removePin()">🗑️ הסר PIN</button>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:20px;" id="biometricSettingsCard">
+                <h3 style="margin:0 0 15px;">🔓 כניסה ביומטרית</h3>
+                <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:15px;">טביעת אצבע או זיהוי פנים לכניסה מהירה</p>
+                <div id="biometricStatus" style="padding:12px;background:var(--bg-input);border-radius:8px;margin-bottom:15px;">
+                    <span id="biometricStatusText">בודק תמיכה...</span>
+                </div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn btn-primary" onclick="enableBiometric()" id="btnEnableBiometric">🔓 הפעל ביומטרי</button>
+                    <button class="btn btn-danger" onclick="disableBiometric()" id="btnDisableBiometric" style="display:none;">🗑️ הסר ביומטרי</button>
                 </div>
             </div>
         </div>
@@ -3868,6 +3885,7 @@
                 cloudConnectSection.style.display = 'none';
                 lockScreen.style.display = 'flex';
                 setTimeout(() => document.getElementById('pinInput').focus(), 100);
+                showBiometricOnLockScreen();
             } else {
                 // No local data OR no PIN - check if we can auto-restore
                 const savedToken = localStorage.getItem('googleAccessToken');
@@ -4041,6 +4059,148 @@
             }
         }
 
+        // ===== BIOMETRIC AUTH =====
+        function isBiometricAvailable() {
+            return window.PublicKeyCredential && navigator.credentials;
+        }
+
+        async function checkBiometricSupport() {
+            const card = document.getElementById('biometricSettingsCard');
+            const statusText = document.getElementById('biometricStatusText');
+            const btnEnable = document.getElementById('btnEnableBiometric');
+            const btnDisable = document.getElementById('btnDisableBiometric');
+
+            if (!card) return;
+
+            if (!isBiometricAvailable()) {
+                statusText.innerHTML = '❌ הדפדפן לא תומך בזיהוי ביומטרי';
+                btnEnable.style.display = 'none';
+                return;
+            }
+
+            try {
+                const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+                if (!available) {
+                    statusText.innerHTML = '❌ המכשיר לא תומך בזיהוי ביומטרי';
+                    btnEnable.style.display = 'none';
+                    return;
+                }
+            } catch(e) {
+                statusText.innerHTML = '❌ לא ניתן לבדוק תמיכה ביומטרית';
+                btnEnable.style.display = 'none';
+                return;
+            }
+
+            const credId = localStorage.getItem('biometricCredentialId');
+            if (credId) {
+                statusText.innerHTML = '✅ זיהוי ביומטרי מופעל';
+                statusText.style.color = 'var(--success)';
+                btnEnable.style.display = 'none';
+                btnDisable.style.display = 'inline-flex';
+            } else {
+                statusText.innerHTML = '⚪ זיהוי ביומטרי זמין - לא מופעל';
+                btnEnable.style.display = 'inline-flex';
+                btnDisable.style.display = 'none';
+            }
+        }
+
+        async function enableBiometric() {
+            if (!data.pin) {
+                alert('⚠️ יש להגדיר PIN קודם');
+                return;
+            }
+            try {
+                const userId = new Uint8Array(16);
+                crypto.getRandomValues(userId);
+
+                const credential = await navigator.credentials.create({
+                    publicKey: {
+                        challenge: crypto.getRandomValues(new Uint8Array(32)),
+                        rp: { name: 'John Finance', id: location.hostname },
+                        user: {
+                            id: userId,
+                            name: 'john-finance-user',
+                            displayName: 'John Levy'
+                        },
+                        pubKeyCredParams: [
+                            { alg: -7, type: 'public-key' },
+                            { alg: -257, type: 'public-key' }
+                        ],
+                        authenticatorSelection: {
+                            authenticatorAttachment: 'platform',
+                            userVerification: 'required'
+                        },
+                        timeout: 60000
+                    }
+                });
+
+                const credId = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
+                localStorage.setItem('biometricCredentialId', credId);
+
+                alert('✅ זיהוי ביומטרי הופעל בהצלחה!');
+                checkBiometricSupport();
+            } catch(e) {
+                if (e.name !== 'NotAllowedError') {
+                    alert('❌ שגיאה: ' + e.message);
+                }
+            }
+        }
+
+        function disableBiometric() {
+            if (confirm('להסיר זיהוי ביומטרי?')) {
+                localStorage.removeItem('biometricCredentialId');
+                alert('✅ זיהוי ביומטרי הוסר');
+                checkBiometricSupport();
+            }
+        }
+
+        async function biometricLogin() {
+            const credId = localStorage.getItem('biometricCredentialId');
+            if (!credId) return;
+
+            try {
+                const rawId = Uint8Array.from(atob(credId), c => c.charCodeAt(0));
+
+                await navigator.credentials.get({
+                    publicKey: {
+                        challenge: crypto.getRandomValues(new Uint8Array(32)),
+                        rpId: location.hostname,
+                        allowCredentials: [{
+                            id: rawId,
+                            type: 'public-key',
+                            transports: ['internal']
+                        }],
+                        userVerification: 'required',
+                        timeout: 60000
+                    }
+                });
+
+                // Biometric verified - unlock
+                document.getElementById('pinLockScreen').style.display = 'none';
+                loadData();
+                renderYearSelector();
+                loadDashboardSettings();
+                loadCreditsToUI();
+                loadBusinessStatus();
+                loadFavorites();
+                renderAll();
+            } catch(e) {
+                if (e.name !== 'NotAllowedError') {
+                    alert('❌ שגיאה בזיהוי: ' + e.message);
+                }
+            }
+        }
+
+        function showBiometricOnLockScreen() {
+            const credId = localStorage.getItem('biometricCredentialId');
+            const section = document.getElementById('biometricLoginSection');
+            if (credId && section && isBiometricAvailable()) {
+                section.style.display = 'block';
+                // Auto-trigger biometric on load
+                setTimeout(() => biometricLogin(), 500);
+            }
+        }
+
         // ===== CLOCK UPDATE =====
         function updateClock() {
             const now = new Date();
@@ -4073,6 +4233,9 @@
             // Start clock
             updateClock();
             setInterval(updateClock, 1000);
+
+            // Check biometric support
+            checkBiometricSupport();
         }
         
         // Try to auto-restore from Google Drive
