@@ -2756,32 +2756,104 @@
     </div>
 
     <script>
-        // ========== GOOGLE DRIVE INTEGRATION ==========
-        const GOOGLE_CLIENT_ID = '831800526620-vrar20hjjjne49jrr6gpv9dmr54224g5.apps.googleusercontent.com';
-        const GOOGLE_API_KEY = 'AIzaSyB30a84J6yYYHgRYddgd97vOVIR-r95Z94';
+        // ========== GOOGLE DRIVE INTEGRATION (SERVICE ACCOUNT) ==========
+        const SA_EMAIL = 'john-finance@john-finance.iam.gserviceaccount.com';
+        const SA_KEY = '-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC87tOpWrmdnkvq\n6rciYzImy/Y0d74wbEqGgqd2XqK5vgLiMAlPG1SABv17TzIQfluY9AZnYzUYq5Xm\nYoOZtJ8gQXhm5O78CgamW4M7vI7+wEIjmh4RCooMzSrK/lEZ7jL9FtVekME3MpRb\ndL+ifMj1v/skciGWf72RvIyAlrTgSnlQPAt1wVGl3NsNI+jlPba+32FQe3Yw2pvj\nCpQj7sjONLTvtXxiBBdeU5Tf7NsbNxpAyrQEP/fvI/PLnXiJ8Y+VbDs7xt6g4w7l\naRolPpdp/g2LQkkSTg3nVQ7GJYpYMtNGTEDGlkmT9JWV9jY4OeRTZsja0dZJC1M+\n+iDbYjI9AgMBAAECggEAAoMshmKB+GIcAVY4tDjceF6a+gyjl1JBVXOUVYMhp9Wq\nhSZ9YTNsVr2BDmw5rrV3c1u/YA2WLatOdX9W36riuNOWDcw6j1h0yS6LWraBskqN\nNpr8jl51AoGR8ZwbKPydafctRDIpl5nRFjxBth/xri7s4Imx/6XYOAFpXuZiJl9h\nTwHvve3VFdrldj8DyNWLBDpiPMAB/+nYik3WToPED+gYgZhC2dr+vD86KORMYBV1\nAor+jfvNC/Klav+cWS3I0rH7HdZjRccQUdyiVA1Q6kHWBPeG8uyGB3PZQReUoba6\nE/rsYulDJcmTMjXV1NSB5GK840V1TI/bNP3MHRbFIQKBgQDfvoy6SgPDZztMvRSU\nby4Z36V/hn1SIgF7o8AOeGSQ6bVOmrOsK3pXKOip7z5ACx+rxP+Cvef0YT09P2RG\nqagcW4VkS6uNenzccC2SJH14x2aIlAPCfbSaQxoHRDKc+tZuFqf4OK1c52HXbd9l\n8DtaQkeoccLbDEpjMe2eYMTTUQKBgQDYK4k0ISTNo4nQ84lfX8lzhV52rd4yLlML\nWOIQEXLXyW02itS9O24cqu1eWPluveRKyxqfSg7ctOmwoV1e4ZHbqLOi2e110dkr\nk6Ya9+ZJy1lPj9Ty1yQdI+Y5BXLvVZ5Bb2JgZXnfABQklx20U6UHO/hrKokowxjV\n88kQZFL9LQKBgQDaknU7jw56FyCw6I1wK+RnVjmAiMtoLtwwAlmeSTJE9mot7abT\n7G1JNCeFyrePLM61qG7LM+WisFN4v7Kf7SDTAv0ea2Wdgijz14pNF+SS1ohtp9q8\nZrzFbgPBUXf4LnrHdM6GCCgjd832+9ie5r20gMcr4GYwQqNwn9e3PmVI4QKBgQCf\n4dNg0wK9da+A9B8ug1IkNwhfDsnAo7KYOe05pS4jm79DD/u42jPe0C0wEu6pkZlA\nGGhgWA4V/1i4YyEEBCI1LNlwIW8YLVVKfbHlUGTrP5OW3PLLiYQUaXDly7nueozK\nKO/CDEvPO+eqCHrX3OW6LAjYemVn2KSN2flkPk+DIQKBgCIAPym7Oagth3iSsw5U\npGpD9dpo3bl7gRopyl/Bj15/pu+bRRWSgUPYNJrio394CkG/yDFJ/Jxey2wMfbYp\nUVYCPjH0ow68HEysT0GaYZPLSra8Qbr+uQDKWHo2Krt0LwYxROedYXgxWbJQwup1\nNG+nD+kWLoRDkeOwMDzPhXPP\n-----END PRIVATE KEY-----\n';
         let googleAccessToken = null;
+        let googleTokenExpiry = 0;
         let driveFolderId = null;
+
+        // ===== JWT HELPERS FOR SERVICE ACCOUNT =====
+        function base64url(str) {
+            return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+        function base64urlBytes(arr) {
+            let binary = '';
+            const bytes = new Uint8Array(arr);
+            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+            return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        async function importPrivateKey(pem) {
+            const pemContents = pem.replace(/-----BEGIN PRIVATE KEY-----/g, '').replace(/-----END PRIVATE KEY-----/g, '').replace(/\s/g, '');
+            const binaryStr = atob(pemContents);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+            return crypto.subtle.importKey('pkcs8', bytes.buffer, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+        }
+
+        async function getServiceAccountToken() {
+            // Check if current token is still valid
+            if (googleAccessToken && Date.now() < googleTokenExpiry - 60000) return googleAccessToken;
+
+            const now = Math.floor(Date.now() / 1000);
+            const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+            const claims = base64url(JSON.stringify({
+                iss: SA_EMAIL,
+                scope: 'https://www.googleapis.com/auth/drive',
+                aud: 'https://oauth2.googleapis.com/token',
+                iat: now,
+                exp: now + 3600
+            }));
+
+            const key = await importPrivateKey(SA_KEY);
+            const signatureInput = new TextEncoder().encode(header + '.' + claims);
+            const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, signatureInput);
+            const jwt = header + '.' + claims + '.' + base64urlBytes(signature);
+
+            const resp = await fetch('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=' + jwt
+            });
+
+            const data_token = await resp.json();
+            if (data_token.error) throw new Error(data_token.error_description || data_token.error);
+
+            googleAccessToken = data_token.access_token;
+            googleTokenExpiry = Date.now() + (data_token.expires_in || 3600) * 1000;
+            console.log('✅ Service Account token obtained, expires in', data_token.expires_in, 'seconds');
+            return googleAccessToken;
+        }
+
+        // Ensure valid token - always works, no popups
+        async function ensureValidToken() {
+            try {
+                await getServiceAccountToken();
+                return true;
+            } catch(e) {
+                console.error('Token error:', e);
+                return false;
+            }
+        }
+
+        // Auto-renew token before it expires
+        let tokenRenewTimer = null;
+        function scheduleTokenRenewal() {
+            if (tokenRenewTimer) clearTimeout(tokenRenewTimer);
+            const renewIn = Math.max(googleTokenExpiry - Date.now() - 5 * 60 * 1000, 60000);
+            console.log('Token renewal scheduled in', Math.round(renewIn/60000), 'minutes');
+            tokenRenewTimer = setTimeout(async () => {
+                try {
+                    await getServiceAccountToken();
+                    scheduleTokenRenewal();
+                } catch(e) {
+                    console.error('Token renewal failed:', e);
+                }
+            }, renewIn);
+        }
 
         // ===== MAIN CONNECT FUNCTION =====
         async function initGoogleDrive() {
             document.getElementById('driveStatusText').innerHTML = '⏳ מתחבר...';
-            
             try {
-                // 1. Load Google API
                 await loadGoogleAPI();
-                
-                // 2. Get token (saved or new)
-                await getGoogleToken();
-                
-                // 3. Find or create folder
+                await getServiceAccountToken();
+                gapi.client.setToken({ access_token: googleAccessToken });
                 await findOrCreateFolder();
-                
-                // 4. SYNC ALL DATA NOW
                 await syncToCloud();
-                
-                // 5. Update status
                 updateDriveStatus(true);
-                
+                scheduleTokenRenewal();
             } catch (error) {
                 console.error('Google Drive error:', error);
                 updateDriveStatus(false, error.message || 'שגיאה בהתחברות');
@@ -2800,7 +2872,6 @@
                 script.onload = () => {
                     gapi.load('client', async () => {
                         await gapi.client.init({
-                            apiKey: GOOGLE_API_KEY,
                             discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
                         });
                         resolve();
@@ -2811,128 +2882,13 @@
             });
         }
 
-        // ===== GET TOKEN (SAVED OR NEW) =====
-        async function getGoogleToken() {
-            // Check saved token
-            const savedToken = localStorage.getItem('googleAccessToken');
-            const tokenExpiry = localStorage.getItem('googleTokenExpiry');
-            
-            if (savedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
-                googleAccessToken = savedToken;
-                gapi.client.setToken({ access_token: savedToken });
-                return;
-            }
-            
-            // Need new token - load GIS and request
-            await loadGISClient();
-            
-            return new Promise((resolve, reject) => {
-                const tokenClient = google.accounts.oauth2.initTokenClient({
-                    client_id: GOOGLE_CLIENT_ID,
-                    scope: 'https://www.googleapis.com/auth/drive.file',
-                    callback: (response) => {
-                        if (response.error) {
-                            reject(new Error(response.error));
-                            return;
-                        }
-                        googleAccessToken = response.access_token;
-                        gapi.client.setToken({ access_token: response.access_token });
-                        // Save for 55 minutes
-                        localStorage.setItem('googleAccessToken', response.access_token);
-                        localStorage.setItem('googleTokenExpiry', String(Date.now() + 55 * 60 * 1000));
-                        scheduleTokenRenewal();
-                        resolve();
-                    },
-                    error_callback: (error) => reject(new Error(error.message || 'Auth failed'))
-                });
-                tokenClient.requestAccessToken();
-            });
-        }
-
-        // Check if token is still valid, renew if needed
-        async function ensureValidToken() {
-            const expiry = parseInt(localStorage.getItem('googleTokenExpiry') || '0');
-            if (googleAccessToken && Date.now() < expiry - 60000) return true;
-            if (!localStorage.getItem('googleAccessToken')) return false;
-            try {
-                await renewTokenSilently();
-                return true;
-            } catch(e) {
-                return false;
-            }
-        }
-
-        // Auto-renew token before it expires
-        let tokenRenewTimer = null;
-        function scheduleTokenRenewal() {
-            if (tokenRenewTimer) clearTimeout(tokenRenewTimer);
-            const expiry = parseInt(localStorage.getItem('googleTokenExpiry') || '0');
-            const timeLeft = expiry - Date.now();
-            const renewIn = Math.max(timeLeft - 5 * 60 * 1000, 10000);
-            console.log('Token renewal scheduled in', Math.round(renewIn/60000), 'minutes');
-            tokenRenewTimer = setTimeout(async () => {
-                try {
-                    await renewTokenSilently();
-                } catch(e) {
-                    console.error('Token renewal failed:', e);
-                    updateDriveStatus(false, 'טוקן פג - יש להתחבר מחדש');
-                }
-            }, renewIn);
-        }
-
-        // Renew token when tab becomes visible again
-        document.addEventListener('visibilitychange', async () => {
-            if (document.visibilityState === 'visible' && googleAccessToken) {
-                await ensureValidToken();
-            }
-        });
-
-        async function renewTokenSilently() {
-            await loadGISClient();
-            return new Promise((resolve, reject) => {
-                const tokenClient = google.accounts.oauth2.initTokenClient({
-                    client_id: GOOGLE_CLIENT_ID,
-                    scope: 'https://www.googleapis.com/auth/drive.file',
-                    prompt: '',
-                    callback: (response) => {
-                        if (response.error) {
-                            reject(new Error(response.error));
-                            return;
-                        }
-                        googleAccessToken = response.access_token;
-                        gapi.client.setToken({ access_token: response.access_token });
-                        localStorage.setItem('googleAccessToken', response.access_token);
-                        localStorage.setItem('googleTokenExpiry', String(Date.now() + 55 * 60 * 1000));
-                        console.log('✅ Token renewed successfully');
-                        updateDriveStatus(true);
-                        scheduleTokenRenewal();
-                        resolve();
-                    },
-                    error_callback: (error) => reject(new Error(error.message || 'Renewal failed'))
-                });
-                tokenClient.requestAccessToken({ prompt: '' });
-            });
-        }
-
-        function loadGISClient() {
-            return new Promise((resolve, reject) => {
-                if (window.google?.accounts?.oauth2) {
-                    resolve();
-                    return;
-                }
-                const script = document.createElement('script');
-                script.src = 'https://accounts.google.com/gsi/client';
-                script.onload = resolve;
-                script.onerror = reject;
-                document.body.appendChild(script);
-            });
-        }
-
         // ===== FIND OR CREATE FOLDER =====
         async function findOrCreateFolder() {
             const search = await gapi.client.drive.files.list({
                 q: "name='john-finance' and mimeType='application/vnd.google-apps.folder' and trashed=false",
-                fields: 'files(id)'
+                fields: 'files(id)',
+                supportsAllDrives: true,
+                includeItemsFromAllDrives: true
             });
             
             if (search.result.files.length > 0) {
@@ -3007,10 +2963,12 @@
 
         // ===== SYNC ALL DATA TO CLOUD =====
         async function syncToCloud() {
-            if (!googleAccessToken || !driveFolderId) {
-                console.error('No token or folder ID!');
+            if (!driveFolderId) {
+                console.error('No folder ID!');
                 return;
             }
+            await ensureValidToken();
+            if (!googleAccessToken) { console.error('No token!'); return; }
             
             const jsonContent = JSON.stringify(data, null, 2);
             console.log('Syncing data, size:', jsonContent.length, 'bytes');
@@ -3070,51 +3028,19 @@
 
         // ===== AUTO-CONNECT ON PAGE LOAD =====
         async function tryAutoConnect() {
-            const savedToken = localStorage.getItem('googleAccessToken');
-            const tokenExpiry = localStorage.getItem('googleTokenExpiry');
-            
-            console.log('Checking saved token...', savedToken ? 'found' : 'none', tokenExpiry ? 'expiry: ' + new Date(parseInt(tokenExpiry)).toLocaleString() : '');
-            
-            if (savedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
-                try {
-                    console.log('Token still valid, auto-connecting...');
-                    await loadGoogleAPI();
-                    
-                    // Set token in gapi client
-                    googleAccessToken = savedToken;
-                    gapi.client.setToken({ access_token: savedToken });
-                    
-                    // Find folder
-                    await findOrCreateFolder();
-                    updateDriveStatus(true);
-                    scheduleTokenRenewal();
-                    console.log('✅ Auto-connected!');
-
-                    // Check if cloud has newer data
-                    await pullFromCloudIfNewer();
-                } catch (e) {
-                    console.log('Auto-connect failed, clearing token:', e);
-                    localStorage.removeItem('googleAccessToken');
-                    localStorage.removeItem('googleTokenExpiry');
-                    updateDriveStatus(false);
-                }
-            } else if (savedToken) {
-                // Token expired - try silent renewal (only if user connected before)
-                console.log('Token expired, trying silent renewal...');
-                try {
-                    await renewTokenSilently();
-                    await loadGoogleAPI();
-                    gapi.client.setToken({ access_token: googleAccessToken });
-                    await findOrCreateFolder();
-                    updateDriveStatus(true);
-                    await pullFromCloudIfNewer();
-                    console.log('✅ Token renewed and reconnected!');
-                } catch (e) {
-                    console.log('Silent renewal failed:', e);
-                    localStorage.removeItem('googleAccessToken');
-                    localStorage.removeItem('googleTokenExpiry');
-                    updateDriveStatus(false);
-                }
+            console.log('Auto-connecting with Service Account...');
+            try {
+                await loadGoogleAPI();
+                await getServiceAccountToken();
+                gapi.client.setToken({ access_token: googleAccessToken });
+                await findOrCreateFolder();
+                updateDriveStatus(true);
+                scheduleTokenRenewal();
+                console.log('✅ Auto-connected!');
+                await pullFromCloudIfNewer();
+            } catch (e) {
+                console.error('Auto-connect failed:', e);
+                updateDriveStatus(false, e.message);
             }
         }
 
@@ -3657,7 +3583,9 @@
         
         // Upload file to Google Drive folder
         async function uploadFileToDrive(file, subFolder, year = currentYear) {
-            if (!googleAccessToken || !driveFolderId) return null;
+            if (!driveFolderId) return null;
+            await ensureValidToken();
+            if (!googleAccessToken) return null;
             
             try {
                 // Find or create year folder
@@ -4108,31 +4036,21 @@
                 setTimeout(() => document.getElementById('pinInput').focus(), 100);
                 showBiometricOnLockScreen();
             } else {
-                // No local data OR no PIN - check if we can auto-restore
-                const savedToken = localStorage.getItem('googleAccessToken');
-                const tokenExpiry = localStorage.getItem('googleTokenExpiry');
-                
-                if (savedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
-                    // Valid token exists - try auto-restore
-                    pinEntrySection.style.display = 'none';
-                    cloudConnectSection.style.display = 'block';
-                    lockScreen.style.display = 'flex';
-                    
-                    // Auto-trigger restore
-                    document.getElementById('connectBtnText').textContent = '⏳ מתחבר אוטומטית...';
-                    document.getElementById('connectStatus').style.display = 'block';
-                    document.getElementById('connectStatus').textContent = 'נמצא טוקן שמור, משחזר...';
-                    
-                    try {
-                        await connectAndRestore();
-                    } catch (e) {
-                        console.error('Auto-restore failed:', e);
-                    }
-                } else {
-                    // No valid token - show cloud connect button
-                    pinEntrySection.style.display = 'none';
-                    cloudConnectSection.style.display = 'block';
-                    lockScreen.style.display = 'flex';
+                // No local data OR no PIN - auto-restore from cloud (Service Account - always available)
+                pinEntrySection.style.display = 'none';
+                cloudConnectSection.style.display = 'block';
+                lockScreen.style.display = 'flex';
+
+                // Auto-trigger restore
+                document.getElementById('connectBtnText').textContent = '⏳ מתחבר אוטומטית...';
+                document.getElementById('connectStatus').style.display = 'block';
+                document.getElementById('connectStatus').textContent = 'מתחבר לענן...';
+
+                try {
+                    await connectAndRestore();
+                } catch (e) {
+                    console.error('Auto-restore failed:', e);
+                    document.getElementById('connectBtnText').textContent = '🔗 נסה שוב';
                 }
             }
             
@@ -4156,16 +4074,19 @@
                 statusEl.textContent = 'טוען API...';
                 
                 await loadGoogleAPI();
-                
-                // Step 2: Get token
+
+                // Step 2: Get token via Service Account
                 statusEl.textContent = 'מתחבר ל-Google...';
-                await getGoogleToken();
-                
+                await getServiceAccountToken();
+                gapi.client.setToken({ access_token: googleAccessToken });
+
                 // Step 3: Find folder (don't create if doesn't exist)
                 statusEl.textContent = 'מחפש תיקייה בענן...';
                 const search = await gapi.client.drive.files.list({
                     q: "name='john-finance' and mimeType='application/vnd.google-apps.folder' and trashed=false",
-                    fields: 'files(id, name)'
+                    fields: 'files(id, name)',
+                    supportsAllDrives: true,
+                    includeItemsFromAllDrives: true
                 });
                 
                 if (search.result.files.length === 0) {
@@ -5353,7 +5274,9 @@
         }
 
         async function deleteDriveFile(driveId) {
-            if (!googleAccessToken || !driveId) return;
+            if (!driveId) return;
+            await ensureValidToken();
+            if (!googleAccessToken) return;
             try {
                 await fetch('https://www.googleapis.com/drive/v3/files/' + driveId, {
                     method: 'DELETE',
