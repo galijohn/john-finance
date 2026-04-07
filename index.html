@@ -7354,11 +7354,27 @@
                 '<div class="info-row"><span>שם: John Levy</span><span>סוג עוסק: עוסק מורשה</span><span>תאריך הפקה: ' + dateStr + '</span></div>' +
                 bodyContent +
                 '<div class="footer"><span>John Finance - מערכת ניהול מס</span><span>מסמך זה אינו מהווה אישור רשמי</span></div>' +
+                '<div id="appendicesArea"></div>' +
                 '</body></html>';
 
             printWindow.document.write(html);
             printWindow.document.close();
-            setTimeout(() => { printWindow.print(); }, 300);
+
+            // Load appendices in background, then auto-print
+            const pageDocs = getPageDocuments(page);
+            if (pageDocs.length > 0 && googleAccessToken) {
+                const area = printWindow.document.getElementById('appendicesArea');
+                area.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">טוען ' + pageDocs.length + ' מסמכים...</div>';
+                buildAppendicesHTML(pageDocs).then(appendicesHTML => {
+                    area.innerHTML = appendicesHTML;
+                    setTimeout(() => { printWindow.print(); }, 500);
+                }).catch(() => {
+                    area.innerHTML = '';
+                    setTimeout(() => { printWindow.print(); }, 300);
+                });
+            } else {
+                setTimeout(() => { printWindow.print(); }, 300);
+            }
         }
 
         function exportData() {
