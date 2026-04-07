@@ -1,0 +1,19 @@
+{
+  "name": "John Finance - ניהול עוסק",
+  "short_name": "John Finance",
+  "description": "ניהול מס ועוסק - ג'ון לוי",
+  "start_url": "/john-finance/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0891b2",
+  "dir": "rtl",
+  "lang": "he",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

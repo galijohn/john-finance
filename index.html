@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>John Finance</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230891b2'/%3E%3Cpolygon points='50,15 85,32 85,68 50,85 15,68 15,32' fill='none' stroke='white' stroke-width='4'/%3E%3Ctext x='50' y='62' text-anchor='middle' font-family='Arial' font-size='30' font-weight='bold' fill='white'%3EJL%3C/text%3E%3C/svg%3E">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0891b2">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="John Finance">
+    <link rel="apple-touch-icon" href="icon.svg">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
     <style>
@@ -6811,6 +6817,35 @@
                 location.reload();
             }
         }
+
+        // Generate apple-touch-icon as PNG from canvas
+        (function() {
+            const c = document.createElement('canvas');
+            c.width = 180; c.height = 180;
+            const x = c.getContext('2d');
+            // Background
+            x.fillStyle = '#0891b2';
+            x.beginPath();
+            x.roundRect(0, 0, 180, 180, 36);
+            x.fill();
+            // Hexagon
+            const s = 1.8;
+            x.strokeStyle = 'white';
+            x.lineWidth = 4 * s;
+            x.beginPath();
+            const pts = [[50,15],[85,32],[85,68],[50,85],[15,68],[15,32]];
+            pts.forEach((p, i) => { i === 0 ? x.moveTo(p[0]*s, p[1]*s) : x.lineTo(p[0]*s, p[1]*s); });
+            x.closePath();
+            x.stroke();
+            // Text
+            x.fillStyle = 'white';
+            x.font = 'bold ' + (30*s) + 'px Arial';
+            x.textAlign = 'center';
+            x.fillText('JL', 90, 112);
+            // Set as apple-touch-icon
+            const link = document.querySelector('link[rel="apple-touch-icon"]');
+            if (link) link.href = c.toDataURL('image/png');
+        })();
 
         init();
         checkPinOnLoad();
