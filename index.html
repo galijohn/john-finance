@@ -3080,12 +3080,22 @@
                     localStorage.removeItem('googleTokenExpiry');
                     updateDriveStatus(false);
                 }
-            } else {
-                console.log('No valid token found');
-                if (savedToken) {
-                    // Token expired, clear it
+            } else if (savedToken) {
+                // Token expired - try silent renewal instead of giving up
+                console.log('Token expired, trying silent renewal...');
+                try {
+                    await renewTokenSilently();
+                    await loadGoogleAPI();
+                    gapi.client.setToken({ access_token: googleAccessToken });
+                    await findOrCreateFolder();
+                    updateDriveStatus(true);
+                    await pullFromCloudIfNewer();
+                    console.log('✅ Token renewed and reconnected!');
+                } catch (e) {
+                    console.log('Silent renewal failed:', e);
                     localStorage.removeItem('googleAccessToken');
                     localStorage.removeItem('googleTokenExpiry');
+                    updateDriveStatus(false);
                 }
             }
         }
