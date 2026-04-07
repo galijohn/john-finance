@@ -7019,8 +7019,7 @@
             return html;
         }
 
-        async function exportPagePDF(page) {
-          try {
+        function exportPagePDF(page) {
             const { headers, rows, title, year } = getPageData(page);
             const yd = getYearData();
             const dateStr = new Date().toLocaleDateString('he-IL');
@@ -7319,16 +7318,8 @@
                 }
             }
 
-            // Open print window immediately (before async work)
             const printWindow = window.open('', '_blank');
             if (!printWindow) { alert('אפשר חלונות קופצים'); return; }
-
-            // Build appendices from attached documents
-            const pageDocs = getPageDocuments(page);
-            let appendicesHTML = '';
-            if (pageDocs.length > 0) {
-                appendicesHTML = await buildAppendicesHTML(pageDocs);
-            }
 
             const html = '<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><title>' + title + '</title><style>' +
                 '* { box-sizing: border-box; margin: 0; padding: 0; }' +
@@ -7353,17 +7344,11 @@
                 '<div class="info-row"><span>שם: John Levy</span><span>סוג עוסק: עוסק מורשה</span><span>תאריך הפקה: ' + dateStr + '</span></div>' +
                 bodyContent +
                 '<div class="footer"><span>John Finance - מערכת ניהול מס</span><span>מסמך זה אינו מהווה אישור רשמי</span></div>' +
-                appendicesHTML +
                 '</body></html>';
 
             printWindow.document.write(html);
             printWindow.document.close();
             setTimeout(() => { printWindow.print(); }, 300);
-
-          } catch (e) {
-            console.error('PDF export error:', e);
-            alert('שגיאה בהפקת הדוח: ' + e.message);
-          }
         }
 
         function exportData() {
