@@ -3153,17 +3153,27 @@
                 });
 
                 const cloudData = response.result;
-                const cloudModified = cloudData.lastModified || 0;
-                const localModified = data.lastModified || 0;
 
-                if (cloudModified === localModified) {
-                    console.log('✅ Local data is up to date');
-                    return;
-                }
+                // Count records to check if merge added anything
+                const countRecords = (d) => {
+                    let c = 0;
+                    if (d.yearData) Object.values(d.yearData).forEach(yd => {
+                        ['salary','unemployment','miluim','selfEmployed','expenses','taxAdvances','blAdvances','vatReports'].forEach(k => {
+                            c += (yd[k] || []).length;
+                        });
+                    });
+                    return c;
+                };
 
-                // Merge data from both sources (no data loss)
-                console.log('🔄 Merging local + cloud data...');
+                const localCount = countRecords(data);
+                const cloudCount = countRecords(cloudData);
+
+                // Always merge - never skip
+                console.log('🔄 Merging... local records:', localCount, 'cloud records:', cloudCount);
                 const merged = mergeData(data, cloudData);
+                const mergedCount = countRecords(merged);
+                console.log('✅ Merged result:', mergedCount, 'records');
+
                 data = merged;
                 localStorage.setItem('taxCalculatorV2', JSON.stringify(data));
 
@@ -3182,7 +3192,9 @@
                 document.getElementById('lastSyncTime').textContent = '📅 סונכרן: ' + now;
                 localStorage.setItem('lastDriveBackup', now);
 
-                showSyncNotification('🔄 נתונים סונכרנו');
+                if (mergedCount > localCount) {
+                    showSyncNotification('🔄 ' + (mergedCount - localCount) + ' רשומות חדשות מהענן');
+                }
             } catch(e) {
                 console.error('Pull from cloud error:', e);
             }
