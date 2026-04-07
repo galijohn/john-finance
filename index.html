@@ -406,6 +406,88 @@
             border-color: rgba(16, 185, 129, 0.3);
         }
         
+        .expense-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 12px 15px;
+            background: var(--bg-card);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+
+        .expense-filters {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .expense-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .filter-btn {
+            padding: 5px 14px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.82rem;
+            transition: all 0.2s;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--primary);
+            color: var(--text);
+        }
+
+        .filter-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: 0.82rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-input);
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-sm:hover {
+            border-color: var(--primary);
+        }
+
+        .btn-sm.active {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .category-group-header {
+            background: rgba(37, 99, 235, 0.15);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .category-group-header td {
+            font-weight: 600;
+            padding: 10px 15px;
+        }
+
+        .category-group-header:hover {
+            background: rgba(37, 99, 235, 0.25);
+        }
+
         .credit-points-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -974,6 +1056,23 @@
                 הוצאות שהוצאת לצורך הפקת ההכנסה כעצמאי. הן מקטינות את ההכנסה החייבת במס.
             </div>
 
+            <!-- Filter & Sort Controls -->
+            <div class="expense-controls">
+                <div class="expense-filters">
+                    <label style="color:var(--text-muted);font-size:0.85rem;">סינון:</label>
+                    <button class="filter-btn active" onclick="filterExpenses('all')">הכל</button>
+                    <span id="expenseFilterButtons"></span>
+                </div>
+                <div class="expense-actions">
+                    <button class="btn btn-sm" id="expenseSortBtn" onclick="toggleExpenseSort()" title="סדר לפי תאריך">
+                        📅 תאריך ↓
+                    </button>
+                    <button class="btn btn-sm" id="expenseGroupBtn" onclick="toggleExpenseGroup()" title="כיווץ לפי קטגוריה">
+                        📁 קבץ לפי קטגוריה
+                    </button>
+                </div>
+            </div>
+
             <div class="table-container">
                 <table>
                     <thead>
@@ -982,6 +1081,8 @@
                             <th>תיאור</th>
                             <th>קטגוריה</th>
                             <th>סכום</th>
+                            <th>% הכרה</th>
+                            <th>מוכר</th>
                             <th>פעולות</th>
                         </tr>
                     </thead>
@@ -990,6 +1091,10 @@
             </div>
 
             <div class="summary-box">
+                <div class="summary-row">
+                    <span>סה"כ הוצאות (לפני הכרה)</span>
+                    <span id="totalExpensesGross">₪0</span>
+                </div>
                 <div class="summary-row total">
                     <span>סה"כ הוצאות מוכרות</span>
                     <span id="totalExpenses">₪0</span>
@@ -1879,6 +1984,13 @@
                 <div class="form-group">
                     <label>📎 הערות</label>
                     <input type="text" class="form-control" id="expenseNotes" placeholder="לדוגמה: קבלה מס' 123">
+                </div>
+                <div class="form-group">
+                    <label>% הכרה</label>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <input type="number" class="form-control" id="expenseRecognition" min="0" max="100" value="100" style="width:100px;">
+                        <span style="color:var(--text-muted);font-size:0.85rem;">% מהסכום מוכר כהוצאה</span>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>📄 צרף קבלה/חשבונית</label>
@@ -3995,6 +4107,7 @@
                 description: document.getElementById('expenseDesc').value,
                 category: document.getElementById('expenseCategory').value,
                 amount: parseFloat(document.getElementById('expenseAmount').value) || 0,
+                recognition: parseFloat(document.getElementById('expenseRecognition').value) ?? 100,
                 notes: document.getElementById('expenseNotes').value
             };
             
@@ -4410,6 +4523,7 @@
             document.getElementById('expenseDesc').value = item.description || '';
             document.getElementById('expenseCategory').value = item.category;
             document.getElementById('expenseAmount').value = item.amount;
+            document.getElementById('expenseRecognition').value = item.recognition ?? 100;
             document.getElementById('expenseNotes').value = item.notes || '';
             openModal('expenseModal');
         }
@@ -4456,7 +4570,7 @@
             const totalMiluim = yd.miluim.reduce((sum, m) => sum + m.amount, 0);
             const totalMiluimDays = yd.miluim.reduce((sum, m) => sum + m.days, 0);
             const totalSelfEmployed = yd.selfEmployed.reduce((sum, s) => sum + s.amount, 0);
-            const totalExpenses = yd.expenses.reduce((sum, e) => sum + e.amount, 0);
+            const totalExpenses = yd.expenses.reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
             
             // Tax deducted from each source
             const taxFromSalary = yd.salary.reduce((sum, s) => sum + s.taxDeducted, 0);
@@ -5003,26 +5117,125 @@
             </tr>`).join('');
         }
 
+        // Expense page state
+        let expenseFilter = 'all';
+        let expenseSortAsc = true;
+        let expenseGrouped = false;
+        let collapsedCategories = {};
+
+        function filterExpenses(category) {
+            expenseFilter = category;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            renderAll();
+        }
+
+        function toggleExpenseSort() {
+            expenseSortAsc = !expenseSortAsc;
+            document.getElementById('expenseSortBtn').innerHTML = `📅 תאריך ${expenseSortAsc ? '↓' : '↑'}`;
+            renderAll();
+        }
+
+        function toggleExpenseGroup() {
+            expenseGrouped = !expenseGrouped;
+            const btn = document.getElementById('expenseGroupBtn');
+            btn.classList.toggle('active', expenseGrouped);
+            btn.innerHTML = expenseGrouped ? '📁 תצוגה רגילה' : '📁 קבץ לפי קטגוריה';
+            collapsedCategories = {};
+            renderAll();
+        }
+
+        function toggleCategoryCollapse(cat) {
+            collapsedCategories[cat] = !collapsedCategories[cat];
+            renderAll();
+        }
+
+        function buildExpenseFilterButtons() {
+            const yd = getYearData();
+            const categories = [...new Set(yd.expenses.map(e => e.category))];
+            const container = document.getElementById('expenseFilterButtons');
+            container.innerHTML = categories.map(c =>
+                `<button class="filter-btn ${expenseFilter === c ? 'active' : ''}" onclick="filterExpenses('${c}')">${c}</button>`
+            ).join('');
+            // Update "all" button
+            const allBtn = container.previousElementSibling;
+            if (allBtn && allBtn.classList.contains('filter-btn')) {
+                allBtn.classList.toggle('active', expenseFilter === 'all');
+            }
+        }
+
         function renderExpenseTable(total) {
             const yd = getYearData();
             const tbody = document.getElementById('expenseTable');
-            document.getElementById('totalExpenses').textContent = formatCurrency(total);
-            
+
+            // Build filter buttons
+            buildExpenseFilterButtons();
+
+            // Calculate totals with recognition
+            const totalGross = yd.expenses.reduce((sum, e) => sum + e.amount, 0);
+            const totalRecognized = yd.expenses.reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+            document.getElementById('totalExpensesGross').textContent = formatCurrency(totalGross);
+            document.getElementById('totalExpenses').textContent = formatCurrency(totalRecognized);
+
             if (yd.expenses.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">🧾</div><p>לחץ + להוסיף</p></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div class="icon">🧾</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = yd.expenses.map(e => `<tr>
+
+            // Filter
+            let filtered = expenseFilter === 'all' ? [...yd.expenses] : yd.expenses.filter(e => e.category === expenseFilter);
+
+            // Sort by date
+            filtered.sort((a, b) => {
+                const da = a.date || '', db = b.date || '';
+                return expenseSortAsc ? da.localeCompare(db) : db.localeCompare(da);
+            });
+
+            if (expenseGrouped) {
+                // Group by category
+                const groups = {};
+                filtered.forEach(e => {
+                    if (!groups[e.category]) groups[e.category] = [];
+                    groups[e.category].push(e);
+                });
+
+                let html = '';
+                for (const [cat, items] of Object.entries(groups)) {
+                    const catTotal = items.reduce((s, e) => s + e.amount, 0);
+                    const catRecognized = items.reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+                    const isCollapsed = collapsedCategories[cat];
+                    html += `<tr class="category-group-header" onclick="toggleCategoryCollapse('${cat}')">
+                        <td colspan="4">${isCollapsed ? '▶' : '▼'} ${cat} (${items.length})</td>
+                        <td colspan="1" style="text-align:center;">—</td>
+                        <td style="color:var(--danger)">${formatCurrency(catRecognized)}</td>
+                        <td></td>
+                    </tr>`;
+                    if (!isCollapsed) {
+                        html += items.map(e => renderExpenseRow(e)).join('');
+                    }
+                }
+                tbody.innerHTML = html;
+            } else {
+                tbody.innerHTML = filtered.map(e => renderExpenseRow(e)).join('');
+            }
+        }
+
+        function renderExpenseRow(e) {
+            const pct = e.recognition ?? 100;
+            const recognized = e.amount * (pct / 100);
+            return `<tr>
                 <td>${e.date}</td>
                 <td>${e.description || '-'} ${e.notes ? '<span title="'+e.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${e.category}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
+                <td style="text-align:center;${pct < 100 ? 'color:var(--warning)' : ''}">${pct}%</td>
+                <td style="color:var(--success)">${formatCurrency(recognized)}</td>
                 <td>
                     ${e.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${e.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
                     <button class="btn btn-icon btn-sm" onclick="editExpense(${e.id})" title="עריכה">✏️</button>
                     <button class="btn btn-icon btn-sm" onclick="deleteItem('expenses',${e.id})" title="מחיקה">🗑️</button>
                 </td>
-            </tr>`).join('');
+            </tr>`;
         }
 
         function renderTaxAdvanceTable() {
