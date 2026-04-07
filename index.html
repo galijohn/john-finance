@@ -5072,7 +5072,10 @@
             const yd = getYearData();
             if (confirm('למחוק?')) {
                 const item = yd.taxAdvances.find(p => p.id === id);
-                if (item) { item._deleted = true; item._deletedAt = Date.now(); }
+                if (item) {
+                    if (item.driveId) deleteDriveFile(item.driveId);
+                    item._deleted = true; item._deletedAt = Date.now();
+                }
                 saveData();
                 renderAll();
             }
@@ -5139,7 +5142,10 @@
             const yd = getYearData();
             if (confirm('למחוק?')) {
                 const item = yd.blAdvances.find(p => p.id === id);
-                if (item) { item._deleted = true; item._deletedAt = Date.now(); }
+                if (item) {
+                    if (item.driveId) deleteDriveFile(item.driveId);
+                    item._deleted = true; item._deletedAt = Date.now();
+                }
                 saveData();
                 renderAll();
             }
@@ -5242,7 +5248,10 @@
             const yd = getYearData();
             if (confirm('למחוק?')) {
                 const item = yd.vatReports.find(v => v.id === id);
-                if (item) { item._deleted = true; item._deletedAt = Date.now(); }
+                if (item) {
+                    if (item.driveId) deleteDriveFile(item.driveId);
+                    item._deleted = true; item._deletedAt = Date.now();
+                }
                 saveData();
                 renderAll();
             }
@@ -5315,11 +5324,24 @@
             }
         }
 
+        async function deleteDriveFile(driveId) {
+            if (!googleAccessToken || !driveId) return;
+            try {
+                await fetch('https://www.googleapis.com/drive/v3/files/' + driveId, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + googleAccessToken }
+                });
+            } catch (e) { console.error('Drive delete error:', e); }
+        }
+
         function deleteItem(type, id) {
             const yd = getYearData();
             if (confirm('למחוק?')) {
                 const item = yd[type].find(i => i.id === id);
-                if (item) { item._deleted = true; item._deletedAt = Date.now(); }
+                if (item) {
+                    if (item.driveId) deleteDriveFile(item.driveId);
+                    item._deleted = true; item._deletedAt = Date.now();
+                }
                 saveData();
                 renderAll();
             }
