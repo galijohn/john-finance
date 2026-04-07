@@ -765,8 +765,8 @@
         <!-- Dashboard -->
         <div id="page-dashboard" class="page active">
             <div class="page-header">
-                <h2>📊 סיכום שנתי</h2>
-                <div style="display:flex;gap:10px;align-items:center;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <h2>📊 סיכום שנתי</h2>
                     <div class="export-dropdown">
                         <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
                         <div class="export-dropdown-content">
@@ -774,6 +774,8 @@
                             <button onclick="exportPagePDF('dashboard')">📄 PDF</button>
                         </div>
                     </div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;">
                     <button class="btn btn-sm" onclick="openModal('dashboardSettingsModal')" title="התאם דשבורד">🎨 התאמה</button>
                     <div class="year-selector">
                         <span>📅</span>
@@ -926,8 +928,8 @@
         <!-- Salary Page -->
         <div id="page-salary" class="page">
             <div class="page-header">
-                <h2>💼 הכנסה כשכיר</h2>
-                <div style="display:flex;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <h2>💼 הכנסה כשכיר</h2>
                     <div class="export-dropdown">
                         <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
                         <div class="export-dropdown-content">
@@ -935,8 +937,8 @@
                             <button onclick="exportPagePDF('salary')">📄 PDF</button>
                         </div>
                     </div>
-                    <button class="btn btn-primary" onclick="openModal('salaryModal')">+ הוסף תקופת עבודה</button>
                 </div>
+                <button class="btn btn-primary" onclick="openModal('salaryModal')">+ הוסף תקופת עבודה</button>
             </div>
 
             <div class="info-box">
@@ -965,8 +967,8 @@
         <!-- Unemployment Page -->
         <div id="page-unemployment" class="page">
             <div class="page-header">
-                <h2>📋 דמי אבטלה</h2>
-                <div style="display:flex;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <h2>📋 דמי אבטלה</h2>
                     <div class="export-dropdown">
                         <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
                         <div class="export-dropdown-content">
@@ -974,8 +976,8 @@
                             <button onclick="exportPagePDF('unemployment')">📄 PDF</button>
                         </div>
                     </div>
-                    <button class="btn btn-primary" onclick="openModal('unemploymentModal')">+ הוסף תקופת אבטלה</button>
                 </div>
+                <button class="btn btn-primary" onclick="openModal('unemploymentModal')">+ הוסף תקופת אבטלה</button>
             </div>
 
             <div class="info-box">
@@ -1002,8 +1004,8 @@
         <!-- Miluim Page -->
         <div id="page-miluim" class="page">
             <div class="page-header">
-                <h2>🎖️ שירות מילואים</h2>
-                <div style="display:flex;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <h2>🎖️ שירות מילואים</h2>
                     <div class="export-dropdown">
                         <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
                         <div class="export-dropdown-content">
@@ -1011,8 +1013,8 @@
                             <button onclick="exportPagePDF('miluim')">📄 PDF</button>
                         </div>
                     </div>
-                    <button class="btn btn-primary" onclick="openModal('miluimModal')">+ הוסף תקופת מילואים</button>
                 </div>
+                <button class="btn btn-primary" onclick="openModal('miluimModal')">+ הוסף תקופת מילואים</button>
             </div>
 
             <div class="info-box">
@@ -1061,8 +1063,8 @@
         <!-- Self Employed Page -->
         <div id="page-selfemployed" class="page">
             <div class="page-header">
-                <h2>💰 הכנסה כעצמאי</h2>
-                <div style="display:flex;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <h2>💰 הכנסה כעצמאי</h2>
                     <div class="export-dropdown">
                         <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
                         <div class="export-dropdown-content">
@@ -1070,8 +1072,8 @@
                             <button onclick="exportPagePDF('selfEmployed')">📄 PDF</button>
                         </div>
                     </div>
-                    <button class="btn btn-primary" onclick="openModal('selfEmployedModal')">+ הוסף הכנסה</button>
                 </div>
+                <button class="btn btn-primary" onclick="openModal('selfEmployedModal')">+ הוסף הכנסה</button>
             </div>
 
             <div class="info-box warning" id="selfEmployedWarning" style="display:none;">
@@ -1139,8 +1141,8 @@
         <!-- Expenses Page -->
         <div id="page-expenses" class="page">
             <div class="page-header">
-                <h2>🧾 הוצאות מוכרות (עצמאי)</h2>
-                <div style="display:flex;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <h2>🧾 הוצאות מוכרות (עצמאי)</h2>
                     <div class="export-dropdown">
                         <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
                         <div class="export-dropdown-content">
@@ -1148,8 +1150,8 @@
                             <button onclick="exportPagePDF('expenses')">📄 PDF</button>
                         </div>
                     </div>
-                    <button class="btn btn-primary" onclick="openModal('expenseModal')">+ הוסף הוצאה</button>
                 </div>
+                <button class="btn btn-primary" onclick="openModal('expenseModal')">+ הוסף הוצאה</button>
             </div>
 
             <div class="info-box">
@@ -1206,8 +1208,8 @@
         <!-- VAT Page (for עוסק מורשה) -->
         <div id="page-vat" class="page">
             <div class="page-header">
-                <h2>📊 מע"מ</h2>
-                <div style="display:flex;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <h2>📊 מע"מ</h2>
                     <div class="export-dropdown">
                         <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
                         <div class="export-dropdown-content">
@@ -1215,8 +1217,8 @@
                             <button onclick="exportPagePDF('vat')">📄 PDF</button>
                         </div>
                     </div>
-                    <button class="btn btn-primary" onclick="openModal('vatModal')">+ הוסף דיווח</button>
                 </div>
+                <button class="btn btn-primary" onclick="openModal('vatModal')">+ הוסף דיווח</button>
             </div>
 
             <div class="info-box">
@@ -1372,12 +1374,14 @@
         <!-- Calculation Page -->
         <div id="page-calculation" class="page">
             <div class="page-header">
-                <h2>🧮 חישוב מס מפורט</h2>
-                <div class="export-dropdown">
-                    <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
-                    <div class="export-dropdown-content">
-                        <button onclick="exportPageExcel('taxCalc')">📊 Excel</button>
-                        <button onclick="exportPagePDF('taxCalc')">📄 PDF</button>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <h2>🧮 חישוב מס מפורט</h2>
+                    <div class="export-dropdown">
+                        <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
+                        <div class="export-dropdown-content">
+                            <button onclick="exportPageExcel('taxCalc')">📊 Excel</button>
+                            <button onclick="exportPagePDF('taxCalc')">📄 PDF</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1524,12 +1528,14 @@
         <!-- Forecast Page -->
         <div id="page-forecast" class="page">
             <div class="page-header">
-                <h2>📈 תחזית שנתית</h2>
-                <div class="export-dropdown">
-                    <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
-                    <div class="export-dropdown-content">
-                        <button onclick="exportPageExcel('forecast')">📊 Excel</button>
-                        <button onclick="exportPagePDF('forecast')">📄 PDF</button>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <h2>📈 תחזית שנתית</h2>
+                    <div class="export-dropdown">
+                        <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
+                        <div class="export-dropdown-content">
+                            <button onclick="exportPageExcel('forecast')">📊 Excel</button>
+                            <button onclick="exportPagePDF('forecast')">📄 PDF</button>
+                        </div>
                     </div>
                 </div>
             </div>
