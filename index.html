@@ -1794,6 +1794,7 @@
                     </div>
                     <div style="display:flex;gap:10px;">
                         <button class="btn btn-primary" onclick="initGoogleDrive()" id="btnConnect">🔗 התחבר</button>
+                        <a class="btn btn-success" id="btnOpenDrive" href="#" target="_blank" style="display:none;text-decoration:none;">📂 פתח בדרייב</a>
                         <button class="btn btn-danger" onclick="restoreFromDrive()" id="btnRestore" disabled style="display:none;">📥 שחזר מענן</button>
                     </div>
                 </div>
@@ -2747,15 +2748,20 @@
             const statusEl = document.getElementById('driveStatusText');
             const connectBtn = document.getElementById('btnConnect');
             const restoreBtn = document.getElementById('btnRestore');
+            const openDriveBtn = document.getElementById('btnOpenDrive');
             const syncIcon = document.getElementById('syncIcon');
             const syncText = document.getElementById('syncText');
-            
+
             if (connected) {
                 statusEl.innerHTML = '✅ מסונכרן';
                 statusEl.style.color = 'var(--success)';
                 connectBtn.style.display = 'none';
                 restoreBtn.style.display = 'inline-block';
                 restoreBtn.disabled = false;
+                if (openDriveBtn && driveFolderId) {
+                    openDriveBtn.href = 'https://drive.google.com/drive/folders/' + driveFolderId;
+                    openDriveBtn.style.display = 'inline-block';
+                }
                 // Update sidebar
                 syncIcon.textContent = '✅';
                 syncText.textContent = 'מסונכרן';
@@ -2765,6 +2771,7 @@
                 statusEl.style.color = 'var(--danger)';
                 connectBtn.style.display = 'inline-block';
                 restoreBtn.style.display = 'none';
+                if (openDriveBtn) openDriveBtn.style.display = 'none';
                 // Update sidebar
                 syncIcon.textContent = '❌';
                 syncText.textContent = 'לא מחובר';
