@@ -7258,27 +7258,38 @@
                 }
             }
 
-            // Build report HTML for pdf conversion
-            // Fix Hebrew spacing: replace regular spaces with &nbsp; in Hebrew text
-            const fixHebrew = (s) => s.replace(/([\u0590-\u05FF])\s+([\u0590-\u05FF])/g, '$1\u00A0$2').replace(/([\u0590-\u05FF])\s+([\u0590-\u05FF])/g, '$1\u00A0$2');
-            const fixedBody = fixHebrew(bodyContent);
-            const reportHTML = '<div dir="rtl" style="font-family:Segoe UI,Tahoma,Arial,sans-serif; color:#1e293b; padding:20px 25px; font-size:11px; width:700px; background:white; word-spacing:3px;">' +
-                '<style>* { word-spacing: 3px; } th { background: #1e293b !important; color: white !important; } .section-title { color: #1e293b !important; } .grand-total { background: #1e293b !important; color: white !important; }</style>' +
-                '<div style="border-top:3px double #1e293b; border-bottom:3px double #1e293b; padding:15px 0; margin-bottom:5px; text-align:center;">' +
-                '<h1 style="font-size:20px; margin:0 0 5px;">' + fixHebrew(title) + ' לשנת\u00A0המס ' + year + '</h1></div>' +
-                '<div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #cbd5e1; margin-bottom:20px; font-size:10px; color:#64748b;">' +
-                '<span>שם:\u00A0John\u00A0Levy</span><span>סוג\u00A0עוסק:\u00A0עוסק\u00A0מורשה</span><span>תאריך\u00A0הפקה:\u00A0' + dateStr + '</span></div>' +
-                fixedBody +
-                '<div style="margin-top:30px; padding-top:10px; border-top:3px double #1e293b; display:flex; justify-content:space-between; font-size:8px; color:#94a3b8;">' +
-                '<span>John\u00A0Finance\u00A0-\u00A0מערכת\u00A0ניהול\u00A0מס</span><span>מסמך\u00A0זה\u00A0אינו\u00A0מהווה\u00A0אישור\u00A0רשמי</span></div></div>';
+            // Use the ORIGINAL report HTML with full CSS - exact same as the old print window
+            const reportFullHTML = '<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><style>' +
+                '* { box-sizing: border-box; margin: 0; padding: 0; }' +
+                'body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; color: #1e293b; padding: 30px 40px; font-size: 11px; background: white; }' +
+                '.header { border-top: 3px double #1e293b; border-bottom: 3px double #1e293b; padding: 15px 0; margin-bottom: 5px; text-align: center; }' +
+                '.header h1 { font-size: 20px; margin-bottom: 5px; }' +
+                '.info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #cbd5e1; margin-bottom: 20px; font-size: 10px; color: #64748b; }' +
+                '.section-title { font-size: 13px; margin: 20px 0 5px; padding-bottom: 4px; border-bottom: 1px solid #cbd5e1; }' +
+                'table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }' +
+                'th { background: #1e293b; color: white; padding: 6px 10px; text-align: right; font-size: 10px; }' +
+                'td { padding: 5px 10px; border-bottom: 1px solid #e2e8f0; font-size: 10px; }' +
+                'tr:nth-child(even) { background: #f8fafc; }' +
+                '.num { text-align: left; direction: ltr; }' +
+                '.warn { color: #d97706; }' +
+                '.subtotal { display: flex; justify-content: space-between; padding: 6px 10px; font-weight: bold; border-top: 1px solid #94a3b8; margin-bottom: 10px; font-size: 11px; }' +
+                '.grand-total { display: flex; justify-content: space-between; padding: 10px 15px; background: #1e293b; color: white; font-weight: bold; font-size: 14px; margin-top: 15px; }' +
+                '.note { text-align: left; color: #94a3b8; font-size: 9px; margin-top: 5px; }' +
+                '.footer { margin-top: 30px; padding-top: 10px; border-top: 3px double #1e293b; display: flex; justify-content: space-between; font-size: 8px; color: #94a3b8; }' +
+                '</style></head><body>' +
+                '<div class="header"><h1>' + title + ' לשנת המס ' + year + '</h1></div>' +
+                '<div class="info-row"><span>שם: John Levy</span><span>סוג עוסק: עוסק מורשה</span><span>תאריך הפקה: ' + dateStr + '</span></div>' +
+                bodyContent +
+                '<div class="footer"><span>John Finance - מערכת ניהול מס</span><span>מסמך זה אינו מהווה אישור רשמי</span></div>' +
+                '</body></html>';
 
-            // Create hidden container for html2pdf
-            const container = document.createElement('div');
-            container.style.position = 'fixed';
-            container.style.left = '-9999px';
-            container.style.top = '0';
-            container.innerHTML = reportHTML;
-            document.body.appendChild(container);
+            // Create hidden iframe with the original report (preserves CSS classes + Hebrew spacing)
+            const printFrame = document.createElement('iframe');
+            printFrame.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:1123px;border:none;';
+            document.body.appendChild(printFrame);
+            printFrame.contentDocument.open();
+            printFrame.contentDocument.write(reportFullHTML);
+            printFrame.contentDocument.close();
 
             const pageDocs = getPageDocuments(page);
 
@@ -7291,16 +7302,16 @@
 
             (async function() {
                 try {
-                    // Step 1: Convert report HTML to PDF
+                    // Step 1: Convert report HTML to PDF using the iframe body
                     document.getElementById('pdfDetail').textContent = 'ממיר דוח ל-PDF...';
                     const reportPdfBytes = await html2pdf().set({
-                        margin: [15, 10, 15, 10],
-                        image: { type: 'jpeg', quality: 0.95 },
-                        html2canvas: { scale: 2, useCORS: true, width: 700 },
+                        margin: [15, 15, 15, 15],
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 2, useCORS: true, foreignObjectRendering: true },
                         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                    }).from(container.firstChild).outputPdf('arraybuffer');
+                    }).from(printFrame.contentDocument.body).outputPdf('arraybuffer');
 
-                    document.body.removeChild(container);
+                    document.body.removeChild(printFrame);
 
                     const { PDFDocument } = PDFLib;
                     const finalPdf = await PDFDocument.create();
