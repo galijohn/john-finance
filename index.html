@@ -4586,20 +4586,41 @@
             syncToCloudDebounced();
         }
         
-        // Debounced sync to cloud (avoid too many API calls)
+        // Debounced sync to cloud
         let syncTimeout = null;
+        let syncPending = false;
         function syncToCloudDebounced() {
             if (!googleAccessToken || !driveFolderId) return;
             if (syncTimeout) clearTimeout(syncTimeout);
+            syncPending = true;
             showSyncing();
             syncTimeout = setTimeout(async () => {
                 try {
                     await syncToCloud();
+                    syncPending = false;
                     updateDriveStatus(true);
                 } catch(e) {
+                    syncPending = false;
                     console.error('Auto-sync error:', e);
                 }
-            }, 3000);
+            }, 500);
+        }
+
+        // Force sync before page unload (prevent data loss)
+        window.addEventListener('beforeunload', (e) => {
+            if (syncPending && googleAccessToken && driveFolderId) {
+                // Synchronous save via sendBeacon
+                const jsonContent = JSON.stringify(data, null, 2);
+                const blob = new Blob([jsonContent], { type: 'application/json' });
+                navigator.sendBeacon && navigator.sendBeacon('https://www.googleapis.com/upload/drive/v3/files?uploadType=media', blob);
+            }
+        });
+
+        // Also request persistent storage so browser doesn't clear localStorage
+        if (navigator.storage && navigator.storage.persist) {
+            navigator.storage.persist().then(granted => {
+                console.log(granted ? '✅ Persistent storage granted' : '⚠️ Persistent storage denied');
+            });
         }
         
         // Save data.json to local folder
