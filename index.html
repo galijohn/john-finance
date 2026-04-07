@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>John Finance</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230891b2'/%3E%3Cpolygon points='50,15 85,32 85,68 50,85 15,68 15,32' fill='none' stroke='white' stroke-width='4'/%3E%3Ctext x='50' y='62' text-anchor='middle' font-family='Arial' font-size='30' font-weight='bold' fill='white'%3EJL%3C/text%3E%3C/svg%3E">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -488,6 +490,45 @@
             background: rgba(37, 99, 235, 0.25);
         }
 
+        .export-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .export-dropdown-content {
+            display: none;
+            position: absolute;
+            left: 0;
+            top: 100%;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            min-width: 160px;
+            z-index: 50;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .export-dropdown-content.show {
+            display: block;
+        }
+
+        .export-dropdown-content button {
+            width: 100%;
+            padding: 10px 15px;
+            background: none;
+            border: none;
+            color: var(--text);
+            text-align: right;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background 0.2s;
+        }
+
+        .export-dropdown-content button:hover {
+            background: rgba(37, 99, 235, 0.2);
+        }
+
         .credit-points-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -726,6 +767,13 @@
             <div class="page-header">
                 <h2>📊 סיכום שנתי</h2>
                 <div style="display:flex;gap:10px;align-items:center;">
+                    <div class="export-dropdown">
+                        <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
+                        <div class="export-dropdown-content">
+                            <button onclick="exportPageExcel('dashboard')">📊 Excel</button>
+                            <button onclick="exportPagePDF('dashboard')">📄 PDF</button>
+                        </div>
+                    </div>
                     <button class="btn btn-sm" onclick="openModal('dashboardSettingsModal')" title="התאם דשבורד">🎨 התאמה</button>
                     <div class="year-selector">
                         <span>📅</span>
@@ -788,6 +836,14 @@
                     <div class="value" id="dashSelfEmployed">₪0</div>
                     <div class="label">הכנסה כעצמאי</div>
                 </div>
+            </div>
+
+            <div class="card" data-card="expenses" style="display:none;margin-bottom:20px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <h3 style="margin:0;">🧾 הוצאות מוכרות</h3>
+                    <button class="btn btn-sm" onclick="showPage('expenses')" style="font-size:0.8rem;">פתח עמוד →</button>
+                </div>
+                <div id="dashExpensesSummary"></div>
             </div>
 
             <div class="cards-grid" id="dashboardCards2">
@@ -871,7 +927,16 @@
         <div id="page-salary" class="page">
             <div class="page-header">
                 <h2>💼 הכנסה כשכיר</h2>
-                <button class="btn btn-primary" onclick="openModal('salaryModal')">+ הוסף תקופת עבודה</button>
+                <div style="display:flex;gap:10px;">
+                    <div class="export-dropdown">
+                        <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
+                        <div class="export-dropdown-content">
+                            <button onclick="exportPageExcel('salary')">📊 Excel</button>
+                            <button onclick="exportPagePDF('salary')">📄 PDF</button>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="openModal('salaryModal')">+ הוסף תקופת עבודה</button>
+                </div>
             </div>
 
             <div class="info-box">
@@ -901,7 +966,16 @@
         <div id="page-unemployment" class="page">
             <div class="page-header">
                 <h2>📋 דמי אבטלה</h2>
-                <button class="btn btn-primary" onclick="openModal('unemploymentModal')">+ הוסף תקופת אבטלה</button>
+                <div style="display:flex;gap:10px;">
+                    <div class="export-dropdown">
+                        <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
+                        <div class="export-dropdown-content">
+                            <button onclick="exportPageExcel('unemployment')">📊 Excel</button>
+                            <button onclick="exportPagePDF('unemployment')">📄 PDF</button>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="openModal('unemploymentModal')">+ הוסף תקופת אבטלה</button>
+                </div>
             </div>
 
             <div class="info-box">
@@ -929,7 +1003,16 @@
         <div id="page-miluim" class="page">
             <div class="page-header">
                 <h2>🎖️ שירות מילואים</h2>
-                <button class="btn btn-primary" onclick="openModal('miluimModal')">+ הוסף תקופת מילואים</button>
+                <div style="display:flex;gap:10px;">
+                    <div class="export-dropdown">
+                        <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
+                        <div class="export-dropdown-content">
+                            <button onclick="exportPageExcel('miluim')">📊 Excel</button>
+                            <button onclick="exportPagePDF('miluim')">📄 PDF</button>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="openModal('miluimModal')">+ הוסף תקופת מילואים</button>
+                </div>
             </div>
 
             <div class="info-box">
@@ -979,7 +1062,16 @@
         <div id="page-selfemployed" class="page">
             <div class="page-header">
                 <h2>💰 הכנסה כעצמאי</h2>
-                <button class="btn btn-primary" onclick="openModal('selfEmployedModal')">+ הוסף הכנסה</button>
+                <div style="display:flex;gap:10px;">
+                    <div class="export-dropdown">
+                        <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
+                        <div class="export-dropdown-content">
+                            <button onclick="exportPageExcel('selfEmployed')">📊 Excel</button>
+                            <button onclick="exportPagePDF('selfEmployed')">📄 PDF</button>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="openModal('selfEmployedModal')">+ הוסף הכנסה</button>
+                </div>
             </div>
 
             <div class="info-box warning" id="selfEmployedWarning" style="display:none;">
@@ -1048,7 +1140,16 @@
         <div id="page-expenses" class="page">
             <div class="page-header">
                 <h2>🧾 הוצאות מוכרות (עצמאי)</h2>
-                <button class="btn btn-primary" onclick="openModal('expenseModal')">+ הוסף הוצאה</button>
+                <div style="display:flex;gap:10px;">
+                    <div class="export-dropdown">
+                        <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
+                        <div class="export-dropdown-content">
+                            <button onclick="exportPageExcel('expenses')">📊 Excel</button>
+                            <button onclick="exportPagePDF('expenses')">📄 PDF</button>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="openModal('expenseModal')">+ הוסף הוצאה</button>
+                </div>
             </div>
 
             <div class="info-box">
@@ -1060,15 +1161,15 @@
             <div class="expense-controls">
                 <div class="expense-filters">
                     <label style="color:var(--text-muted);font-size:0.85rem;">סינון:</label>
-                    <button class="filter-btn active" onclick="filterExpenses('all')">הכל</button>
+                    <button class="filter-btn active" onclick="filterExpenses('all', this)">הכל</button>
                     <span id="expenseFilterButtons"></span>
                 </div>
                 <div class="expense-actions">
                     <button class="btn btn-sm" id="expenseSortBtn" onclick="toggleExpenseSort()" title="סדר לפי תאריך">
                         📅 תאריך ↓
                     </button>
-                    <button class="btn btn-sm" id="expenseGroupBtn" onclick="toggleExpenseGroup()" title="כיווץ לפי קטגוריה">
-                        📁 קבץ לפי קטגוריה
+                    <button class="btn btn-sm active" id="expenseGroupBtn" onclick="toggleExpenseGroup()" title="כיווץ לפי קטגוריה">
+                        📁 תצוגה רגילה
                     </button>
                 </div>
             </div>
@@ -1106,7 +1207,16 @@
         <div id="page-vat" class="page">
             <div class="page-header">
                 <h2>📊 מע"מ</h2>
-                <button class="btn btn-primary" onclick="openModal('vatModal')">+ הוסף דיווח</button>
+                <div style="display:flex;gap:10px;">
+                    <div class="export-dropdown">
+                        <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
+                        <div class="export-dropdown-content">
+                            <button onclick="exportPageExcel('vat')">📊 Excel</button>
+                            <button onclick="exportPagePDF('vat')">📄 PDF</button>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="openModal('vatModal')">+ הוסף דיווח</button>
+                </div>
             </div>
 
             <div class="info-box">
@@ -1263,6 +1373,13 @@
         <div id="page-calculation" class="page">
             <div class="page-header">
                 <h2>🧮 חישוב מס מפורט</h2>
+                <div class="export-dropdown">
+                    <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
+                    <div class="export-dropdown-content">
+                        <button onclick="exportPageExcel('taxCalc')">📊 Excel</button>
+                        <button onclick="exportPagePDF('taxCalc')">📄 PDF</button>
+                    </div>
+                </div>
             </div>
 
             <div class="card">
@@ -1408,6 +1525,13 @@
         <div id="page-forecast" class="page">
             <div class="page-header">
                 <h2>📈 תחזית שנתית</h2>
+                <div class="export-dropdown">
+                    <button class="btn btn-sm" onclick="toggleExportMenu(this)">📤 ייצוא</button>
+                    <div class="export-dropdown-content">
+                        <button onclick="exportPageExcel('forecast')">📊 Excel</button>
+                        <button onclick="exportPagePDF('forecast')">📄 PDF</button>
+                    </div>
+                </div>
             </div>
 
             <div class="info-box">
@@ -2260,6 +2384,15 @@
                         <div class="credit-item">
                             <input type="checkbox" id="dash_blPaid" checked onchange="saveDashboardSettings()">
                             <label for="dash_blPaid">💳 ביט"ל ששולם</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label><strong>הוצאות</strong></label>
+                    <div class="credit-points-grid">
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_expenses" onchange="saveDashboardSettings()">
+                            <label for="dash_expenses">🧾 הוצאות מוכרות</label>
                         </div>
                     </div>
                 </div>
@@ -3235,6 +3368,7 @@
                     unemployment: true,
                     miluim: true,
                     selfemployed: true,
+                    expenses: false,
                     totalIncome: true,
                     credits: true,
                     taxDue: true,
@@ -3263,6 +3397,7 @@
                 unemployment: document.getElementById('dash_unemployment').checked,
                 miluim: document.getElementById('dash_miluim').checked,
                 selfemployed: document.getElementById('dash_selfemployed').checked,
+                expenses: document.getElementById('dash_expenses').checked,
                 totalIncome: document.getElementById('dash_totalIncome').checked,
                 credits: document.getElementById('dash_credits').checked,
                 taxDue: document.getElementById('dash_taxDue').checked,
@@ -4828,6 +4963,7 @@
             document.getElementById('dashUnemployment').textContent = formatCurrency(totals.unemployment);
             document.getElementById('dashMiluim').textContent = formatCurrency(totals.miluim);
             document.getElementById('dashSelfEmployed').textContent = formatCurrency(totals.selfEmployed);
+            renderDashExpenses();
             document.getElementById('dashTotalIncome').textContent = formatCurrency(totals.taxableIncome);
             document.getElementById('dashCredits').textContent = credits.toFixed(2);
             document.getElementById('dashTaxDue').textContent = formatCurrency(netTax);
@@ -5117,16 +5253,47 @@
             </tr>`).join('');
         }
 
+        function renderDashExpenses() {
+            const yd = getYearData();
+            const container = document.getElementById('dashExpensesSummary');
+            if (!container) return;
+            if (yd.expenses.length === 0) {
+                container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:10px;">אין הוצאות</div>';
+                return;
+            }
+            const groups = {};
+            yd.expenses.forEach(e => {
+                if (!groups[e.category]) groups[e.category] = { total: 0, recognized: 0, count: 0 };
+                groups[e.category].total += e.amount;
+                groups[e.category].recognized += e.amount * ((e.recognition ?? 100) / 100);
+                groups[e.category].count++;
+            });
+            const totalGross = yd.expenses.reduce((s, e) => s + e.amount, 0);
+            const totalRecognized = yd.expenses.reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+            let html = '<div style="display:flex;flex-direction:column;gap:6px;">';
+            for (const [cat, d] of Object.entries(groups)) {
+                const pct = totalGross > 0 ? (d.total / totalGross * 100).toFixed(0) : 0;
+                html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);">
+                    <span>${cat} (${d.count})</span>
+                    <span style="color:var(--danger)">${formatCurrency(d.recognized)} <small style="color:var(--text-muted)">(${pct}%)</small></span>
+                </div>`;
+            }
+            html += `<div style="display:flex;justify-content:space-between;padding:8px 0 0;font-weight:600;">
+                <span>סה"כ מוכר</span><span style="color:var(--danger)">${formatCurrency(totalRecognized)}</span>
+            </div></div>`;
+            container.innerHTML = html;
+        }
+
         // Expense page state
         let expenseFilter = 'all';
         let expenseSortAsc = true;
-        let expenseGrouped = false;
+        let expenseGrouped = true;
         let collapsedCategories = {};
 
-        function filterExpenses(category) {
+        function filterExpenses(category, el) {
             expenseFilter = category;
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            event.target.classList.add('active');
+            if (el) el.classList.add('active');
             renderAll();
         }
 
@@ -5155,7 +5322,7 @@
             const categories = [...new Set(yd.expenses.map(e => e.category))];
             const container = document.getElementById('expenseFilterButtons');
             container.innerHTML = categories.map(c =>
-                `<button class="filter-btn ${expenseFilter === c ? 'active' : ''}" onclick="filterExpenses('${c}')">${c}</button>`
+                `<button class="filter-btn ${expenseFilter === c ? 'active' : ''}" onclick="filterExpenses('${c}', this)">${c}</button>`
             ).join('');
             // Update "all" button
             const allBtn = container.previousElementSibling;
@@ -5458,7 +5625,133 @@
 
         // ========== UTILITIES ==========
         function formatCurrency(n) {
-            return '₪' + Math.round(n).toLocaleString('he-IL');
+            const val = Number(n) || 0;
+            if (val === Math.floor(val)) {
+                return '₪' + val.toLocaleString('he-IL');
+            }
+            return '₪' + val.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        // ========== EXPORT FUNCTIONS ==========
+        function toggleExportMenu(btn) {
+            const dropdown = btn.nextElementSibling;
+            document.querySelectorAll('.export-dropdown-content.show').forEach(d => {
+                if (d !== dropdown) d.classList.remove('show');
+            });
+            dropdown.classList.toggle('show');
+        }
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.export-dropdown')) {
+                document.querySelectorAll('.export-dropdown-content.show').forEach(d => d.classList.remove('show'));
+            }
+        });
+
+        function getPageData(page) {
+            const yd = getYearData();
+            const year = document.getElementById('yearSelect').value;
+            const pageNames = {
+                dashboard: 'סיכום שנתי',
+                salary: 'הכנסה כשכיר',
+                unemployment: 'דמי אבטלה',
+                miluim: 'מילואים',
+                selfEmployed: 'הכנסה כעצמאי',
+                expenses: 'הוצאות מוכרות',
+                vat: 'מע"מ',
+                taxCalc: 'חישוב מס',
+                forecast: 'תחזית שנתית'
+            };
+
+            let headers = [];
+            let rows = [];
+            let title = pageNames[page] || page;
+
+            switch (page) {
+                case 'salary':
+                    headers = ['חודש', 'מעסיק', 'ברוטו', 'מס שנוכה', 'ביט"ל שנוכה'];
+                    rows = yd.salary.map(s => [MONTHS[s.month], s.employer || '', s.gross, s.taxDeducted, s.blDeducted || 0]);
+                    break;
+                case 'unemployment':
+                    headers = ['חודש', 'ברוטו', 'מס שנוכה', 'ביט"ל שנוכה'];
+                    rows = yd.unemployment.map(u => [MONTHS[u.month], u.gross, u.taxDeducted, u.blDeducted || 0]);
+                    break;
+                case 'miluim':
+                    headers = ['חודש', 'ימים', 'סכום', 'מס שנוכה', 'ביט"ל שנוכה'];
+                    rows = yd.miluim.map(m => [MONTHS[m.month], m.days, m.amount, m.taxDeducted || 0, m.blDeducted || 0]);
+                    break;
+                case 'selfEmployed':
+                    headers = ['חודש', 'תיאור', 'סכום'];
+                    rows = yd.selfEmployed.map(s => [MONTHS[s.month], s.description || '', s.amount]);
+                    break;
+                case 'expenses':
+                    headers = ['תאריך', 'תיאור', 'קטגוריה', 'סכום', '% הכרה', 'סכום מוכר', 'הערות'];
+                    rows = yd.expenses.map(e => {
+                        const pct = e.recognition ?? 100;
+                        return [e.date, e.description || '', e.category, e.amount, pct + '%', e.amount * (pct / 100), e.notes || ''];
+                    });
+                    break;
+                case 'vat':
+                    headers = ['תקופה', 'הכנסות', 'מע"מ עסקאות', 'מע"מ תשומות', 'הפרש'];
+                    rows = (yd.vatReports || []).map(v => {
+                        const diff = v.outputVat - v.inputVat;
+                        return [v.period, v.income, v.outputVat, v.inputVat, diff];
+                    });
+                    break;
+                case 'dashboard':
+                case 'taxCalc':
+                case 'forecast': {
+                    const totals = calculateTotals();
+                    headers = ['פריט', 'סכום'];
+                    rows = [
+                        ['הכנסה כשכיר', totals.salary],
+                        ['דמי אבטלה', totals.unemployment],
+                        ['מילואים', totals.miluim],
+                        ['הכנסה כעצמאי', totals.selfEmployed],
+                        ['הוצאות מוכרות', totals.expenses],
+                        ['הכנסה חייבת', totals.taxableIncome],
+                        ['מס הכנסה ששולם', totals.totalTaxPaid],
+                    ];
+                    break;
+                }
+            }
+            return { headers, rows, title, year };
+        }
+
+        function exportPageExcel(page) {
+            const { headers, rows, title, year } = getPageData(page);
+            const wsData = [headers, ...rows];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+            // Auto-width columns
+            ws['!cols'] = headers.map((h, i) => {
+                let max = h.length;
+                rows.forEach(r => {
+                    const val = String(r[i] ?? '');
+                    if (val.length > max) max = val.length;
+                });
+                return { wch: Math.min(max + 4, 30) };
+            });
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 31));
+            XLSX.writeFile(wb, `${title}-${year}.xlsx`);
+            document.querySelectorAll('.export-dropdown-content.show').forEach(d => d.classList.remove('show'));
+        }
+
+        function exportPagePDF(page) {
+            const pageEl = document.querySelector('.page.active');
+            if (!pageEl) return;
+
+            const opt = {
+                margin: [10, 10, 10, 10],
+                filename: `${getPageData(page).title}-${getPageData(page).year}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, backgroundColor: '#0f172a' },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+            };
+
+            html2pdf().set(opt).from(pageEl).save();
+            document.querySelectorAll('.export-dropdown-content.show').forEach(d => d.classList.remove('show'));
         }
 
         function exportData() {
