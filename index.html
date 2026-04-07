@@ -853,6 +853,31 @@
                 display: none;
             }
         }
+
+        /* Mobile landscape */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            .table-container table {
+                min-width: 500px;
+            }
+            th, td {
+                padding: 6px 8px;
+                font-size: 0.75rem;
+            }
+            .cards-grid {
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                gap: 6px;
+            }
+            .stat-card {
+                padding: 8px 6px;
+            }
+            .stat-card .value {
+                font-size: 1rem;
+            }
+        }
     </style>
 </head>
 <body>
