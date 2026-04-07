@@ -6728,7 +6728,111 @@
             } catch (e) { console.error('Excel export error:', e); alert('שגיאה בייצוא: ' + e.message); }
         }
 
-        function exportPagePDF(page) {
+        function getPageDocuments(page) {
+            const yd = getYearData();
+            const docs = yd.documents || [];
+            const records = [];
+
+            function addRecordDocs(items, recordType) {
+                (items || []).forEach(item => {
+                    if (item.fileName && (item.driveLink || item.driveId)) {
+                        records.push({
+                            fileName: item.fileName,
+                            driveLink: item.driveLink,
+                            driveId: item.driveId,
+                            type: recordType,
+                            description: item.description || item.employer || item.notes || '',
+                            date: item.date || (item.month ? MONTHS[item.month] : ''),
+                            amount: item.amount || item.gross || 0
+                        });
+                    }
+                });
+            }
+
+            if (page === 'dashboard' || page === 'calculation') {
+                // All documents
+                addRecordDocs(yd.salary, 'שכיר');
+                addRecordDocs(yd.unemployment, 'אבטלה');
+                addRecordDocs(yd.miluim, 'מילואים');
+                addRecordDocs(yd.selfEmployed, 'עצמאי');
+                addRecordDocs(yd.expenses, 'הוצאות');
+                addRecordDocs(yd.taxAdvances, 'מקדמות מס');
+                addRecordDocs(yd.blAdvances, 'מקדמות ביט"ל');
+            } else if (page === 'expenses') {
+                addRecordDocs(yd.expenses, 'הוצאות');
+            } else if (page === 'selfEmployed') {
+                addRecordDocs(yd.selfEmployed, 'עצמאי');
+                addRecordDocs(yd.taxAdvances, 'מקדמות מס');
+                addRecordDocs(yd.blAdvances, 'מקדמות ביט"ל');
+            } else if (page === 'salary') {
+                addRecordDocs(yd.salary, 'שכיר');
+            } else if (page === 'unemployment') {
+                addRecordDocs(yd.unemployment, 'אבטלה');
+            } else if (page === 'miluim') {
+                addRecordDocs(yd.miluim, 'מילואים');
+            }
+
+            return records;
+        }
+
+        async function fetchDriveImageAsBase64(driveId) {
+            if (!googleAccessToken || !driveId) return null;
+            try {
+                const response = await fetch('https://www.googleapis.com/drive/v3/files/' + driveId + '?alt=media', {
+                    headers: { 'Authorization': 'Bearer ' + googleAccessToken }
+                });
+                if (!response.ok) return null;
+                const blob = await response.blob();
+                if (!blob.type.startsWith('image/')) return null;
+                return new Promise(resolve => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => resolve(null);
+                    reader.readAsDataURL(blob);
+                });
+            } catch(e) {
+                return null;
+            }
+        }
+
+        async function buildAppendicesHTML(docs) {
+            if (!docs || docs.length === 0) return '';
+
+            let html = '<div style="page-break-before:always;"></div>';
+            html += '<div class="header" style="margin-top:20px;"><h1>נספחים - מסמכים מצורפים</h1></div>';
+            html += '<table><thead><tr><th>#</th><th>סוג</th><th>תיאור</th><th>תאריך</th><th>קובץ</th></tr></thead><tbody>';
+
+            docs.forEach((doc, i) => {
+                html += '<tr><td>' + (i+1) + '</td><td>' + doc.type + '</td><td>' + doc.description + '</td><td>' + doc.date + '</td><td>' + doc.fileName + '</td></tr>';
+            });
+            html += '</tbody></table>';
+
+            // Embed images
+            let imgIndex = 0;
+            for (const doc of docs) {
+                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.fileName);
+                if (isImage && doc.driveId) {
+                    const base64 = await fetchDriveImageAsBase64(doc.driveId);
+                    if (base64) {
+                        imgIndex++;
+                        html += '<div style="page-break-before:always;"></div>';
+                        html += '<div style="margin-top:10px;border:1px solid #cbd5e1;padding:10px;border-radius:8px;">';
+                        html += '<div style="font-weight:bold;margin-bottom:8px;font-size:12px;">נספח ' + imgIndex + ': ' + doc.fileName + ' (' + doc.type + ')</div>';
+                        html += '<img src="' + base64 + '" style="max-width:100%;max-height:90vh;display:block;margin:0 auto;" />';
+                        html += '</div>';
+                    }
+                } else if (doc.driveLink) {
+                    imgIndex++;
+                    html += '<div style="margin-top:10px;padding:8px;background:#f8fafc;border-radius:6px;font-size:10px;">';
+                    html += 'נספח ' + imgIndex + ': <a href="' + doc.driveLink + '" target="_blank">' + doc.fileName + '</a> (' + doc.type + ')';
+                    html += '</div>';
+                }
+            }
+
+            return html;
+        }
+
+        async function exportPagePDF(page) {
             const { headers, rows, title, year } = getPageData(page);
             const yd = getYearData();
             const dateStr = new Date().toLocaleDateString('he-IL');
@@ -7026,6 +7130,13 @@
                 }
             }
 
+            // Build appendices from attached documents
+            const pageDocs = getPageDocuments(page);
+            let appendicesHTML = '';
+            if (pageDocs.length > 0) {
+                appendicesHTML = await buildAppendicesHTML(pageDocs);
+            }
+
             const html = '<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><title>' + title + '</title><style>' +
                 '* { box-sizing: border-box; margin: 0; padding: 0; }' +
                 'body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; color: #1e293b; padding: 30px 40px; font-size: 11px; }' +
@@ -7049,6 +7160,7 @@
                 '<div class="info-row"><span>שם: John Levy</span><span>סוג עוסק: עוסק מורשה</span><span>תאריך הפקה: ' + dateStr + '</span></div>' +
                 bodyContent +
                 '<div class="footer"><span>John Finance - מערכת ניהול מס</span><span>מסמך זה אינו מהווה אישור רשמי</span></div>' +
+                appendicesHTML +
                 '</body></html>';
 
             const printWindow = window.open('', '_blank');
