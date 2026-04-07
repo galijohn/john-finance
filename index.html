@@ -7258,19 +7258,34 @@
                 }
             }
 
+            // Inject PDF styles into document head (html2canvas ignores <style> inside rendered elements)
+            const pdfStyle = document.createElement('style');
+            pdfStyle.id = 'pdfReportCSS';
+            pdfStyle.textContent = '#pdfContainer th { background:#1e293b !important; color:white !important; padding:6px 10px; }' +
+                '#pdfContainer .section-title { color:#1e293b !important; font-size:13px; font-weight:bold; margin:20px 0 5px; padding-bottom:4px; border-bottom:1px solid #cbd5e1; }' +
+                '#pdfContainer .grand-total { background:#1e293b !important; color:white !important; }' +
+                '#pdfContainer .subtotal { width:100%; border-top:1px solid #94a3b8; margin-bottom:10px; font-weight:bold; font-size:11px; }' +
+                '#pdfContainer .subtotal span:last-child { float:left; }';
+            document.head.appendChild(pdfStyle);
+
             // Build report HTML for pdf conversion
             const reportHTML = '<div dir="rtl" style="font-family:Segoe UI,Tahoma,Arial,sans-serif; color:#1e293b; padding:20px 25px; font-size:11px; width:700px; background:white;">' +
-                '<style>th { background: #1e293b !important; color: white !important; } .section-title { color: #1e293b !important; } .grand-total { background: #1e293b !important; color: white !important; }</style>' +
                 '<div style="border-top:3px double #1e293b; border-bottom:3px double #1e293b; padding:15px 0; margin-bottom:5px; text-align:center;">' +
                 '<h1 style="font-size:20px; margin:0 0 5px;">' + title + ' לשנת המס ' + year + '</h1></div>' +
-                '<div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #cbd5e1; margin-bottom:20px; font-size:10px; color:#64748b;">' +
-                '<span>שם: John Levy</span><span>סוג עוסק: עוסק מורשה</span><span>תאריך הפקה: ' + dateStr + '</span></div>' +
+                '<table style="width:100%; margin-bottom:20px; border-bottom:1px solid #cbd5e1;"><tr>' +
+                '<td style="padding:8px 0; font-size:10px; color:#64748b; text-align:right;">שם: John Levy</td>' +
+                '<td style="padding:8px 0; font-size:10px; color:#64748b; text-align:center;">סוג עוסק: עוסק מורשה</td>' +
+                '<td style="padding:8px 0; font-size:10px; color:#64748b; text-align:left;">תאריך הפקה: ' + dateStr + '</td>' +
+                '</tr></table>' +
                 bodyContent +
-                '<div style="margin-top:30px; padding-top:10px; border-top:3px double #1e293b; display:flex; justify-content:space-between; font-size:8px; color:#94a3b8;">' +
-                '<span>John Finance - מערכת ניהול מס</span><span>מסמך זה אינו מהווה אישור רשמי</span></div></div>';
+                '<table style="width:100%; margin-top:30px; border-top:3px double #1e293b;"><tr>' +
+                '<td style="padding:10px 0; font-size:8px; color:#94a3b8; text-align:right;">John Finance - מערכת ניהול מס</td>' +
+                '<td style="padding:10px 0; font-size:8px; color:#94a3b8; text-align:left;">מסמך זה אינו מהווה אישור רשמי</td>' +
+                '</tr></table></div>';
 
             // Create hidden container for html2pdf
             const container = document.createElement('div');
+            container.id = 'pdfContainer';
             container.style.position = 'fixed';
             container.style.left = '-9999px';
             container.style.top = '0';
@@ -7278,7 +7293,6 @@
             document.body.appendChild(container);
 
             // Fix Hebrew spacing: walk ALL text nodes and replace spaces with non-breaking spaces
-            // This is more reliable than regex on HTML strings - catches every piece of text
             const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
             while (walker.nextNode()) {
                 walker.currentNode.textContent = walker.currentNode.textContent.replace(/ /g, '\u00A0');
@@ -7305,6 +7319,7 @@
                     }).from(container.firstChild).outputPdf('arraybuffer');
 
                     document.body.removeChild(container);
+                    document.getElementById('pdfReportCSS')?.remove();
 
                     const { PDFDocument } = PDFLib;
                     const finalPdf = await PDFDocument.create();
