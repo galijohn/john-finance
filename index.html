@@ -5778,6 +5778,7 @@
 
                 const ws = XLSX.utils.aoa_to_sheet(wsData);
                 ws['!cols'] = [{ wch: 14 }, { wch: 30 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+                ws['!views'] = [{ RTL: true }];
                 XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 31));
 
             } else {
@@ -5807,6 +5808,7 @@
                     rows.forEach(r => { const v = String(r[i] ?? ''); if (v.length > max) max = v.length; });
                     return { wch: Math.min(max + 4, 30) };
                 });
+                ws['!views'] = [{ RTL: true }];
                 XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 31));
             }
 
