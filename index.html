@@ -4603,7 +4603,7 @@
             let totalInputVat = 0;
             let totalOutputVat = 0;
             
-            tbody.innerHTML = yd.vatReports.map(v => {
+            tbody.innerHTML = [...yd.vatReports].sort((a, b) => parseInt(a.period) - parseInt(b.period)).map(v => {
                 totalIncome += v.income;
                 totalExpenses += v.expenses;
                 totalInputVat += v.inputVat;
@@ -5228,7 +5228,7 @@
                 tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">💼</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = yd.salary.map(s => `<tr>
+            tbody.innerHTML = [...yd.salary].sort((a, b) => a.fromMonth - b.fromMonth).map(s => `<tr>
                 <td>${s.employer || '-'} ${s.notes ? '<span data-tip="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${MONTHS[s.fromMonth]} - ${MONTHS[s.toMonth]}</td>
                 <td>${formatCurrency(s.gross)}</td>
@@ -5249,7 +5249,7 @@
                 tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">📋</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = yd.unemployment.map(u => `<tr>
+            tbody.innerHTML = [...yd.unemployment].sort((a, b) => a.fromMonth - b.fromMonth).map(u => `<tr>
                 <td>${MONTHS[u.fromMonth]} - ${MONTHS[u.toMonth]} ${u.notes ? '<span data-tip="'+u.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${formatCurrency(u.gross)}</td>
                 <td>${formatCurrency(u.taxDeducted)}</td>
@@ -5301,7 +5301,7 @@
                 tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><div class="icon">💰</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = yd.selfEmployed.map(s => `<tr>
+            tbody.innerHTML = [...yd.selfEmployed].sort((a, b) => a.month - b.month).map(s => `<tr>
                 <td>${MONTHS[s.month]}</td>
                 <td>${s.description || '-'} ${s.notes ? '<span data-tip="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${formatCurrency(s.amount)}</td>
@@ -5465,10 +5465,10 @@
             let cumulative = 0;
             let total = 0;
             
-            tbody.innerHTML = yd.taxAdvances.map(p => {
+            tbody.innerHTML = [...yd.taxAdvances].sort((a, b) => a.month - b.month).map(p => {
                 cumulative += p.amount;
                 total += p.amount;
-                
+
                 return `<tr>
                     <td>${MONTHS[p.month]}</td>
                     <td>${formatCurrency(p.amount)}</td>
@@ -5505,10 +5505,10 @@
             let cumulative = 0;
             let total = 0;
             
-            tbody.innerHTML = yd.blAdvances.map(p => {
+            tbody.innerHTML = [...yd.blAdvances].sort((a, b) => a.month - b.month).map(p => {
                 cumulative += p.amount;
                 total += p.amount;
-                
+
                 return `<tr>
                     <td>${MONTHS[p.month]}</td>
                     <td>${formatCurrency(p.amount)}</td>
