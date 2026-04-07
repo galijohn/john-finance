@@ -3091,11 +3091,54 @@
         }
 
         // ===== AUTO-SYNC FROM CLOUD ON LOAD =====
+        function mergeArrayById(localArr, cloudArr) {
+            if (!localArr && !cloudArr) return [];
+            if (!localArr) return cloudArr || [];
+            if (!cloudArr) return localArr || [];
+            const map = new Map();
+            localArr.forEach(item => { if (item.id) map.set(item.id, item); });
+            cloudArr.forEach(item => { if (item.id && !map.has(item.id)) map.set(item.id, item); });
+            return Array.from(map.values());
+        }
+
+        function mergeYearData(localYd, cloudYd) {
+            if (!localYd && !cloudYd) return null;
+            if (!localYd) return cloudYd;
+            if (!cloudYd) return localYd;
+            const merged = JSON.parse(JSON.stringify(localYd));
+            const arrays = ['salary', 'unemployment', 'miluim', 'selfEmployed', 'expenses', 'taxAdvances', 'blAdvances', 'vatReports', 'documents'];
+            arrays.forEach(key => {
+                merged[key] = mergeArrayById(localYd[key], cloudYd[key]);
+            });
+            // Settings: keep whichever was modified more recently (use local as default)
+            return merged;
+        }
+
+        function mergeData(localData, cloudData) {
+            const merged = JSON.parse(JSON.stringify(localData));
+            // Merge years list
+            const allYears = new Set([...(localData.years || []), ...(cloudData.years || [])]);
+            merged.years = Array.from(allYears);
+            // Merge each year's data
+            const allYearKeys = new Set([...Object.keys(localData.yearData || {}), ...Object.keys(cloudData.yearData || {})]);
+            if (!merged.yearData) merged.yearData = {};
+            allYearKeys.forEach(year => {
+                merged.yearData[year] = mergeYearData(
+                    localData.yearData?.[year],
+                    cloudData.yearData?.[year]
+                );
+            });
+            // Keep PIN from whichever has it
+            if (!merged.pin && cloudData.pin) merged.pin = cloudData.pin;
+            // Keep favorites from local
+            merged.lastModified = Date.now();
+            return merged;
+        }
+
         async function pullFromCloudIfNewer() {
             if (!googleAccessToken || !driveFolderId) return;
 
             try {
-                // Find data.json in Drive
                 const search = await gapi.client.drive.files.list({
                     q: `name='data.json' and '${driveFolderId}' in parents and trashed=false`,
                     fields: 'files(id,modifiedTime)'
@@ -3104,8 +3147,6 @@
                 if (search.result.files.length === 0) return;
 
                 const fileId = search.result.files[0].id;
-
-                // Download cloud data
                 const response = await gapi.client.drive.files.get({
                     fileId: fileId,
                     alt: 'media'
@@ -3115,29 +3156,33 @@
                 const cloudModified = cloudData.lastModified || 0;
                 const localModified = data.lastModified || 0;
 
-                if (cloudModified > localModified) {
-                    // Cloud is newer - update local
-                    console.log('☁️ Cloud data is newer, updating local...');
-                    data = cloudData;
-                    localStorage.setItem('taxCalculatorV2', JSON.stringify(data));
-
-                    // Refresh UI
-                    renderYearSelector();
-                    loadDashboardSettings();
-                    loadCreditsToUI();
-                    loadBusinessStatus();
-                    loadFavorites();
-                    renderAll();
-
-                    const now = new Date().toLocaleString('he-IL');
-                    document.getElementById('lastSyncTime').textContent = '📅 סונכרן מהענן: ' + now;
-                    localStorage.setItem('lastDriveBackup', now);
-
-                    // Show brief notification
-                    showSyncNotification('☁️ נתונים עודכנו מהענן');
-                } else {
+                if (cloudModified === localModified) {
                     console.log('✅ Local data is up to date');
+                    return;
                 }
+
+                // Merge data from both sources (no data loss)
+                console.log('🔄 Merging local + cloud data...');
+                const merged = mergeData(data, cloudData);
+                data = merged;
+                localStorage.setItem('taxCalculatorV2', JSON.stringify(data));
+
+                // Sync merged result back to cloud
+                syncToCloudDebounced();
+
+                // Refresh UI
+                renderYearSelector();
+                loadDashboardSettings();
+                loadCreditsToUI();
+                loadBusinessStatus();
+                loadFavorites();
+                renderAll();
+
+                const now = new Date().toLocaleString('he-IL');
+                document.getElementById('lastSyncTime').textContent = '📅 סונכרן: ' + now;
+                localStorage.setItem('lastDriveBackup', now);
+
+                showSyncNotification('🔄 נתונים סונכרנו');
             } catch(e) {
                 console.error('Pull from cloud error:', e);
             }
