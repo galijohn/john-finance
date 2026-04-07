@@ -13,7 +13,7 @@
     <link rel="apple-touch-icon" href="icon.svg">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dom-to-image-more@3.4.5/dist/dom-to-image-more.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <style>
         * {
@@ -7282,25 +7282,7 @@
             container.innerHTML = reportHTML;
             document.body.appendChild(container);
 
-            // Fix Hebrew spacing for html2canvas:
-            // 1. Replace spaces with NBSP (preserves word spacing)
-            // 2. Add RLM (Right-to-Left Mark) around punctuation (fixes bidi reordering)
-            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-            while (walker.nextNode()) {
-                walker.currentNode.textContent = walker.currentNode.textContent
-                    .replace(/ /g, '\u00A0')
-                    .replace(/(\()/g, '\u200F$1')
-                    .replace(/(\))/g, '$1\u200F')
-                    .replace(/(\s-\s)/g, '\u200F$1\u200F')
-                    .replace(/(:)/g, '$1\u200F');
-            }
-
-            // Fix subtotal/grand-total: float the number span to the left
-            container.querySelectorAll('div[style*="overflow:hidden"] > span:last-child').forEach(s => {
-                s.style.cssText = 'float:left;';
-            });
-
-            // Fix th inline styles (html2canvas needs inline)
+            // Apply inline styles for th/td (needed for dom-to-image cloning)
             container.querySelectorAll('th').forEach(th => {
                 th.style.background = '#1e293b';
                 th.style.color = 'white';
@@ -7308,12 +7290,14 @@
                 th.style.textAlign = 'right';
                 th.style.fontSize = '10px';
             });
-
-            // Fix td padding
             container.querySelectorAll('td').forEach(td => {
                 if (!td.style.padding) td.style.padding = '5px 10px';
                 if (!td.style.borderBottom) td.style.borderBottom = '1px solid #e2e8f0';
                 if (!td.style.fontSize) td.style.fontSize = '10px';
+            });
+            // Subtotal/grand-total: float number to left
+            container.querySelectorAll('div[style*="overflow:hidden"] > span:last-child').forEach(s => {
+                s.style.cssText = 'float:left;';
             });
 
             const pageDocs = getPageDocuments(page);
@@ -7327,24 +7311,47 @@
 
             (async function() {
                 try {
-                    // Step 1: Convert report HTML to PDF
+                    // Step 1: Convert report to image using dom-to-image (uses browser's native text rendering)
                     document.getElementById('pdfDetail').textContent = 'ממיר דוח ל-PDF...';
-                    const reportPdfBytes = await html2pdf().set({
-                        margin: [15, 10, 15, 10],
-                        image: { type: 'jpeg', quality: 0.95 },
-                        html2canvas: { scale: 2, useCORS: true, width: 700 },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                    }).from(container.firstChild).outputPdf('arraybuffer');
-
+                    const reportEl = container.firstChild;
+                    const pixelScale = 2; // 2x for crisp text
+                    const canvas = await domtoimage.toCanvas(reportEl, {
+                        bgcolor: '#ffffff',
+                        width: reportEl.scrollWidth * pixelScale,
+                        height: reportEl.scrollHeight * pixelScale,
+                        style: {
+                            transform: 'scale(' + pixelScale + ')',
+                            transformOrigin: 'top left'
+                        }
+                    });
                     document.body.removeChild(container);
 
+                    // Split canvas into A4 pages
                     const { PDFDocument } = PDFLib;
                     const finalPdf = await PDFDocument.create();
+                    const a4W = 595.28, a4H = 841.89, pdfMargin = 30;
+                    const usableW = a4W - 2 * pdfMargin;
+                    const usableH = a4H - 2 * pdfMargin;
+                    const imgScale = usableW / canvas.width;
+                    const pageHeightPx = usableH / imgScale;
+                    const numPages = Math.ceil(canvas.height / pageHeightPx);
 
-                    // Add report pages
-                    const reportDoc = await PDFDocument.load(reportPdfBytes);
-                    const reportPages = await finalPdf.copyPages(reportDoc, reportDoc.getPageIndices());
-                    reportPages.forEach(p => finalPdf.addPage(p));
+                    for (let p = 0; p < numPages; p++) {
+                        const yStart = p * pageHeightPx;
+                        const thisH = Math.min(pageHeightPx, canvas.height - yStart);
+                        const pageCanvas = document.createElement('canvas');
+                        pageCanvas.width = canvas.width;
+                        pageCanvas.height = thisH;
+                        pageCanvas.getContext('2d').drawImage(canvas, 0, yStart, canvas.width, thisH, 0, 0, canvas.width, thisH);
+                        const pageDataUrl = pageCanvas.toDataURL('image/png', 1.0);
+                        const pageImgBytes = Uint8Array.from(atob(pageDataUrl.split(',')[1]), c => c.charCodeAt(0));
+                        const pageImg = await finalPdf.embedPng(pageImgBytes);
+                        const drawH = thisH * imgScale;
+                        const pdfPage = finalPdf.addPage([a4W, a4H]);
+                        pdfPage.drawImage(pageImg, { x: pdfMargin, y: a4H - pdfMargin - drawH, width: usableW, height: drawH });
+                    }
+
+                    // Report pages already added above via canvas splitting
 
                     // Step 2: Fetch and merge attachments
                     if (pageDocs.length > 0) {
