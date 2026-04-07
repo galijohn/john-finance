@@ -3145,18 +3145,6 @@
         }
         
         // Copy local folder path to clipboard
-        async function openLocalFolder() {
-            if (localFolderHandle) {
-                const path = `${localFolderHandle.name}\\john-finance`;
-                try {
-                    await navigator.clipboard.writeText(path);
-                    alert(`📋 הנתיב הועתק ללוח!\n\n${path}\n\nפתח את סייר הקבצים והדבק בשורת הכתובת.`);
-                } catch (e) {
-                    alert(`📁 תיקייה: ${path}\n\nהעתק ידנית ופתח בסייר הקבצים.`);
-                }
-            }
-        }
-        
         // Save file to local folder
         async function saveFileLocally(file, subFolder, year = currentYear) {
             if (!localFolderHandle) return null;
