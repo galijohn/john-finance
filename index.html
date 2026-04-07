@@ -7282,28 +7282,18 @@
             container.innerHTML = reportHTML;
             document.body.appendChild(container);
 
-            // Fix Hebrew spacing: wrap each word in its own span so html2canvas renders them separately
-            const textNodes = [];
+            // Fix Hebrew spacing for html2canvas:
+            // 1. Replace spaces with NBSP (preserves word spacing)
+            // 2. Add RLM (Right-to-Left Mark) around punctuation (fixes bidi reordering)
             const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-            while (walker.nextNode()) textNodes.push(walker.currentNode);
-            textNodes.forEach(node => {
-                const text = node.textContent;
-                if (!text || !text.trim() || text.trim().length < 2) return;
-                const words = text.split(/(\s+)/);
-                if (words.length <= 1) return;
-                const parent = node.parentNode;
-                const frag = document.createDocumentFragment();
-                words.forEach(w => {
-                    if (/^\s+$/.test(w)) {
-                        frag.appendChild(document.createTextNode('\u00A0'));
-                    } else {
-                        const span = document.createElement('span');
-                        span.textContent = w;
-                        frag.appendChild(span);
-                    }
-                });
-                parent.replaceChild(frag, node);
-            });
+            while (walker.nextNode()) {
+                walker.currentNode.textContent = walker.currentNode.textContent
+                    .replace(/ /g, '\u00A0')
+                    .replace(/(\()/g, '\u200F$1')
+                    .replace(/(\))/g, '$1\u200F')
+                    .replace(/(\s-\s)/g, '\u200F$1\u200F')
+                    .replace(/(:)/g, '$1\u200F');
+            }
 
             // Fix subtotal/grand-total: float the number span to the left
             container.querySelectorAll('div[style*="overflow:hidden"] > span:last-child').forEach(s => {
