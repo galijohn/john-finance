@@ -13,6 +13,7 @@
     <link rel="apple-touch-icon" href="icon.svg">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -7319,12 +7320,11 @@
                 }
             }
 
-            // Open print window BEFORE any async work (prevents popup blocker)
-            const printWindow = window.open('', '_blank');
-            if (!printWindow) {
-                alert('הדפדפן חסם את החלון. אנא אפשר חלונות קופצים עבור אתר זה.');
-                return;
-            }
+            // Show loading indicator
+            const loadingEl = document.createElement('div');
+            loadingEl.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+            loadingEl.innerHTML = '<div style="background:white;padding:30px 50px;border-radius:12px;font-family:Arial;font-size:18px;direction:rtl;">מכין דוח PDF...</div>';
+            document.body.appendChild(loadingEl);
 
             // Build appendices from attached documents
             const pageDocs = getPageDocuments(page);
@@ -7333,37 +7333,58 @@
                 appendicesHTML = await buildAppendicesHTML(pageDocs);
             }
 
-            const html = '<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><title>' + title + '</title><style>' +
-                '* { box-sizing: border-box; margin: 0; padding: 0; }' +
-                'body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; color: #1e293b; padding: 30px 40px; font-size: 11px; }' +
-                '.header { border-top: 3px double #1e293b; border-bottom: 3px double #1e293b; padding: 15px 0; margin-bottom: 5px; text-align: center; }' +
-                '.header h1 { font-size: 20px; margin-bottom: 5px; }' +
-                '.info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #cbd5e1; margin-bottom: 20px; font-size: 10px; color: #64748b; }' +
-                '.section-title { font-size: 13px; margin: 20px 0 5px; padding-bottom: 4px; border-bottom: 1px solid #cbd5e1; }' +
-                'table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }' +
-                'th { background: #1e293b; color: white; padding: 6px 10px; text-align: right; font-size: 10px; }' +
-                'td { padding: 5px 10px; border-bottom: 1px solid #e2e8f0; font-size: 10px; }' +
-                'tr:nth-child(even) { background: #f8fafc; }' +
-                '.num { text-align: left; direction: ltr; }' +
-                '.warn { color: #d97706; }' +
-                '.subtotal { display: flex; justify-content: space-between; padding: 6px 10px; font-weight: bold; border-top: 1px solid #94a3b8; margin-bottom: 10px; font-size: 11px; }' +
-                '.grand-total { display: flex; justify-content: space-between; padding: 10px 15px; background: #1e293b; color: white; font-weight: bold; font-size: 14px; margin-top: 15px; }' +
-                '.note { text-align: left; color: #94a3b8; font-size: 9px; margin-top: 5px; }' +
-                '.footer { margin-top: 30px; padding-top: 10px; border-top: 3px double #1e293b; display: flex; justify-content: space-between; font-size: 8px; color: #94a3b8; }' +
-                '@media print { body { padding: 15px 25px; } @page { size: A4; margin: 15mm; } }' +
-                '</style></head><body>' +
-                '<div class="header"><h1>' + title + ' לשנת המס ' + year + '</h1></div>' +
-                '<div class="info-row"><span>שם: John Levy</span><span>סוג עוסק: עוסק מורשה</span><span>תאריך הפקה: ' + dateStr + '</span></div>' +
+            // Create hidden container, render HTML, convert to PDF
+            const container = document.createElement('div');
+            container.style.cssText = 'position:absolute;left:-9999px;top:0;width:210mm;';
+            container.innerHTML = '<div style="font-family:Segoe UI,Tahoma,Arial,sans-serif;color:#1e293b;padding:10px 15px;font-size:11px;direction:rtl;">' +
+                '<div style="border-top:3px double #1e293b;border-bottom:3px double #1e293b;padding:15px 0;margin-bottom:5px;text-align:center;">' +
+                '<h1 style="font-size:20px;margin:0 0 5px;">' + title + ' לשנת המס ' + year + '</h1></div>' +
+                '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #cbd5e1;margin-bottom:20px;font-size:10px;color:#64748b;">' +
+                '<span>שם: John Levy</span><span>סוג עוסק: עוסק מורשה</span><span>תאריך הפקה: ' + dateStr + '</span></div>' +
                 bodyContent +
-                '<div class="footer"><span>John Finance - מערכת ניהול מס</span><span>מסמך זה אינו מהווה אישור רשמי</span></div>' +
+                '<div style="margin-top:30px;padding-top:10px;border-top:3px double #1e293b;display:flex;justify-content:space-between;font-size:8px;color:#94a3b8;">' +
+                '<span>John Finance - מערכת ניהול מס</span><span>מסמך זה אינו מהווה אישור רשמי</span></div>' +
                 appendicesHTML +
-                '</body></html>';
+                '</div>';
+            document.body.appendChild(container);
 
-            printWindow.document.write(html);
-            printWindow.document.close();
-            setTimeout(() => { printWindow.print(); }, 500);
+            // Add inline styles for tables
+            container.querySelectorAll('table').forEach(t => {
+                t.style.cssText = 'width:100%;border-collapse:collapse;margin-bottom:5px;';
+            });
+            container.querySelectorAll('th').forEach(th => {
+                th.style.cssText = 'background:#1e293b;color:white;padding:6px 10px;text-align:right;font-size:10px;';
+            });
+            container.querySelectorAll('td').forEach(td => {
+                td.style.cssText = 'padding:5px 10px;border-bottom:1px solid #e2e8f0;font-size:10px;' + (td.classList.contains('num') ? 'text-align:left;direction:ltr;' : '');
+            });
+            container.querySelectorAll('.section-title, h3').forEach(h => {
+                h.style.cssText = 'font-size:13px;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;';
+            });
+            container.querySelectorAll('.subtotal').forEach(s => {
+                s.style.cssText = 'display:flex;justify-content:space-between;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;';
+            });
+            container.querySelectorAll('.grand-total').forEach(g => {
+                g.style.cssText = 'display:flex;justify-content:space-between;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:15px;';
+            });
+
+            const fileName = title.replace(/\s+/g, '-') + '-' + year + '.pdf';
+
+            await html2pdf().set({
+                margin: [10, 10, 10, 10],
+                filename: fileName,
+                image: { type: 'jpeg', quality: 0.95 },
+                html2canvas: { scale: 2, useCORS: true, scrollY: 0 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+            }).from(container).save();
+
+            document.body.removeChild(container);
+            loadingEl.remove();
+
           } catch (e) {
             console.error('PDF export error:', e);
+            document.querySelectorAll('[style*="z-index:9999"]').forEach(el => el.remove());
             alert('שגיאה בהפקת הדוח: ' + e.message);
           }
         }
