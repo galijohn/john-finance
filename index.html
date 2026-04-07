@@ -13,6 +13,8 @@
     <link rel="apple-touch-icon" href="icon.svg">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -6932,60 +6934,29 @@
             }
         }
 
-        // No pdf.js needed - using native browser PDF rendering via embed
+        // ========== PDF EXPORT WITH pdf-lib (real PDF, not HTML) ==========
 
-        async function buildAppendicesHTML(docs) {
-            if (!docs || docs.length === 0) return '';
-
-            // Fetch ALL files in parallel
+        // Fetch all Drive attachments and return { images: [], pdfs: [] }
+        async function fetchAttachments(docs) {
+            if (!docs || docs.length === 0) return { images: [], pdfs: [] };
+            await ensureValidToken();
             const docsWithDrive = docs.filter(d => d.driveId);
             const files = await Promise.all(docsWithDrive.map(d => fetchDriveFileAsBase64(d.driveId)));
-            const fileMap = new Map();
-            docsWithDrive.forEach((d, i) => { fileMap.set(d.driveId, files[i]); });
-
-            // Group by category
-            const groups = {};
-            docs.forEach(doc => {
-                if (!groups[doc.type]) groups[doc.type] = [];
-                groups[doc.type].push(doc);
-            });
-
-            let html = '<div style="page-break-before:always;"></div>';
-            html += '<div class="header" style="margin-top:20px;"><h1>נספחים - מסמכים מצורפים (' + docs.length + ')</h1></div>';
-
-            let docIndex = 0;
-
-            for (const [category, categoryDocs] of Object.entries(groups)) {
-                html += '<h3 class="section-title">' + category + ' (' + categoryDocs.length + ' מסמכים)</h3>';
-
-                for (const doc of categoryDocs) {
-                    docIndex++;
-                    if (!doc.driveId) {
-                        html += '<div style="padding:8px;margin-bottom:5px;background:#f8fafc;border-radius:4px;font-size:10px;">נספח ' + docIndex + ': ' + doc.fileName + ' - ' + doc.description + '</div>';
-                        continue;
-                    }
-
-                    const file = fileMap.get(doc.driveId);
-                    if (!file) {
-                        html += '<div style="padding:8px;margin-bottom:5px;background:#f8fafc;border-radius:4px;font-size:10px;">נספח ' + docIndex + ': ' + doc.fileName + ' (לא זמין)</div>';
-                        continue;
-                    }
-
-                    html += '<div style="page-break-before:always;"></div>';
-                    html += '<div style="font-weight:bold;margin-bottom:8px;font-size:11px;display:flex;justify-content:space-between;border-bottom:2px solid #0891b2;padding-bottom:5px;">';
-                    html += '<span>נספח ' + docIndex + ': ' + doc.fileName + '</span>';
-                    html += '<span style="color:#64748b;">' + category + ' | ' + doc.description + ' | ' + doc.date + '</span>';
-                    html += '</div>';
-
-                    if (file.type.startsWith('image/')) {
-                        html += '<img src="' + file.data + '" style="max-width:100%;max-height:90vh;display:block;margin:0 auto;" />';
-                    } else if (file.type === 'application/pdf') {
-                        html += '<embed src="' + file.data + '#toolbar=0&navpanes=0&scrollbar=0&view=FitH" type="application/pdf" style="width:100%;height:90vh;border:none;" />';
-                    }
+            const images = [], pdfs = [];
+            docsWithDrive.forEach((d, i) => {
+                const file = files[i];
+                if (!file) return;
+                if (file.type === 'application/pdf') {
+                    // Extract raw bytes from data URL
+                    const raw = atob(file.data.split(',')[1]);
+                    const bytes = new Uint8Array(raw.length);
+                    for (let j = 0; j < raw.length; j++) bytes[j] = raw.charCodeAt(j);
+                    pdfs.push({ doc: d, bytes: bytes });
+                } else if (file.type.startsWith('image/')) {
+                    images.push({ doc: d, data: file.data, type: file.type });
                 }
-            }
-
-            return html;
+            });
+            return { images, pdfs };
         }
 
         function exportPagePDF(page) {
@@ -7287,58 +7258,137 @@
                 }
             }
 
-            const printWindow = window.open('', '_blank');
-            if (!printWindow) { alert('אפשר חלונות קופצים'); return; }
-
-            const html = '<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><title>' + title + '</title><style>' +
-                '* { box-sizing: border-box; margin: 0; padding: 0; }' +
-                'body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; color: #1e293b; padding: 30px 40px; font-size: 11px; }' +
-                '.header { border-top: 3px double #1e293b; border-bottom: 3px double #1e293b; padding: 15px 0; margin-bottom: 5px; text-align: center; }' +
-                '.header h1 { font-size: 20px; margin-bottom: 5px; }' +
-                '.info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #cbd5e1; margin-bottom: 20px; font-size: 10px; color: #64748b; }' +
-                '.section-title { font-size: 13px; margin: 20px 0 5px; padding-bottom: 4px; border-bottom: 1px solid #cbd5e1; }' +
-                'table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }' +
-                'th { background: #1e293b; color: white; padding: 6px 10px; text-align: right; font-size: 10px; }' +
-                'td { padding: 5px 10px; border-bottom: 1px solid #e2e8f0; font-size: 10px; }' +
-                'tr:nth-child(even) { background: #f8fafc; }' +
-                '.num { text-align: left; direction: ltr; }' +
-                '.warn { color: #d97706; }' +
-                '.subtotal { display: flex; justify-content: space-between; padding: 6px 10px; font-weight: bold; border-top: 1px solid #94a3b8; margin-bottom: 10px; font-size: 11px; }' +
-                '.grand-total { display: flex; justify-content: space-between; padding: 10px 15px; background: #1e293b; color: white; font-weight: bold; font-size: 14px; margin-top: 15px; }' +
-                '.note { text-align: left; color: #94a3b8; font-size: 9px; margin-top: 5px; }' +
-                '.footer { margin-top: 30px; padding-top: 10px; border-top: 3px double #1e293b; display: flex; justify-content: space-between; font-size: 8px; color: #94a3b8; }' +
-                '@media print { body { padding: 15px 25px; } @page { size: A4; margin: 15mm; } }' +
-                '</style></head><body>' +
-                '<div class="header"><h1>' + title + ' לשנת המס ' + year + '</h1></div>' +
-                '<div class="info-row"><span>שם: John Levy</span><span>סוג עוסק: עוסק מורשה</span><span>תאריך הפקה: ' + dateStr + '</span></div>' +
+            // Build report HTML for pdf conversion
+            const reportHTML = '<div dir="rtl" style="font-family:Segoe UI,Tahoma,Arial,sans-serif; color:#1e293b; padding:20px 25px; font-size:11px; width:700px; background:white;">' +
+                '<div style="border-top:3px double #1e293b; border-bottom:3px double #1e293b; padding:15px 0; margin-bottom:5px; text-align:center;">' +
+                '<h1 style="font-size:20px; margin:0 0 5px;">' + title + ' לשנת המס ' + year + '</h1></div>' +
+                '<div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #cbd5e1; margin-bottom:20px; font-size:10px; color:#64748b;">' +
+                '<span>שם: John Levy</span><span>סוג עוסק: עוסק מורשה</span><span>תאריך הפקה: ' + dateStr + '</span></div>' +
                 bodyContent +
-                '<div class="footer"><span>John Finance - מערכת ניהול מס</span><span>מסמך זה אינו מהווה אישור רשמי</span></div>' +
-                '<div id="appendicesArea"></div>' +
-                '</body></html>';
+                '<div style="margin-top:30px; padding-top:10px; border-top:3px double #1e293b; display:flex; justify-content:space-between; font-size:8px; color:#94a3b8;">' +
+                '<span>John Finance - מערכת ניהול מס</span><span>מסמך זה אינו מהווה אישור רשמי</span></div></div>';
 
-            printWindow.document.write(html);
-            printWindow.document.close();
+            // Create hidden container for html2pdf
+            const container = document.createElement('div');
+            container.style.position = 'fixed';
+            container.style.left = '-9999px';
+            container.style.top = '0';
+            container.innerHTML = reportHTML;
+            document.body.appendChild(container);
 
             const pageDocs = getPageDocuments(page);
-            if (pageDocs.length > 0) {
-                const area = printWindow.document.getElementById('appendicesArea');
-                area.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">טוען ' + pageDocs.length + ' מסמכים...</div>';
-                // Ensure valid token before fetching files
-                ensureValidToken().then(() => {
-                    console.log('Token ready, building appendices for', pageDocs.length, 'docs');
-                    return buildAppendicesHTML(pageDocs);
-                }).then(html => {
-                    console.log('Appendices HTML ready, length:', html.length);
-                    area.innerHTML = html;
-                    setTimeout(() => { printWindow.print(); }, 500);
-                }).catch(e => {
-                    console.error('Appendices error:', e);
-                    area.innerHTML = '<div style="text-align:center;padding:30px;color:#dc2626;">שגיאה בטעינת נספחים: ' + e.message + '</div>';
-                    setTimeout(() => { printWindow.print(); }, 300);
-                });
-            } else {
-                setTimeout(() => { printWindow.print(); }, 300);
-            }
+
+            // Show loading overlay
+            const overlay = document.createElement('div');
+            overlay.id = 'pdfOverlay';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;';
+            overlay.innerHTML = '<div style="background:#1e293b;color:white;padding:40px 60px;border-radius:12px;text-align:center;font-family:Segoe UI,Tahoma,sans-serif;"><h2 id="pdfMsg">מייצר דוח PDF...</h2><p id="pdfDetail" style="color:#94a3b8;margin-top:10px;">אנא המתן</p></div>';
+            document.body.appendChild(overlay);
+
+            (async function() {
+                try {
+                    // Step 1: Convert report HTML to PDF
+                    document.getElementById('pdfDetail').textContent = 'ממיר דוח ל-PDF...';
+                    const reportPdfBytes = await html2pdf().set({
+                        margin: [15, 10, 15, 10],
+                        image: { type: 'jpeg', quality: 0.95 },
+                        html2canvas: { scale: 2, useCORS: true, width: 700 },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    }).from(container.firstChild).outputPdf('arraybuffer');
+
+                    document.body.removeChild(container);
+
+                    const { PDFDocument } = PDFLib;
+                    const finalPdf = await PDFDocument.create();
+
+                    // Add report pages
+                    const reportDoc = await PDFDocument.load(reportPdfBytes);
+                    const reportPages = await finalPdf.copyPages(reportDoc, reportDoc.getPageIndices());
+                    reportPages.forEach(p => finalPdf.addPage(p));
+
+                    // Step 2: Fetch and merge attachments
+                    if (pageDocs.length > 0) {
+                        document.getElementById('pdfDetail').textContent = 'טוען ' + pageDocs.length + ' נספחים מ-Google Drive...';
+                        const attachments = await fetchAttachments(pageDocs);
+
+                        // Merge PDF attachments
+                        for (const pdfAtt of attachments.pdfs) {
+                            try {
+                                const attDoc = await PDFDocument.load(pdfAtt.bytes);
+                                const attPages = await finalPdf.copyPages(attDoc, attDoc.getPageIndices());
+                                attPages.forEach(p => finalPdf.addPage(p));
+                            } catch(e) {
+                                console.warn('Failed to merge PDF:', pdfAtt.doc.fileName, e);
+                            }
+                        }
+
+                        // Add image attachments as PDF pages
+                        for (const imgAtt of attachments.images) {
+                            try {
+                                const imgDataUrl = imgAtt.data;
+                                const imgBytes = Uint8Array.from(atob(imgDataUrl.split(',')[1]), c => c.charCodeAt(0));
+                                let img;
+                                if (imgAtt.type.includes('png')) {
+                                    img = await finalPdf.embedPng(imgBytes);
+                                } else {
+                                    img = await finalPdf.embedJpg(imgBytes);
+                                }
+                                const page = finalPdf.addPage([595.28, 841.89]); // A4
+                                const scale = Math.min((595.28 - 40) / img.width, (841.89 - 40) / img.height, 1);
+                                const w = img.width * scale;
+                                const h = img.height * scale;
+                                page.drawImage(img, {
+                                    x: (595.28 - w) / 2,
+                                    y: (841.89 - h) / 2,
+                                    width: w,
+                                    height: h
+                                });
+                            } catch(e) {
+                                console.warn('Failed to add image:', imgAtt.doc.fileName, e);
+                            }
+                        }
+                    }
+
+                    // Step 3: Save and display PDF
+                    document.getElementById('pdfDetail').textContent = 'פותח PDF...';
+                    const finalBytes = await finalPdf.save();
+                    const blob = new Blob([finalBytes], { type: 'application/pdf' });
+                    const url = URL.createObjectURL(blob);
+                    const fileName = title.replace(/[^\u0590-\u05FFa-zA-Z0-9 ]/g, '') + ' ' + year + '.pdf';
+
+                    // Show PDF in fullscreen iframe with download button
+                    overlay.innerHTML = '';
+                    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#333;display:flex;flex-direction:column;';
+                    const toolbar = document.createElement('div');
+                    toolbar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 15px;background:#1e293b;color:white;font-family:Segoe UI,Tahoma,sans-serif;';
+                    toolbar.innerHTML = '<span style="font-size:14px;">' + fileName + '</span>';
+                    const btns = document.createElement('div');
+                    const dlBtn = document.createElement('a');
+                    dlBtn.href = url;
+                    dlBtn.download = fileName;
+                    dlBtn.textContent = '⬇ הורד';
+                    dlBtn.style.cssText = 'color:white;background:#0891b2;padding:6px 16px;border-radius:4px;text-decoration:none;margin-left:10px;font-size:13px;';
+                    const closeBtn = document.createElement('button');
+                    closeBtn.textContent = '✕ סגור';
+                    closeBtn.style.cssText = 'color:white;background:#dc2626;padding:6px 16px;border:none;border-radius:4px;cursor:pointer;font-size:13px;margin-left:10px;';
+                    closeBtn.onclick = () => { overlay.remove(); URL.revokeObjectURL(url); };
+                    btns.appendChild(dlBtn);
+                    btns.appendChild(closeBtn);
+                    toolbar.appendChild(btns);
+                    overlay.appendChild(toolbar);
+                    const iframe = document.createElement('iframe');
+                    iframe.src = url;
+                    iframe.style.cssText = 'flex:1;border:none;';
+                    overlay.appendChild(iframe);
+
+                } catch(e) {
+                    console.error('PDF export error:', e);
+                    try { document.body.removeChild(container); } catch(x) {}
+                    document.getElementById('pdfMsg').textContent = 'שגיאה';
+                    document.getElementById('pdfDetail').textContent = e.message;
+                    setTimeout(() => { try { document.body.removeChild(overlay); } catch(x) {} }, 3000);
+                }
+            })();
         }
 
         function exportData() {
