@@ -2853,6 +2853,7 @@
         async function ensureValidToken() {
             const expiry = parseInt(localStorage.getItem('googleTokenExpiry') || '0');
             if (googleAccessToken && Date.now() < expiry - 60000) return true;
+            if (!localStorage.getItem('googleAccessToken')) return false;
             try {
                 await renewTokenSilently();
                 return true;
@@ -3097,9 +3098,9 @@
                     localStorage.removeItem('googleTokenExpiry');
                     updateDriveStatus(false);
                 }
-            } else {
-                // Token expired or missing - try silent renewal
-                console.log('Token expired/missing, trying silent renewal...');
+            } else if (savedToken) {
+                // Token expired - try silent renewal (only if user connected before)
+                console.log('Token expired, trying silent renewal...');
                 try {
                     await renewTokenSilently();
                     await loadGoogleAPI();
