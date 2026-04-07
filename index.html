@@ -7282,11 +7282,28 @@
             container.innerHTML = reportHTML;
             document.body.appendChild(container);
 
-            // Fix Hebrew spacing: replace spaces with non-breaking spaces in all text nodes
+            // Fix Hebrew spacing: wrap each word in its own span so html2canvas renders them separately
+            const textNodes = [];
             const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-            while (walker.nextNode()) {
-                walker.currentNode.textContent = walker.currentNode.textContent.replace(/ /g, '\u00A0');
-            }
+            while (walker.nextNode()) textNodes.push(walker.currentNode);
+            textNodes.forEach(node => {
+                const text = node.textContent;
+                if (!text || !text.trim() || text.trim().length < 2) return;
+                const words = text.split(/(\s+)/);
+                if (words.length <= 1) return;
+                const parent = node.parentNode;
+                const frag = document.createDocumentFragment();
+                words.forEach(w => {
+                    if (/^\s+$/.test(w)) {
+                        frag.appendChild(document.createTextNode('\u00A0'));
+                    } else {
+                        const span = document.createElement('span');
+                        span.textContent = w;
+                        frag.appendChild(span);
+                    }
+                });
+                parent.replaceChild(frag, node);
+            });
 
             // Fix subtotal/grand-total: float the number span to the left
             container.querySelectorAll('div[style*="overflow:hidden"] > span:last-child').forEach(s => {
