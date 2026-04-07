@@ -6932,13 +6932,13 @@
             }
         }
 
-        // Load pdf.js once on startup
+        // Load pdf.js v2 (stable) on startup
         (function loadPdfJs() {
             const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
             script.onload = () => {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-                console.log('✅ pdf.js loaded with worker');
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+                console.log('✅ pdf.js v2 loaded');
             };
             document.head.appendChild(script);
         })();
@@ -6949,7 +6949,12 @@
             const raw = atob(dataUrl.split(',')[1]);
             const arr = new Uint8Array(raw.length);
             for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-            const pdf = await pdfjsLib.getDocument({ data: arr }).promise;
+            const pdf = await pdfjsLib.getDocument({
+                data: arr,
+                cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/cmaps/',
+                cMapPacked: true
+            }).promise;
+            console.log('pdf.js: parsed PDF, pages:', pdf.numPages);
             const images = [];
             for (let p = 1; p <= pdf.numPages; p++) {
                 const page = await pdf.getPage(p);
@@ -6957,9 +6962,10 @@
                 const canvas = document.createElement('canvas');
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
-                await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+                const ctx = canvas.getContext('2d');
+                await page.render({ canvasContext: ctx, viewport: viewport }).promise;
                 images.push(canvas.toDataURL('image/jpeg', 0.8));
-                page.cleanup();
+                console.log('pdf.js: rendered page', p);
             }
             pdf.destroy();
             return images;
