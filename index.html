@@ -7259,14 +7259,18 @@
             }
 
             // Build report HTML for pdf conversion
-            const reportHTML = '<div dir="rtl" style="font-family:Segoe UI,Tahoma,Arial,sans-serif; color:#1e293b; padding:20px 25px; font-size:11px; width:700px; background:white;">' +
+            // Fix Hebrew spacing: replace regular spaces with &nbsp; in Hebrew text
+            const fixHebrew = (s) => s.replace(/([\u0590-\u05FF])\s+([\u0590-\u05FF])/g, '$1\u00A0$2').replace(/([\u0590-\u05FF])\s+([\u0590-\u05FF])/g, '$1\u00A0$2');
+            const fixedBody = fixHebrew(bodyContent);
+            const reportHTML = '<div dir="rtl" style="font-family:Segoe UI,Tahoma,Arial,sans-serif; color:#1e293b; padding:20px 25px; font-size:11px; width:700px; background:white; word-spacing:3px;">' +
+                '<style>* { word-spacing: 3px; } th { background: #1e293b !important; color: white !important; } .section-title { color: #1e293b !important; } .grand-total { background: #1e293b !important; color: white !important; }</style>' +
                 '<div style="border-top:3px double #1e293b; border-bottom:3px double #1e293b; padding:15px 0; margin-bottom:5px; text-align:center;">' +
-                '<h1 style="font-size:20px; margin:0 0 5px;">' + title + ' לשנת המס ' + year + '</h1></div>' +
+                '<h1 style="font-size:20px; margin:0 0 5px;">' + fixHebrew(title) + ' לשנת\u00A0המס ' + year + '</h1></div>' +
                 '<div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #cbd5e1; margin-bottom:20px; font-size:10px; color:#64748b;">' +
-                '<span>שם: John Levy</span><span>סוג עוסק: עוסק מורשה</span><span>תאריך הפקה: ' + dateStr + '</span></div>' +
-                bodyContent +
+                '<span>שם:\u00A0John\u00A0Levy</span><span>סוג\u00A0עוסק:\u00A0עוסק\u00A0מורשה</span><span>תאריך\u00A0הפקה:\u00A0' + dateStr + '</span></div>' +
+                fixedBody +
                 '<div style="margin-top:30px; padding-top:10px; border-top:3px double #1e293b; display:flex; justify-content:space-between; font-size:8px; color:#94a3b8;">' +
-                '<span>John Finance - מערכת ניהול מס</span><span>מסמך זה אינו מהווה אישור רשמי</span></div></div>';
+                '<span>John\u00A0Finance\u00A0-\u00A0מערכת\u00A0ניהול\u00A0מס</span><span>מסמך\u00A0זה\u00A0אינו\u00A0מהווה\u00A0אישור\u00A0רשמי</span></div></div>';
 
             // Create hidden container for html2pdf
             const container = document.createElement('div');
