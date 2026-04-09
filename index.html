@@ -6019,6 +6019,27 @@
             }
         }
 
+        // Open the attached form file — handles Drive, local, and stale refs
+        function viewFormFile(formId) {
+            const yd = getYearData();
+            const form = (yd.forms || []).find(f => String(f.id) === String(formId));
+            if (!form) { alert('לא נמצא הטופס.'); return; }
+
+            if (form.driveLink) {
+                window.open(form.driveLink, '_blank');
+                return;
+            }
+            if (form.localPath) {
+                alert('📄 הקובץ נשמר מקומית בלבד:\n\n' + form.localPath + '\n\nפתח אותו מסייר הקבצים של המחשב. כדי שיהיה זמין גם מהנייד ומ־Google Drive — ערוך את הטופס והעלה שוב (עכשיו ההעלאה ל־Drive פעילה).');
+                return;
+            }
+            if (form.fileName) {
+                alert('📎 רשום שם קובץ: ' + form.fileName + '\n\nאבל אין קישור פעיל (לא ב־Drive ולא מקומי).\nהסיבה: ההעלאה הקודמת נכשלה.\n\nלחץ ✏️ ערוך ובחר שוב את הקובץ — הוא יועלה ל־Drive עכשיו.');
+                return;
+            }
+            alert('אין קובץ מצורף לטופס זה.');
+        }
+
         function render106TableRow(form, slipSums) {
             const d = form.declared || {};
             const slips = slipSums || { gross: 0, tax: 0, bl: 0 };
@@ -6044,8 +6065,9 @@
             const taxCell = isDeclared(d.tax) ? formatCurrency(d.tax) : '<span style="color:var(--text-muted)">—</span>';
             const blCell = isDeclared(d.bl) ? formatCurrency(d.bl) : '<span style="color:var(--text-muted)">—</span>';
 
-            const viewBtn = form.driveLink
-                ? `<button class="btn btn-icon btn-sm" onclick="window.open('${escapeFormJsArg(form.driveLink)}','_blank')" title="צפה בקובץ">👁️</button>`
+            const hasAnyFile = !!(form.driveLink || form.localPath || form.fileName);
+            const viewBtn = hasAnyFile
+                ? `<button class="btn btn-icon btn-sm" onclick="viewFormFile('${form.id}')" title="צפה בקובץ">👁️</button>`
                 : '';
             return `<tr>
                 <td>${empHtml} ${fileHtml}</td>
@@ -6082,8 +6104,9 @@
 
             const computedCell = computed > 0 ? formatCurrency(computed) : '<span style="color:var(--text-muted)">—</span>';
 
-            const viewBtn = form.driveLink
-                ? `<button class="btn btn-icon btn-sm" onclick="window.open('${escapeFormJsArg(form.driveLink)}','_blank')" title="צפה בקובץ">👁️</button>`
+            const hasAnyFile = !!(form.driveLink || form.localPath || form.fileName);
+            const viewBtn = hasAnyFile
+                ? `<button class="btn btn-icon btn-sm" onclick="viewFormFile('${form.id}')" title="צפה בקובץ">👁️</button>`
                 : '';
 
             return `<tr>
