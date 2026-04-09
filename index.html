@@ -1715,7 +1715,7 @@
             </div>
 
             <div class="card" style="margin-top:20px;" id="formsCard">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;flex-wrap:wrap;gap:8px;">
                     <h3 style="margin:0;">📋 טפסים רשמיים</h3>
                     <span style="font-size:0.75rem;color:var(--text-muted);">📄 = פעיל בחישוב | 📋 = מתלושים</span>
                 </div>
@@ -1725,17 +1725,47 @@
 
                 <!-- 106 forms section -->
                 <div id="forms106Section">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;flex-wrap:wrap;gap:8px;">
                         <h4 style="margin:0;color:var(--cyan);">📄 טופס 106 (שכיר)</h4>
-                        <button class="btn btn-sm" onclick="addForm106Manual()" style="background:var(--bg-input);">+ הוסף מעסיק</button>
+                        <button class="btn btn-sm btn-primary" onclick="openForm106Modal()">+ הוסף 106</button>
                     </div>
-                    <div id="forms106List"></div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>מעסיק</th>
+                                    <th>שדה 158 (ברוטו)</th>
+                                    <th>שדה 042 (מס)</th>
+                                    <th>ב״ל + בריאות</th>
+                                    <th>סטטוס</th>
+                                    <th>פעולות</th>
+                                </tr>
+                            </thead>
+                            <tbody id="forms106Table"></tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <!-- שומה section -->
                 <div id="formsShomaSection" style="margin-top:25px;">
-                    <h4 style="margin:0 0 15px;color:var(--cyan);">🧾 שומת מס (עצמאי)</h4>
-                    <div id="formsShomaContent"></div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;flex-wrap:wrap;gap:8px;">
+                        <h4 style="margin:0;color:var(--cyan);">🧾 שומת מס (עצמאי)</h4>
+                        <button class="btn btn-sm btn-primary" onclick="openShomaModal()">+ הוסף / ערוך שומה</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>שנה</th>
+                                    <th>הכנסה חייבת</th>
+                                    <th>מהמערכת</th>
+                                    <th>סטטוס</th>
+                                    <th>פעולות</th>
+                                </tr>
+                            </thead>
+                            <tbody id="formsShomaTable"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -2234,6 +2264,88 @@
             <div class="modal-footer">
                 <button class="btn btn-primary" onclick="addSalary()">שמור</button>
                 <button class="btn" onclick="closeModal('salaryModal')">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form 106 Modal -->
+    <div class="modal-overlay" id="form106Modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>📄 טופס 106</h3>
+                <button class="btn-icon" onclick="closeModal('form106Modal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="info-box" style="margin-bottom:15px;">
+                    <strong>💡 מקור אמת רשמי:</strong> הזן את הסכומים מטופס 106 השנתי של המעסיק. הם יחליפו את סיכום התלושים בחישוב.
+                </div>
+                <div class="form-group">
+                    <label>שם המעסיק</label>
+                    <input type="text" class="form-control" id="form106Employer" placeholder="לדוגמה: אוטופיה בע״מ">
+                </div>
+                <div class="form-group">
+                    <label>סה״כ שכר חייב במס (שדה 158) ₪</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="form106Gross" placeholder="מתוך טופס 106">
+                </div>
+                <div class="form-group">
+                    <label>מס הכנסה שנוכה (שדה 042) ₪</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="form106Tax" placeholder="מתוך טופס 106">
+                </div>
+                <div class="form-group">
+                    <label>ביטוח לאומי + מס בריאות (סכום) ₪</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="form106BL" placeholder="סכום שתי השורות בטופס">
+                </div>
+                <div class="form-group">
+                    <label>📄 צרף PDF/תמונה של ה־106</label>
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <input type="file" id="form106File" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <button type="button" class="btn btn-sm" onclick="document.getElementById('form106FileCamera').click()" style="white-space:nowrap;">📷 צלם</button>
+                        <input type="file" id="form106FileCamera" accept="image/*" capture="environment" style="display:none;" onchange="document.getElementById('form106File').files=this.files;">
+                        <span id="form106FileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
+                        יישמר בתיקייה: טפסים/106/ (מקומי + Google Drive)
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveForm106()">שמור</button>
+                <button class="btn" onclick="closeModal('form106Modal')">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shoma Modal -->
+    <div class="modal-overlay" id="shomaModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>🧾 שומת מס</h3>
+                <button class="btn-icon" onclick="closeModal('shomaModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="info-box" style="margin-bottom:15px;">
+                    <strong>💡 מקור אמת רשמי:</strong> הזן את ההכנסה החייבת לפי שומת המס. היא תחליף את החישוב האוטומטי (הכנסות עצמאי פחות הוצאות מוכרות).
+                </div>
+                <div class="form-group">
+                    <label>הכנסה חייבת לפי השומה ₪</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaGross" placeholder="מתוך השומה">
+                </div>
+                <div class="form-group">
+                    <label>📄 צרף PDF/תמונה של השומה</label>
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <input type="file" id="shomaFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <button type="button" class="btn btn-sm" onclick="document.getElementById('shomaFileCamera').click()" style="white-space:nowrap;">📷 צלם</button>
+                        <input type="file" id="shomaFileCamera" accept="image/*" capture="environment" style="display:none;" onchange="document.getElementById('shomaFile').files=this.files;">
+                        <span id="shomaFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
+                        יישמר בתיקייה: טפסים/שומה/ (מקומי + Google Drive)
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveShoma()">שמור</button>
+                <button class="btn" onclick="closeModal('shomaModal')">ביטול</button>
             </div>
         </div>
     </div>
@@ -5658,72 +5770,6 @@
             return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         }
 
-        function getOrCreateForm106(employer) {
-            const yd = getYearData();
-            if (!yd.forms) yd.forms = [];
-            let form = yd.forms.find(f => !f._deleted && f.formType === '106' && f.employer === employer);
-            if (!form) {
-                form = {
-                    id: Date.now() + Math.random(),
-                    formType: '106',
-                    category: 'שכיר',
-                    employer: employer,
-                    year: currentYear,
-                    declared: { gross: null, tax: null, bl: null },
-                    uploadDate: new Date().toISOString()
-                };
-                yd.forms.push(form);
-            }
-            if (!form.declared) form.declared = { gross: null, tax: null, bl: null };
-            return form;
-        }
-
-        function getOrCreateShoma() {
-            const yd = getYearData();
-            if (!yd.forms) yd.forms = [];
-            let form = yd.forms.find(f => !f._deleted && f.formType === 'שומה');
-            if (!form) {
-                form = {
-                    id: Date.now() + Math.random(),
-                    formType: 'שומה',
-                    category: 'עצמאי',
-                    employer: null,
-                    year: currentYear,
-                    declared: { gross: null, tax: null, bl: null },
-                    uploadDate: new Date().toISOString()
-                };
-                yd.forms.push(form);
-            }
-            if (!form.declared) form.declared = { gross: null, tax: null, bl: null };
-            return form;
-        }
-
-        function updateForm106(employer, field, value) {
-            const form = getOrCreateForm106(employer);
-            const trimmed = String(value).trim();
-            if (trimmed === '') {
-                form.declared[field] = null;
-            } else {
-                const num = Number(trimmed);
-                form.declared[field] = isNaN(num) ? null : num;
-            }
-            saveData();
-            renderAll();
-        }
-
-        function updateShoma(field, value) {
-            const form = getOrCreateShoma();
-            const trimmed = String(value).trim();
-            if (trimmed === '') {
-                form.declared[field] = null;
-            } else {
-                const num = Number(trimmed);
-                form.declared[field] = isNaN(num) ? null : num;
-            }
-            saveData();
-            renderAll();
-        }
-
         function explainUploadFailure() {
             const lines = [];
             if (!localFolderHandle && !driveFolderId) {
@@ -5752,38 +5798,90 @@
             return lines.join('\n');
         }
 
-        async function uploadForm106File(employer, file) {
-            if (!file) return;
-            try {
-                _lastUploadError = null;
-                const result = await uploadDocument(file, 'טפסים/106', 'form106', null);
-                if (result.local || result.drive) {
-                    const form = getOrCreateForm106(employer);
-                    form.fileName = file.name;
-                    form.fileSize = file.size;
-                    form.fileType = file.type;
-                    form.localPath = result.local;
-                    form.driveId = result.drive?.id;
-                    form.driveLink = result.drive?.link;
-                    form.uploadDate = new Date().toISOString();
-                    saveData();
-                    renderAll();
-                } else {
-                    alert(explainUploadFailure());
-                }
-            } catch (e) {
-                console.error('uploadForm106File error:', e);
-                alert('שגיאה: ' + (e && e.message ? e.message : e));
-            }
+        // ========== 106 FORM — modal-based CRUD (uniform with salary table) ==========
+        let _editingForm106Employer = null;
+        let _editingShoma = false;
+
+        function openForm106Modal() {
+            _editingForm106Employer = null;
+            document.getElementById('form106Employer').value = '';
+            document.getElementById('form106Employer').readOnly = false;
+            document.getElementById('form106Gross').value = '';
+            document.getElementById('form106Tax').value = '';
+            document.getElementById('form106BL').value = '';
+            document.getElementById('form106File').value = '';
+            document.getElementById('form106FileStatus').textContent = '';
+            document.querySelector('#form106Modal .modal-header h3').textContent = '📄 הוסף טופס 106';
+            openModal('form106Modal');
         }
 
-        async function uploadShomaFile(file) {
-            if (!file) return;
-            try {
+        function editForm106(employer) {
+            const yd = getYearData();
+            const form = (yd.forms || []).find(f => !f._deleted && f.formType === '106' && f.employer === employer);
+            if (!form) return;
+            _editingForm106Employer = employer;
+            const d = form.declared || {};
+            document.getElementById('form106Employer').value = employer;
+            document.getElementById('form106Employer').readOnly = true;
+            document.getElementById('form106Gross').value = d.gross ?? '';
+            document.getElementById('form106Tax').value = d.tax ?? '';
+            document.getElementById('form106BL').value = d.bl ?? '';
+            document.getElementById('form106File').value = '';
+            document.getElementById('form106FileStatus').textContent = form.fileName ? '📎 ' + form.fileName : '';
+            document.querySelector('#form106Modal .modal-header h3').textContent = '📄 עריכת טופס 106';
+            openModal('form106Modal');
+        }
+
+        async function saveForm106() {
+            const employer = String(document.getElementById('form106Employer').value || '').trim();
+            if (!employer) {
+                alert('יש להזין שם מעסיק');
+                return;
+            }
+            const parseNum = (id) => {
+                const v = String(document.getElementById(id).value || '').trim();
+                if (v === '') return null;
+                const n = Number(v);
+                return isNaN(n) ? null : n;
+            };
+            const gross = parseNum('form106Gross');
+            const tax = parseNum('form106Tax');
+            const bl = parseNum('form106BL');
+
+            const yd = getYearData();
+            if (!yd.forms) yd.forms = [];
+
+            // When editing, key stays the same; when adding, must be unique per year
+            if (_editingForm106Employer === null) {
+                const exists = yd.forms.some(f => !f._deleted && f.formType === '106' && f.employer === employer);
+                if (exists) {
+                    alert('כבר קיים 106 עבור "' + employer + '" בשנה זו.');
+                    return;
+                }
+            }
+
+            let form = yd.forms.find(f => !f._deleted && f.formType === '106' && f.employer === employer);
+            if (!form) {
+                form = {
+                    id: Date.now() + Math.random(),
+                    formType: '106',
+                    category: 'שכיר',
+                    employer: employer,
+                    year: currentYear,
+                    declared: { gross: null, tax: null, bl: null },
+                    uploadDate: new Date().toISOString()
+                };
+                yd.forms.push(form);
+            }
+            form.declared = { gross, tax, bl };
+
+            // Handle file upload if chosen
+            const fileInput = document.getElementById('form106File');
+            const file = fileInput.files && fileInput.files[0];
+            if (file) {
                 _lastUploadError = null;
-                const result = await uploadDocument(file, 'טפסים/שומה', 'shoma', null);
+                const result = await uploadDocument(file, 'טפסים/106', 'form106', form.id);
                 if (result.local || result.drive) {
-                    const form = getOrCreateShoma();
                     form.fileName = file.name;
                     form.fileSize = file.size;
                     form.fileType = file.type;
@@ -5791,15 +5889,15 @@
                     form.driveId = result.drive?.id;
                     form.driveLink = result.drive?.link;
                     form.uploadDate = new Date().toISOString();
-                    saveData();
-                    renderAll();
                 } else {
                     alert(explainUploadFailure());
+                    // Still save the numeric data so user doesn't lose it
                 }
-            } catch (e) {
-                console.error('uploadShomaFile error:', e);
-                alert('שגיאה: ' + (e && e.message ? e.message : e));
             }
+
+            saveData();
+            closeModal('form106Modal');
+            renderAll();
         }
 
         function deleteForm106(employer) {
@@ -5807,6 +5905,69 @@
             const yd = getYearData();
             yd.forms = (yd.forms || []).filter(f => !(f.formType === '106' && f.employer === employer));
             saveData();
+            renderAll();
+        }
+
+        // ========== SHOMA — modal-based CRUD ==========
+        function openShomaModal() {
+            _editingShoma = false;
+            const yd = getYearData();
+            const form = (yd.forms || []).find(f => !f._deleted && f.formType === 'שומה');
+            if (form) _editingShoma = true;
+            const d = (form && form.declared) || {};
+            document.getElementById('shomaGross').value = d.gross ?? '';
+            document.getElementById('shomaFile').value = '';
+            document.getElementById('shomaFileStatus').textContent = (form && form.fileName) ? '📎 ' + form.fileName : '';
+            document.querySelector('#shomaModal .modal-header h3').textContent = _editingShoma ? '🧾 עריכת שומה' : '🧾 הוסף שומה';
+            openModal('shomaModal');
+        }
+
+        async function saveShoma() {
+            const parseNum = (id) => {
+                const v = String(document.getElementById(id).value || '').trim();
+                if (v === '') return null;
+                const n = Number(v);
+                return isNaN(n) ? null : n;
+            };
+            const gross = parseNum('shomaGross');
+
+            const yd = getYearData();
+            if (!yd.forms) yd.forms = [];
+            let form = yd.forms.find(f => !f._deleted && f.formType === 'שומה');
+            if (!form) {
+                form = {
+                    id: Date.now() + Math.random(),
+                    formType: 'שומה',
+                    category: 'עצמאי',
+                    employer: null,
+                    year: currentYear,
+                    declared: { gross: null, tax: null, bl: null },
+                    uploadDate: new Date().toISOString()
+                };
+                yd.forms.push(form);
+            }
+            form.declared = { gross, tax: null, bl: null };
+
+            const fileInput = document.getElementById('shomaFile');
+            const file = fileInput.files && fileInput.files[0];
+            if (file) {
+                _lastUploadError = null;
+                const result = await uploadDocument(file, 'טפסים/שומה', 'shoma', form.id);
+                if (result.local || result.drive) {
+                    form.fileName = file.name;
+                    form.fileSize = file.size;
+                    form.fileType = file.type;
+                    form.localPath = result.local;
+                    form.driveId = result.drive?.id;
+                    form.driveLink = result.drive?.link;
+                    form.uploadDate = new Date().toISOString();
+                } else {
+                    alert(explainUploadFailure());
+                }
+            }
+
+            saveData();
+            closeModal('shomaModal');
             renderAll();
         }
 
@@ -5818,20 +5979,13 @@
             renderAll();
         }
 
-        function addForm106Manual() {
-            const employer = prompt('שם המעסיק עבור ה־106:');
-            if (!employer || !employer.trim()) return;
-            getOrCreateForm106(employer.trim());
-            saveData();
-            renderAll();
-        }
-
+        // ========== RENDER ==========
         function renderForms() {
             const yd = getYearData();
             if (!yd.forms) yd.forms = [];
             const totals = calculateTotals();
 
-            // Build employer sums from current year salary records
+            // --- 106 table ---
             const salaryItems = active(yd.salary);
             const employerSums = {};
             salaryItems.forEach(s => {
@@ -5841,196 +5995,108 @@
                 employerSums[emp].tax += Number(s.taxDeducted) || 0;
                 employerSums[emp].bl += Number(s.blDeducted) || 0;
             });
-
             const forms106 = active(yd.forms).filter(f => f.formType === '106');
-            const employerSet = new Set([
-                ...Object.keys(employerSums),
-                ...forms106.map(f => f.employer).filter(e => e)
-            ]);
-
-            // ===== Render 106 list =====
-            const list106 = document.getElementById('forms106List');
-            if (!list106) return;
-            if (employerSet.size === 0) {
-                list106.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);background:var(--bg-input);border-radius:8px;">אין מעסיקים בשנה זו. הוסף תלוש בעמוד "הכנסה כשכיר" או לחץ "הוסף מעסיק" להוספה ידנית.</div>';
-            } else {
-                list106.innerHTML = [...employerSet].map(emp => {
-                    const form = forms106.find(f => f.employer === emp);
-                    return render106Row(emp, employerSums[emp], form);
-                }).join('');
+            const tbody106 = document.getElementById('forms106Table');
+            if (tbody106) {
+                if (forms106.length === 0) {
+                    tbody106.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">📄</div><p>אין טפסי 106 בשנה זו. לחץ "+ הוסף 106" להזנה.</p></td></tr>';
+                } else {
+                    tbody106.innerHTML = [...forms106]
+                        .sort((a,b) => String(a.employer||'').localeCompare(String(b.employer||''),'he'))
+                        .map(f => render106TableRow(f, employerSums[f.employer])).join('');
+                }
             }
 
-            // ===== Render שומה =====
+            // --- Shoma table ---
             const formShoma = active(yd.forms).find(f => f.formType === 'שומה');
-            const shomaContent = document.getElementById('formsShomaContent');
-            if (shomaContent) {
-                shomaContent.innerHTML = renderShomaRow(totals.computedSelfEmployedNet, formShoma);
+            const tbodyShoma = document.getElementById('formsShomaTable');
+            if (tbodyShoma) {
+                if (!formShoma) {
+                    tbodyShoma.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">🧾</div><p>אין שומה לשנה זו. לחץ "+ הוסף / ערוך שומה" להזנה.</p></td></tr>';
+                } else {
+                    tbodyShoma.innerHTML = renderShomaTableRow(formShoma, totals.computedSelfEmployedNet);
+                }
             }
         }
 
-        // Focus the first editable input in a form card (the "edit" action)
-        function editFormRow(cardId) {
-            const card = document.getElementById(cardId);
-            if (!card) return;
-            const input = card.querySelector('input[type="number"]');
-            if (input) {
-                input.focus();
-                input.select?.();
-            }
-        }
-
-        function render106Row(employer, slipSums, form) {
-            const declared = (form && form.declared) || {};
+        function render106TableRow(form, slipSums) {
+            const d = form.declared || {};
             const slips = slipSums || { gross: 0, tax: 0, bl: 0 };
             const isDeclared = (v) => v != null && v !== '' && !isNaN(Number(v));
-            const hasOverride = isDeclared(declared.gross);
-            const empSafe = escapeFormJsArg(employer);
-            const empHtml = escapeFormHtml(employer);
-            const cardId = 'form106Card_' + Math.abs(employer.split('').reduce((h,c)=>((h<<5)-h+c.charCodeAt(0))|0, 0));
-
-            // Action buttons — matching the rest of the app (view / edit / upload / delete)
-            const hasFile = !!(form && (form.driveLink || form.localPath || form.fileName));
-            const viewBtn = (form && form.driveLink)
-                ? `<button class="btn btn-icon btn-sm" onclick="window.open('${escapeFormJsArg(form.driveLink)}','_blank')" title="צפה בקובץ 106">👁️</button>`
+            const hasOverride = isDeclared(d.gross);
+            const empSafe = escapeFormJsArg(form.employer || '');
+            const empHtml = escapeFormHtml(form.employer || '(לא מוגדר)');
+            const fileHtml = form.fileName
+                ? '<span data-tip="' + escapeFormHtml(form.fileName) + '" style="cursor:help;">📎</span>'
                 : '';
-            const editBtn = `<button class="btn btn-icon btn-sm" onclick="editFormRow('${cardId}')" title="עריכה">✏️</button>`;
-            const uploadBtn = `<label class="btn btn-icon btn-sm" title="${hasFile ? 'החלף קובץ' : 'העלה קובץ'}" style="cursor:pointer;margin:0;">📤<input type="file" accept="application/pdf,image/*" style="display:none" onchange="uploadForm106File('${empSafe}',this.files[0]);this.value='';"></label>`;
-            const deleteBtn = form
-                ? `<button class="btn btn-icon btn-sm" onclick="deleteForm106('${empSafe}')" title="מחיקה">🗑️</button>`
-                : '';
-
-            // Reconciliation diff (only show if both slip data and declared values exist)
-            let diffHTML = '';
-            if (hasOverride && (slips.gross > 0 || slips.tax > 0 || slips.bl > 0)) {
-                const dGross = (Number(declared.gross) || 0) - slips.gross;
-                const dTax = (Number(declared.tax) || 0) - slips.tax;
-                const dBL = (Number(declared.bl) || 0) - slips.bl;
-                const maxDiff = Math.max(Math.abs(dGross), Math.abs(dTax), Math.abs(dBL));
-                const color = maxDiff < 100 ? 'var(--success)' : (maxDiff < 1000 ? 'var(--warning)' : 'var(--danger)');
-                const sign = (n) => n > 0 ? '+' : '';
-                diffHTML = `<div style="font-size:0.75rem;color:${color};margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">
-                    הפרש מהתלושים — ברוטו: ${sign(dGross)}${formatCurrency(dGross)} | מס: ${sign(dTax)}${formatCurrency(dTax)} | ב"ל: ${sign(dBL)}${formatCurrency(dBL)}
-                </div>`;
-            }
-
             const badge = hasOverride
-                ? '<span style="font-size:0.7rem;background:var(--cyan);color:white;padding:3px 10px;border-radius:10px;white-space:nowrap;">📄 פעיל בחישוב</span>'
-                : '<span style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;">📋 משתמש בתלושים</span>';
+                ? '<span style="font-size:0.7rem;background:var(--cyan);color:white;padding:3px 10px;border-radius:10px;white-space:nowrap;">📄 פעיל</span>'
+                : '<span style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;">📋 תלושים</span>';
 
-            const slipsHint = (slips.gross > 0 || slips.tax > 0 || slips.bl > 0)
-                ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:8px;">מתלושים: ${formatCurrency(slips.gross)} / ${formatCurrency(slips.tax)} / ${formatCurrency(slips.bl)}</div>`
+            // Diff tooltip on the gross cell if both exist
+            let grossCell = isDeclared(d.gross) ? formatCurrency(d.gross) : '<span style="color:var(--text-muted)">—</span>';
+            if (hasOverride && (slips.gross > 0 || slips.tax > 0 || slips.bl > 0)) {
+                const dGross = (Number(d.gross) || 0) - slips.gross;
+                const sign = dGross > 0 ? '+' : '';
+                const color = Math.abs(dGross) < 100 ? 'var(--success)' : (Math.abs(dGross) < 1000 ? 'var(--warning)' : 'var(--danger)');
+                grossCell += `<div style="font-size:0.7rem;color:${color};margin-top:2px;">Δ ${sign}${formatCurrency(dGross)}</div>`;
+            }
+            const taxCell = isDeclared(d.tax) ? formatCurrency(d.tax) : '<span style="color:var(--text-muted)">—</span>';
+            const blCell = isDeclared(d.bl) ? formatCurrency(d.bl) : '<span style="color:var(--text-muted)">—</span>';
+
+            const viewBtn = form.driveLink
+                ? `<button class="btn btn-icon btn-sm" onclick="window.open('${escapeFormJsArg(form.driveLink)}','_blank')" title="צפה בקובץ">👁️</button>`
                 : '';
-
-            const fileHint = hasFile
-                ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:8px;display:flex;align-items:center;gap:6px;">📎 <span style="direction:ltr;unicode-bidi:plaintext;">${escapeFormHtml(form.fileName || 'קובץ מצורף')}</span></div>`
-                : '';
-
-            const inputStyle = 'width:100%;padding:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.9rem;box-sizing:border-box;';
-
-            return `<div id="${cardId}" style="background:var(--bg-input);border-radius:8px;padding:14px;margin-bottom:10px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-                    <div style="font-weight:bold;font-size:1rem;flex:1 1 auto;min-width:0;word-break:break-word;">${empHtml}</div>
-                    <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
-                        ${viewBtn}
-                        ${editBtn}
-                        ${uploadBtn}
-                        ${deleteBtn}
-                    </div>
-                </div>
-                <div style="margin-bottom:8px;">${badge}</div>
-                ${slipsHint}
-                <div style="display:flex;flex-wrap:wrap;gap:10px;">
-                    <div style="flex:1 1 140px;min-width:130px;">
-                        <label style="font-size:0.7rem;color:var(--text-muted);display:block;margin-bottom:4px;" title="סה״כ שכר ותשלומים חייבים במס - שדה 158 בטופס 106">סה״כ שכר חייב במס <span style="opacity:0.7;">(שדה 158)</span></label>
-                        <input type="number" step="0.01" inputmode="decimal" value="${declared.gross ?? ''}"
-                               onblur="updateForm106('${empSafe}','gross',this.value)"
-                               onkeydown="if(event.key==='Enter')this.blur()"
-                               style="${inputStyle}">
-                    </div>
-                    <div style="flex:1 1 140px;min-width:130px;">
-                        <label style="font-size:0.7rem;color:var(--text-muted);display:block;margin-bottom:4px;" title="מס הכנסה שנוכה - שדה 042 בטופס 106">מס הכנסה שנוכה <span style="opacity:0.7;">(שדה 042)</span></label>
-                        <input type="number" step="0.01" inputmode="decimal" value="${declared.tax ?? ''}"
-                               onblur="updateForm106('${empSafe}','tax',this.value)"
-                               onkeydown="if(event.key==='Enter')this.blur()"
-                               style="${inputStyle}">
-                    </div>
-                    <div style="flex:1 1 140px;min-width:130px;">
-                        <label style="font-size:0.7rem;color:var(--text-muted);display:block;margin-bottom:4px;" title='סכום שתי השורות בטופס: "ביטוח לאומי" + "מס בריאות"'>ב״ל + מס בריאות <span style="opacity:0.7;">(סכום)</span></label>
-                        <input type="number" step="0.01" inputmode="decimal" value="${declared.bl ?? ''}"
-                               onblur="updateForm106('${empSafe}','bl',this.value)"
-                               onkeydown="if(event.key==='Enter')this.blur()"
-                               style="${inputStyle}">
-                    </div>
-                </div>
-                ${fileHint}
-                ${diffHTML}
-            </div>`;
+            return `<tr>
+                <td>${empHtml} ${fileHtml}</td>
+                <td>${grossCell}</td>
+                <td>${taxCell}</td>
+                <td>${blCell}</td>
+                <td>${badge}</td>
+                <td>
+                    ${viewBtn}
+                    <button class="btn btn-icon btn-sm" onclick="editForm106('${empSafe}')" title="עריכה">✏️</button>
+                    <button class="btn btn-icon btn-sm" onclick="deleteForm106('${empSafe}')" title="מחיקה">🗑️</button>
+                </td>
+            </tr>`;
         }
 
-        function renderShomaRow(computed, form) {
-            const declared = (form && form.declared) || {};
+        function renderShomaTableRow(form, computed) {
+            const d = form.declared || {};
             const isDeclared = (v) => v != null && v !== '' && !isNaN(Number(v));
-            const hasOverride = isDeclared(declared.gross);
-            const cardId = 'formShomaCard';
-
-            // Action buttons — matching the rest of the app (view / edit / upload / delete)
-            const hasFile = !!(form && (form.driveLink || form.localPath || form.fileName));
-            const viewBtn = (form && form.driveLink)
-                ? `<button class="btn btn-icon btn-sm" onclick="window.open('${escapeFormJsArg(form.driveLink)}','_blank')" title="צפה בשומה">👁️</button>`
+            const hasOverride = isDeclared(d.gross);
+            const fileHtml = form.fileName
+                ? '<span data-tip="' + escapeFormHtml(form.fileName) + '" style="cursor:help;">📎</span>'
                 : '';
-            const editBtn = `<button class="btn btn-icon btn-sm" onclick="editFormRow('${cardId}')" title="עריכה">✏️</button>`;
-            const uploadBtn = `<label class="btn btn-icon btn-sm" title="${hasFile ? 'החלף קובץ' : 'העלה קובץ'}" style="cursor:pointer;margin:0;">📤<input type="file" accept="application/pdf,image/*" style="display:none" onchange="uploadShomaFile(this.files[0]);this.value='';"></label>`;
-            const deleteBtn = form
-                ? `<button class="btn btn-icon btn-sm" onclick="deleteShoma()" title="מחיקה">🗑️</button>`
-                : '';
+            const badge = hasOverride
+                ? '<span style="font-size:0.7rem;background:var(--cyan);color:white;padding:3px 10px;border-radius:10px;white-space:nowrap;">📄 פעיל</span>'
+                : '<span style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;">📋 מהמערכת</span>';
 
-            let diffHTML = '';
+            let grossCell = isDeclared(d.gross) ? formatCurrency(d.gross) : '<span style="color:var(--text-muted)">—</span>';
             if (hasOverride && computed > 0) {
-                const dGross = (Number(declared.gross) || 0) - computed;
+                const dGross = (Number(d.gross) || 0) - computed;
+                const sign = dGross > 0 ? '+' : '';
                 const color = Math.abs(dGross) < 100 ? 'var(--success)' : (Math.abs(dGross) < 1000 ? 'var(--warning)' : 'var(--danger)');
-                diffHTML = `<div style="font-size:0.75rem;color:${color};margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">
-                    הפרש מהמערכת: ${dGross > 0 ? '+' : ''}${formatCurrency(dGross)}
-                </div>`;
+                grossCell += `<div style="font-size:0.7rem;color:${color};margin-top:2px;">Δ ${sign}${formatCurrency(dGross)}</div>`;
             }
 
-            const badge = hasOverride
-                ? '<span style="font-size:0.7rem;background:var(--cyan);color:white;padding:3px 10px;border-radius:10px;white-space:nowrap;">📄 פעיל בחישוב</span>'
-                : '<span style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;">📋 משתמש בחישוב מהמערכת</span>';
+            const computedCell = computed > 0 ? formatCurrency(computed) : '<span style="color:var(--text-muted)">—</span>';
 
-            const computedHint = computed > 0
-                ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:8px;">מהמערכת (הכנסות עצמאי − הוצאות מוכרות): ${formatCurrency(computed)}</div>`
+            const viewBtn = form.driveLink
+                ? `<button class="btn btn-icon btn-sm" onclick="window.open('${escapeFormJsArg(form.driveLink)}','_blank')" title="צפה בקובץ">👁️</button>`
                 : '';
 
-            const fileHint = hasFile
-                ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:8px;display:flex;align-items:center;gap:6px;">📎 <span style="direction:ltr;unicode-bidi:plaintext;">${escapeFormHtml(form.fileName || 'קובץ מצורף')}</span></div>`
-                : '';
-
-            const inputStyle = 'width:100%;padding:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.9rem;box-sizing:border-box;';
-
-            return `<div id="${cardId}" style="background:var(--bg-input);border-radius:8px;padding:14px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-                    <div style="font-weight:bold;font-size:1rem;flex:1 1 auto;min-width:0;">שומה לשנת ${currentYear}</div>
-                    <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
-                        ${viewBtn}
-                        ${editBtn}
-                        ${uploadBtn}
-                        ${deleteBtn}
-                    </div>
-                </div>
-                <div style="margin-bottom:8px;">${badge}</div>
-                ${computedHint}
-                <div style="display:flex;flex-wrap:wrap;gap:10px;">
-                    <div style="flex:1 1 200px;min-width:180px;">
-                        <label style="font-size:0.7rem;color:var(--text-muted);display:block;margin-bottom:4px;">הכנסה חייבת לפי השומה</label>
-                        <input type="number" step="0.01" inputmode="decimal" value="${declared.gross ?? ''}"
-                               onblur="updateShoma('gross',this.value)"
-                               onkeydown="if(event.key==='Enter')this.blur()"
-                               style="${inputStyle}">
-                    </div>
-                </div>
-                ${fileHint}
-                ${diffHTML}
-            </div>`;
+            return `<tr>
+                <td>${currentYear} ${fileHtml}</td>
+                <td>${grossCell}</td>
+                <td>${computedCell}</td>
+                <td>${badge}</td>
+                <td>
+                    ${viewBtn}
+                    <button class="btn btn-icon btn-sm" onclick="openShomaModal()" title="עריכה">✏️</button>
+                    <button class="btn btn-icon btn-sm" onclick="deleteShoma()" title="מחיקה">🗑️</button>
+                </td>
+            </tr>`;
         }
 
         // ========== FORECAST CALCULATIONS ==========
