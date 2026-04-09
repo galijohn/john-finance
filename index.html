@@ -1684,21 +1684,25 @@
 
             <div class="card">
                 <h3 style="margin:0 0 20px;">📊 סיכום הכנסות</h3>
-                <div class="summary-row">
-                    <span>הכנסה כשכיר (ברוטו)</span>
+                <div class="summary-row" data-incomerow="salary">
+                    <span>הכנסה כשכיר (ברוטו) <span id="calcSalarySource" style="font-size:0.7rem;color:var(--text-muted);"></span></span>
                     <span id="calcSalary">₪0</span>
                 </div>
                 <div class="summary-row">
                     <span>דמי אבטלה</span>
                     <span id="calcUnemployment">₪0</span>
                 </div>
-                <div class="summary-row">
+                <div class="summary-row" data-incomerow="selfEmployed">
                     <span>הכנסה כעצמאי</span>
                     <span id="calcSelfEmployed">₪0</span>
                 </div>
-                <div class="summary-row">
+                <div class="summary-row" data-incomerow="expenses">
                     <span style="color:var(--danger)">(-) הוצאות מוכרות</span>
                     <span id="calcExpenses" style="color:var(--danger)">₪0</span>
+                </div>
+                <div class="summary-row" data-incomerow="shoma" style="display:none;">
+                    <span>הכנסה חייבת מהשומה <span style="font-size:0.7rem;color:var(--cyan);">📄</span></span>
+                    <span id="calcShoma" style="color:var(--cyan)">₪0</span>
                 </div>
                 <div class="summary-row">
                     <span>דמי מילואים</span>
@@ -1707,6 +1711,31 @@
                 <div class="summary-row total">
                     <span>סה"כ הכנסה חייבת במס</span>
                     <span id="calcTaxableIncome">₪0</span>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:20px;" id="formsCard">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                    <h3 style="margin:0;">📋 טפסים רשמיים</h3>
+                    <span style="font-size:0.75rem;color:var(--text-muted);">📄 = פעיל בחישוב | 📋 = מתלושים</span>
+                </div>
+                <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:20px;">
+                    הזן סכומים מטופס 106 או משומה - הם יחליפו את החישוב מהרשומות החודשיות (מקור אמת רשמי)
+                </div>
+
+                <!-- 106 forms section -->
+                <div id="forms106Section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+                        <h4 style="margin:0;color:var(--cyan);">📄 טופס 106 (שכיר)</h4>
+                        <button class="btn btn-sm" onclick="addForm106Manual()" style="background:var(--bg-input);">+ הוסף מעסיק</button>
+                    </div>
+                    <div id="forms106List"></div>
+                </div>
+
+                <!-- שומה section -->
+                <div id="formsShomaSection" style="margin-top:25px;">
+                    <h4 style="margin:0 0 15px;color:var(--cyan);">🧾 שומת מס (עצמאי)</h4>
+                    <div id="formsShomaContent"></div>
                 </div>
             </div>
 
@@ -3566,16 +3595,19 @@
                 
                 // Get or create year folder
                 const yearFolder = await rootFolder.getDirectoryHandle(String(year), { create: true });
-                
-                // Get or create subfolder
-                const targetFolder = await yearFolder.getDirectoryHandle(subFolder, { create: true });
-                
+
+                // Get or create nested subfolders (supports paths like 'טפסים/106')
+                let targetFolder = yearFolder;
+                for (const segment of String(subFolder).split('/').filter(s => s)) {
+                    targetFolder = await targetFolder.getDirectoryHandle(segment, { create: true });
+                }
+
                 // Create file
                 const fileHandle = await targetFolder.getFileHandle(file.name, { create: true });
                 const writable = await fileHandle.createWritable();
                 await writable.write(file);
                 await writable.close();
-                
+
                 return `${localFolderHandle.name}/john-finance/${year}/${subFolder}/${file.name}`;
             } catch (e) {
                 console.error('Save file locally error:', e);
@@ -3592,9 +3624,12 @@
             try {
                 // Find or create year folder
                 let yearFolderId = await findOrCreateDriveFolder(String(year), driveFolderId);
-                
-                // Find or create subfolder
-                let subFolderId = await findOrCreateDriveFolder(subFolder, yearFolderId);
+
+                // Find or create nested subfolders (supports paths like 'טפסים/106')
+                let subFolderId = yearFolderId;
+                for (const segment of String(subFolder).split('/').filter(s => s)) {
+                    subFolderId = await findOrCreateDriveFolder(segment, subFolderId);
+                }
                 
                 // Upload file
                 const metadata = {
@@ -3967,6 +4002,7 @@
                 taxAdvances: [],
                 blAdvances: [],
                 vatReports: [],
+                forms: [],
                 businessStatus: 'zair',
                 selfEmployedMonths: 12,
                 credits: {
@@ -5413,36 +5449,84 @@
 
         function calculateTotals() {
             const yd = getYearData();
-            const totalSalary = active(yd.salary).reduce((sum, s) => sum + s.gross, 0);
-            const totalUnemployment = active(yd.unemployment).reduce((sum, u) => sum + u.gross, 0);
-            const totalMiluim = active(yd.miluim).reduce((sum, m) => sum + m.amount, 0);
-            const totalMiluimDays = active(yd.miluim).reduce((sum, m) => sum + m.days, 0);
-            const totalSelfEmployed = active(yd.selfEmployed).reduce((sum, s) => sum + s.amount, 0);
-            const totalExpenses = active(yd.expenses).reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+            if (!yd.forms) yd.forms = [];
 
-            // Tax deducted from each source
-            const taxFromSalary = active(yd.salary).reduce((sum, s) => sum + s.taxDeducted, 0);
-            const taxFromUnemployment = active(yd.unemployment).reduce((sum, u) => sum + u.taxDeducted, 0);
-            const taxFromMiluim = active(yd.miluim).reduce((sum, m) => sum + (m.taxDeducted || 0), 0);
+            // ===== SALARY (שכיר) - group by employer + apply 106 overrides =====
+            const salaryItems = active(yd.salary);
+            const employerSums = {};
+            salaryItems.forEach(s => {
+                const emp = s.employer || '(לא מוגדר)';
+                if (!employerSums[emp]) employerSums[emp] = { gross: 0, tax: 0, bl: 0, count: 0 };
+                employerSums[emp].gross += Number(s.gross) || 0;
+                employerSums[emp].tax += Number(s.taxDeducted) || 0;
+                employerSums[emp].bl += Number(s.blDeducted) || 0;
+                employerSums[emp].count++;
+            });
 
-            // BL deducted from each source
-            const blFromSalary = active(yd.salary).reduce((sum, s) => sum + (s.blDeducted || 0), 0);
-            const blFromUnemployment = active(yd.unemployment).reduce((sum, u) => sum + (u.blDeducted || 0), 0);
-            const blFromMiluim = active(yd.miluim).reduce((sum, m) => sum + (m.blDeducted || 0), 0);
+            const forms106 = active(yd.forms).filter(f => f.formType === '106');
+            const isDeclared = (v) => v != null && v !== '' && !isNaN(Number(v));
+            const hasFormDeclared = (f) => f && f.declared && isDeclared(f.declared.gross);
 
-            // Calculate from separate advance payment arrays
-            const taxFromSelf = active(yd.taxAdvances).reduce((sum, p) => sum + p.amount, 0);
-            const blFromSelf = active(yd.blAdvances).reduce((sum, p) => sum + p.amount, 0);
-            
-            // Total BL paid from all sources
+            let totalSalary = 0, taxFromSalary = 0, blFromSalary = 0;
+            const salaryBreakdown = [];
+            const seenEmployers = new Set();
+
+            Object.entries(employerSums).forEach(([emp, sums]) => {
+                seenEmployers.add(emp);
+                const form = forms106.find(f => f.employer === emp && hasFormDeclared(f));
+                if (form) {
+                    const g = Number(form.declared.gross) || 0;
+                    const t = Number(form.declared.tax) || 0;
+                    const b = Number(form.declared.bl) || 0;
+                    totalSalary += g; taxFromSalary += t; blFromSalary += b;
+                    salaryBreakdown.push({ employer: emp, source: '106', gross: g, tax: t, bl: b, slipsGross: sums.gross, slipsTax: sums.tax, slipsBL: sums.bl });
+                } else {
+                    totalSalary += sums.gross; taxFromSalary += sums.tax; blFromSalary += sums.bl;
+                    salaryBreakdown.push({ employer: emp, source: 'slips', gross: sums.gross, tax: sums.tax, bl: sums.bl });
+                }
+            });
+
+            // 106s for employers without any salary records (form-only)
+            forms106.forEach(f => {
+                if (!f.employer || seenEmployers.has(f.employer)) return;
+                if (!hasFormDeclared(f)) return;
+                const g = Number(f.declared.gross) || 0;
+                const t = Number(f.declared.tax) || 0;
+                const b = Number(f.declared.bl) || 0;
+                totalSalary += g; taxFromSalary += t; blFromSalary += b;
+                salaryBreakdown.push({ employer: f.employer, source: '106-only', gross: g, tax: t, bl: b });
+            });
+
+            // ===== Other income sources =====
+            const totalUnemployment = active(yd.unemployment).reduce((sum, u) => sum + (Number(u.gross) || 0), 0);
+            const totalMiluim = active(yd.miluim).reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
+            const totalMiluimDays = active(yd.miluim).reduce((sum, m) => sum + (Number(m.days) || 0), 0);
+            const totalSelfEmployed = active(yd.selfEmployed).reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+            const totalExpenses = active(yd.expenses).reduce((sum, e) => sum + ((Number(e.amount) || 0) * ((e.recognition ?? 100) / 100)), 0);
+
+            const taxFromUnemployment = active(yd.unemployment).reduce((sum, u) => sum + (Number(u.taxDeducted) || 0), 0);
+            const taxFromMiluim = active(yd.miluim).reduce((sum, m) => sum + (Number(m.taxDeducted) || 0), 0);
+
+            const blFromUnemployment = active(yd.unemployment).reduce((sum, u) => sum + (Number(u.blDeducted) || 0), 0);
+            const blFromMiluim = active(yd.miluim).reduce((sum, m) => sum + (Number(m.blDeducted) || 0), 0);
+
+            const taxFromSelf = active(yd.taxAdvances).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+            const blFromSelf = active(yd.blAdvances).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
             const totalBLPaid = blFromSalary + blFromUnemployment + blFromMiluim + blFromSelf;
-            
-            // Taxable income (miluim IS taxable - not exempt!)
-            const taxableIncome = totalSalary + totalUnemployment + totalMiluim + Math.max(0, totalSelfEmployed - totalExpenses);
-            
-            // Self employed net income for BL calculation
-            const selfEmployedNet = Math.max(0, totalSelfEmployed - totalExpenses);
-            
+
+            // ===== SELF-EMPLOYED (עצמאי) - apply שומה override if present =====
+            const computedSelfEmployedNet = Math.max(0, totalSelfEmployed - totalExpenses);
+            const formShoma = active(yd.forms).find(f => f.formType === 'שומה' && hasFormDeclared(f));
+            let selfEmployedNet = computedSelfEmployedNet;
+            let selfEmployedSource = 'computed';
+            if (formShoma) {
+                selfEmployedNet = Math.max(0, Number(formShoma.declared.gross) || 0);
+                selfEmployedSource = 'שומה';
+            }
+
+            const taxableIncome = totalSalary + totalUnemployment + totalMiluim + selfEmployedNet;
+
             return {
                 salary: totalSalary,
                 unemployment: totalUnemployment,
@@ -5451,6 +5535,8 @@
                 selfEmployed: totalSelfEmployed,
                 expenses: totalExpenses,
                 selfEmployedNet,
+                computedSelfEmployedNet,
+                selfEmployedSource,
                 taxableIncome,
                 taxFromSalary,
                 taxFromUnemployment,
@@ -5461,7 +5547,10 @@
                 blFromMiluim,
                 blFromSelf,
                 totalBLPaid,
-                totalTaxPaid: taxFromSalary + taxFromUnemployment + taxFromMiluim + taxFromSelf
+                totalTaxPaid: taxFromSalary + taxFromUnemployment + taxFromMiluim + taxFromSelf,
+                salaryBreakdown,
+                salaryHasOverride: salaryBreakdown.some(b => b.source === '106' || b.source === '106-only'),
+                employerSums
             };
         }
 
@@ -5519,6 +5608,326 @@
             const total = reduced + full;
             
             return { total, reduced, full, months, reducedThreshold, maxThreshold };
+        }
+
+        // ========== OFFICIAL FORMS (106 / שומה) ==========
+        function escapeFormHtml(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function escapeFormJsArg(s) {
+            return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        }
+
+        function getOrCreateForm106(employer) {
+            const yd = getYearData();
+            if (!yd.forms) yd.forms = [];
+            let form = yd.forms.find(f => !f._deleted && f.formType === '106' && f.employer === employer);
+            if (!form) {
+                form = {
+                    id: Date.now() + Math.random(),
+                    formType: '106',
+                    category: 'שכיר',
+                    employer: employer,
+                    year: currentYear,
+                    declared: { gross: null, tax: null, bl: null },
+                    uploadDate: new Date().toISOString()
+                };
+                yd.forms.push(form);
+            }
+            if (!form.declared) form.declared = { gross: null, tax: null, bl: null };
+            return form;
+        }
+
+        function getOrCreateShoma() {
+            const yd = getYearData();
+            if (!yd.forms) yd.forms = [];
+            let form = yd.forms.find(f => !f._deleted && f.formType === 'שומה');
+            if (!form) {
+                form = {
+                    id: Date.now() + Math.random(),
+                    formType: 'שומה',
+                    category: 'עצמאי',
+                    employer: null,
+                    year: currentYear,
+                    declared: { gross: null, tax: null, bl: null },
+                    uploadDate: new Date().toISOString()
+                };
+                yd.forms.push(form);
+            }
+            if (!form.declared) form.declared = { gross: null, tax: null, bl: null };
+            return form;
+        }
+
+        function updateForm106(employer, field, value) {
+            const form = getOrCreateForm106(employer);
+            const trimmed = String(value).trim();
+            if (trimmed === '') {
+                form.declared[field] = null;
+            } else {
+                const num = Number(trimmed);
+                form.declared[field] = isNaN(num) ? null : num;
+            }
+            saveData();
+            renderAll();
+        }
+
+        function updateShoma(field, value) {
+            const form = getOrCreateShoma();
+            const trimmed = String(value).trim();
+            if (trimmed === '') {
+                form.declared[field] = null;
+            } else {
+                const num = Number(trimmed);
+                form.declared[field] = isNaN(num) ? null : num;
+            }
+            saveData();
+            renderAll();
+        }
+
+        async function uploadForm106File(employer, file) {
+            if (!file) return;
+            try {
+                const result = await uploadDocument(file, 'טפסים/106', 'form106', null);
+                if (result.local || result.drive) {
+                    const form = getOrCreateForm106(employer);
+                    form.fileName = file.name;
+                    form.fileSize = file.size;
+                    form.fileType = file.type;
+                    form.localPath = result.local;
+                    form.driveId = result.drive?.id;
+                    form.driveLink = result.drive?.link;
+                    form.uploadDate = new Date().toISOString();
+                    saveData();
+                    renderAll();
+                } else {
+                    alert('שגיאה בהעלאת הקובץ.\nוודא שתיקייה מקומית או Google Drive מחוברים בהגדרות.');
+                }
+            } catch (e) {
+                console.error('uploadForm106File error:', e);
+                alert('שגיאה: ' + e.message);
+            }
+        }
+
+        async function uploadShomaFile(file) {
+            if (!file) return;
+            try {
+                const result = await uploadDocument(file, 'טפסים/שומה', 'shoma', null);
+                if (result.local || result.drive) {
+                    const form = getOrCreateShoma();
+                    form.fileName = file.name;
+                    form.fileSize = file.size;
+                    form.fileType = file.type;
+                    form.localPath = result.local;
+                    form.driveId = result.drive?.id;
+                    form.driveLink = result.drive?.link;
+                    form.uploadDate = new Date().toISOString();
+                    saveData();
+                    renderAll();
+                } else {
+                    alert('שגיאה בהעלאת הקובץ.\nוודא שתיקייה מקומית או Google Drive מחוברים בהגדרות.');
+                }
+            } catch (e) {
+                console.error('uploadShomaFile error:', e);
+                alert('שגיאה: ' + e.message);
+            }
+        }
+
+        function deleteForm106(employer) {
+            if (!confirm(`למחוק את ה־106 של "${employer}"?\n(הקובץ בדרייב לא יימחק - רק הרישום במערכת)`)) return;
+            const yd = getYearData();
+            yd.forms = (yd.forms || []).filter(f => !(f.formType === '106' && f.employer === employer));
+            saveData();
+            renderAll();
+        }
+
+        function deleteShoma() {
+            if (!confirm('למחוק את השומה?\n(הקובץ בדרייב לא יימחק - רק הרישום במערכת)')) return;
+            const yd = getYearData();
+            yd.forms = (yd.forms || []).filter(f => f.formType !== 'שומה');
+            saveData();
+            renderAll();
+        }
+
+        function addForm106Manual() {
+            const employer = prompt('שם המעסיק עבור ה־106:');
+            if (!employer || !employer.trim()) return;
+            getOrCreateForm106(employer.trim());
+            saveData();
+            renderAll();
+        }
+
+        function renderForms() {
+            const yd = getYearData();
+            if (!yd.forms) yd.forms = [];
+            const totals = calculateTotals();
+
+            // Build employer sums from current year salary records
+            const salaryItems = active(yd.salary);
+            const employerSums = {};
+            salaryItems.forEach(s => {
+                const emp = s.employer || '(לא מוגדר)';
+                if (!employerSums[emp]) employerSums[emp] = { gross: 0, tax: 0, bl: 0 };
+                employerSums[emp].gross += Number(s.gross) || 0;
+                employerSums[emp].tax += Number(s.taxDeducted) || 0;
+                employerSums[emp].bl += Number(s.blDeducted) || 0;
+            });
+
+            const forms106 = active(yd.forms).filter(f => f.formType === '106');
+            const employerSet = new Set([
+                ...Object.keys(employerSums),
+                ...forms106.map(f => f.employer).filter(e => e)
+            ]);
+
+            // ===== Render 106 list =====
+            const list106 = document.getElementById('forms106List');
+            if (!list106) return;
+            if (employerSet.size === 0) {
+                list106.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);background:var(--bg-input);border-radius:8px;">אין מעסיקים בשנה זו. הוסף תלוש בעמוד "הכנסה כשכיר" או לחץ "הוסף מעסיק" להוספה ידנית.</div>';
+            } else {
+                list106.innerHTML = [...employerSet].map(emp => {
+                    const form = forms106.find(f => f.employer === emp);
+                    return render106Row(emp, employerSums[emp], form);
+                }).join('');
+            }
+
+            // ===== Render שומה =====
+            const formShoma = active(yd.forms).find(f => f.formType === 'שומה');
+            const shomaContent = document.getElementById('formsShomaContent');
+            if (shomaContent) {
+                shomaContent.innerHTML = renderShomaRow(totals.computedSelfEmployedNet, formShoma);
+            }
+        }
+
+        function render106Row(employer, slipSums, form) {
+            const declared = (form && form.declared) || {};
+            const slips = slipSums || { gross: 0, tax: 0, bl: 0 };
+            const isDeclared = (v) => v != null && v !== '' && !isNaN(Number(v));
+            const hasOverride = isDeclared(declared.gross);
+            const empSafe = escapeFormJsArg(employer);
+            const empHtml = escapeFormHtml(employer);
+
+            const fileBtn = (form && form.driveLink)
+                ? `<button class="btn btn-icon btn-sm" onclick="window.open('${escapeFormJsArg(form.driveLink)}','_blank')" title="צפה ב־106">👁️</button>`
+                : '';
+
+            // Reconciliation diff (only show if both slip data and declared values exist)
+            let diffHTML = '';
+            if (hasOverride && (slips.gross > 0 || slips.tax > 0 || slips.bl > 0)) {
+                const dGross = (Number(declared.gross) || 0) - slips.gross;
+                const dTax = (Number(declared.tax) || 0) - slips.tax;
+                const dBL = (Number(declared.bl) || 0) - slips.bl;
+                const maxDiff = Math.max(Math.abs(dGross), Math.abs(dTax), Math.abs(dBL));
+                const color = maxDiff < 100 ? 'var(--success)' : (maxDiff < 1000 ? 'var(--warning)' : 'var(--danger)');
+                const sign = (n) => n > 0 ? '+' : '';
+                diffHTML = `<div style="font-size:0.75rem;color:${color};margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">
+                    הפרש מהתלושים — ברוטו: ${sign(dGross)}${formatCurrency(dGross)} | מס: ${sign(dTax)}${formatCurrency(dTax)} | ב"ל: ${sign(dBL)}${formatCurrency(dBL)}
+                </div>`;
+            }
+
+            const badge = hasOverride
+                ? '<span style="font-size:0.7rem;background:var(--cyan);color:white;padding:3px 10px;border-radius:10px;">📄 פעיל בחישוב</span>'
+                : '<span style="font-size:0.7rem;color:var(--text-muted);">📋 משתמש בתלושים</span>';
+
+            const slipsHint = (slips.gross > 0 || slips.tax > 0 || slips.bl > 0)
+                ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:8px;">מתלושים: ${formatCurrency(slips.gross)} / ${formatCurrency(slips.tax)} / ${formatCurrency(slips.bl)}</div>`
+                : '';
+
+            const inputStyle = 'width:100%;padding:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.9rem;';
+
+            return `<div style="background:var(--bg-input);border-radius:8px;padding:14px;margin-bottom:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div style="font-weight:bold;font-size:1rem;">${empHtml}</div>
+                    ${badge}
+                </div>
+                ${slipsHint}
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;">
+                    <div>
+                        <label style="font-size:0.7rem;color:var(--text-muted);display:block;margin-bottom:4px;">ברוטו (שדה 042)</label>
+                        <input type="number" step="0.01" value="${declared.gross ?? ''}"
+                               onblur="updateForm106('${empSafe}','gross',this.value)"
+                               onkeydown="if(event.key==='Enter')this.blur()"
+                               style="${inputStyle}">
+                    </div>
+                    <div>
+                        <label style="font-size:0.7rem;color:var(--text-muted);display:block;margin-bottom:4px;">מס שנוכה (218)</label>
+                        <input type="number" step="0.01" value="${declared.tax ?? ''}"
+                               onblur="updateForm106('${empSafe}','tax',this.value)"
+                               onkeydown="if(event.key==='Enter')this.blur()"
+                               style="${inputStyle}">
+                    </div>
+                    <div>
+                        <label style="font-size:0.7rem;color:var(--text-muted);display:block;margin-bottom:4px;">ב"ל + בריאות (244+245)</label>
+                        <input type="number" step="0.01" value="${declared.bl ?? ''}"
+                               onblur="updateForm106('${empSafe}','bl',this.value)"
+                               onkeydown="if(event.key==='Enter')this.blur()"
+                               style="${inputStyle}">
+                    </div>
+                    <div style="display:flex;gap:5px;align-items:center;">
+                        ${fileBtn}
+                        <label class="btn btn-icon btn-sm" title="העלה PDF" style="cursor:pointer;margin:0;">📤<input type="file" accept="application/pdf,image/*" style="display:none" onchange="uploadForm106File('${empSafe}',this.files[0]);this.value='';"></label>
+                        ${form ? `<button class="btn btn-icon btn-sm" onclick="deleteForm106('${empSafe}')" title="מחק">🗑️</button>` : ''}
+                    </div>
+                </div>
+                ${diffHTML}
+            </div>`;
+        }
+
+        function renderShomaRow(computed, form) {
+            const declared = (form && form.declared) || {};
+            const isDeclared = (v) => v != null && v !== '' && !isNaN(Number(v));
+            const hasOverride = isDeclared(declared.gross);
+
+            const fileBtn = (form && form.driveLink)
+                ? `<button class="btn btn-icon btn-sm" onclick="window.open('${escapeFormJsArg(form.driveLink)}','_blank')" title="צפה בשומה">👁️</button>`
+                : '';
+
+            let diffHTML = '';
+            if (hasOverride && computed > 0) {
+                const dGross = (Number(declared.gross) || 0) - computed;
+                const color = Math.abs(dGross) < 100 ? 'var(--success)' : (Math.abs(dGross) < 1000 ? 'var(--warning)' : 'var(--danger)');
+                diffHTML = `<div style="font-size:0.75rem;color:${color};margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">
+                    הפרש מהמערכת: ${dGross > 0 ? '+' : ''}${formatCurrency(dGross)}
+                </div>`;
+            }
+
+            const badge = hasOverride
+                ? '<span style="font-size:0.7rem;background:var(--cyan);color:white;padding:3px 10px;border-radius:10px;">📄 פעיל בחישוב</span>'
+                : '<span style="font-size:0.7rem;color:var(--text-muted);">📋 משתמש בחישוב מהמערכת</span>';
+
+            const computedHint = computed > 0
+                ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:8px;">מהמערכת (הכנסות עצמאי − הוצאות מוכרות): ${formatCurrency(computed)}</div>`
+                : '';
+
+            const inputStyle = 'width:100%;padding:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.9rem;';
+
+            return `<div style="background:var(--bg-input);border-radius:8px;padding:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div style="font-weight:bold;font-size:1rem;">שומה לשנת ${currentYear}</div>
+                    ${badge}
+                </div>
+                ${computedHint}
+                <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;">
+                    <div>
+                        <label style="font-size:0.7rem;color:var(--text-muted);display:block;margin-bottom:4px;">הכנסה חייבת לפי השומה</label>
+                        <input type="number" step="0.01" value="${declared.gross ?? ''}"
+                               onblur="updateShoma('gross',this.value)"
+                               onkeydown="if(event.key==='Enter')this.blur()"
+                               style="${inputStyle}">
+                    </div>
+                    <div style="display:flex;gap:5px;align-items:center;">
+                        ${fileBtn}
+                        <label class="btn btn-icon btn-sm" title="העלה PDF" style="cursor:pointer;margin:0;">📤<input type="file" accept="application/pdf,image/*" style="display:none" onchange="uploadShomaFile(this.files[0]);this.value='';"></label>
+                        ${form ? `<button class="btn btn-icon btn-sm" onclick="deleteShoma()" title="מחק">🗑️</button>` : ''}
+                    </div>
+                </div>
+                ${diffHTML}
+            </div>`;
         }
 
         // ========== FORECAST CALCULATIONS ==========
@@ -5765,6 +6174,40 @@
             document.getElementById('calcExpenses').textContent = '-' + formatCurrency(totals.expenses);
             document.getElementById('calcMiluim').textContent = formatCurrency(totals.miluim);
             document.getElementById('calcTaxableIncome').textContent = formatCurrency(totals.taxableIncome);
+
+            // Source indicators (📄 = from official form, 📋 = from monthly slips)
+            const calcSalarySource = document.getElementById('calcSalarySource');
+            if (calcSalarySource) {
+                if (totals.salaryHasOverride) {
+                    const overrideCount = (totals.salaryBreakdown || []).filter(b => b.source === '106' || b.source === '106-only').length;
+                    calcSalarySource.innerHTML = `<span style="color:var(--cyan);">📄 ${overrideCount > 1 ? overrideCount + ' מ־106' : 'מ־106'}</span>`;
+                } else if ((totals.salaryBreakdown || []).length > 0) {
+                    calcSalarySource.innerHTML = '<span style="color:var(--text-muted);">📋 מתלושים</span>';
+                } else {
+                    calcSalarySource.innerHTML = '';
+                }
+            }
+
+            // Toggle self-employed rows vs שומה row in income summary
+            const seRow = document.querySelector('[data-incomerow="selfEmployed"]');
+            const expRow = document.querySelector('[data-incomerow="expenses"]');
+            const shomaRow = document.querySelector('[data-incomerow="shoma"]');
+            if (seRow && expRow && shomaRow) {
+                if (totals.selfEmployedSource === 'שומה') {
+                    seRow.style.display = 'none';
+                    expRow.style.display = 'none';
+                    shomaRow.style.display = '';
+                    const calcShomaEl = document.getElementById('calcShoma');
+                    if (calcShomaEl) calcShomaEl.textContent = formatCurrency(totals.selfEmployedNet);
+                } else {
+                    seRow.style.display = '';
+                    expRow.style.display = '';
+                    shomaRow.style.display = 'none';
+                }
+            }
+
+            // Render official forms section
+            renderForms();
             
             // Tax brackets breakdown
             let bracketsHTML = '';
