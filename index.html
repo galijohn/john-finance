@@ -625,22 +625,33 @@
         .year-selector {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 6px;
             background: var(--bg-input);
-            padding: 8px 15px;
-            border-radius: 8px;
+            padding: 4px 8px;
+            border-radius: 6px;
         }
-        
+
         .year-selector select {
             background: var(--bg-card);
             border: 1px solid var(--border);
             color: var(--text);
-            font-size: 1.1rem;
+            font-size: 0.85rem;
             font-weight: 600;
             cursor: pointer;
-            padding: 5px 10px;
-            border-radius: 5px;
-            min-width: 80px;
+            padding: 3px 6px;
+            border-radius: 4px;
+            min-width: 64px;
+        }
+
+        .year-selector .btn {
+            padding: 3px 6px;
+            font-size: 0.8rem;
+        }
+
+        /* Year selector placed in sidebar logo area (desktop) */
+        .sidebar .logo .year-selector {
+            margin-top: 10px;
+            justify-content: center;
         }
         
         .year-selector select option {
@@ -728,22 +739,38 @@
                 top: 0;
                 right: 0;
                 left: 0;
-                height: 48px;
+                min-height: 48px;
+                padding: 6px 12px 8px 12px;
                 background: var(--bg-card);
                 border-bottom: 1px solid var(--border);
                 align-items: center;
-                justify-content: center;
+                justify-content: space-between;
                 gap: 10px;
                 z-index: 200;
+                flex-direction: row;
+            }
+            .mobile-header .mobile-header-title {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
+                line-height: 1.1;
             }
             .mobile-header h1 {
-                font-size: 1rem;
+                font-size: 0.95rem;
                 margin: 0;
                 color: var(--primary);
             }
             .mobile-header small {
                 color: var(--text-muted);
-                font-size: 0.75rem;
+                font-size: 0.7rem;
+            }
+            .mobile-header .year-selector {
+                padding: 3px 6px;
+            }
+            .mobile-header .year-selector select {
+                font-size: 0.8rem;
+                min-width: 56px;
+                padding: 2px 4px;
             }
             .sidebar #headerClock {
                 display: none !important;
@@ -995,8 +1022,15 @@
     </div>
 
     <div class="mobile-header" style="display:none;">
-        <h1>💼 ניהול עוסק</h1>
-        <small>ג'ון לוי</small>
+        <div class="mobile-header-title">
+            <h1>💼 ניהול עוסק</h1>
+            <small>ג'ון לוי</small>
+        </div>
+        <div class="year-selector">
+            <span>📅</span>
+            <select id="currentYearMobile" onchange="changeYearFromSelect(this)"></select>
+            <button class="btn btn-sm" onclick="openModal('yearModal')" title="נהל שנים">⚙️</button>
+        </div>
     </div>
 
     <nav class="sidebar">
@@ -1004,6 +1038,11 @@
             <h1>💼 ניהול עוסק</h1>
             <small>ג'ון לוי</small>
             <div id="headerClock" style="margin-top:10px;font-size:0.85rem;color:var(--text-muted);"></div>
+            <div class="year-selector">
+                <span>📅</span>
+                <select id="currentYear" onchange="changeYearFromSelect(this)"></select>
+                <button class="btn btn-sm" onclick="openModal('yearModal')" title="נהל שנים">⚙️</button>
+            </div>
         </div>
         <div class="nav-item active" onclick="showPage('dashboard')">
             <span class="icon">🏠</span>
@@ -1061,7 +1100,7 @@
         <!-- Dashboard -->
         <div id="page-dashboard" class="page active">
             <div class="page-header">
-                <div style="display:flex;align-items:center;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                     <h2>📊 סיכום שנתי</h2>
                     <div class="export-dropdown">
                         <button class="btn btn-sm" onclick="toggleExportMenu(this)">🖨️ הדפסה</button>
@@ -1070,15 +1109,7 @@
                             <button onclick="exportPagePDF('dashboard')">📄 PDF</button>
                         </div>
                     </div>
-                </div>
-                <div style="display:flex;gap:10px;align-items:center;">
                     <button class="btn btn-sm" onclick="openModal('dashboardSettingsModal')" title="התאם דשבורד">🎨 התאמה</button>
-                    <div class="year-selector">
-                        <span>📅</span>
-                        <select id="currentYear" onchange="changeYear()">
-                        </select>
-                        <button class="btn btn-sm" onclick="openModal('yearModal')" title="נהל שנים">⚙️</button>
-                    </div>
                 </div>
             </div>
 
@@ -3895,23 +3926,41 @@
 
         // ========== YEAR MANAGEMENT ==========
         function renderYearSelector() {
-            const select = document.getElementById('currentYear');
             if (!data.years || data.years.length === 0) data.years = [2025, 2024];
-            
+
             // Sort years descending
             const sortedYears = [...data.years].sort((a, b) => b - a);
-            
+
             // Make sure currentYear is one of the available years
             if (!sortedYears.includes(currentYear)) {
                 currentYear = sortedYears[0];
             }
-            
-            select.innerHTML = sortedYears.map(y => 
+
+            const optionsHtml = sortedYears.map(y =>
                 `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`
             ).join('');
-            
-            // Ensure the select value matches currentYear
-            select.value = currentYear;
+
+            // Populate ALL year selects (sidebar + mobile-header)
+            ['currentYear', 'currentYearMobile'].forEach(id => {
+                const sel = document.getElementById(id);
+                if (sel) {
+                    sel.innerHTML = optionsHtml;
+                    sel.value = currentYear;
+                }
+            });
+        }
+
+        // Called from either of the year <select>s — reads the value that was
+        // just changed and keeps the other select in sync.
+        function changeYearFromSelect(selectEl) {
+            const selectedYear = parseInt(selectEl.value);
+            if (!selectedYear) return;
+            // Keep the other select mirrored
+            ['currentYear', 'currentYearMobile'].forEach(id => {
+                const s = document.getElementById(id);
+                if (s && s !== selectEl) s.value = String(selectedYear);
+            });
+            changeYear();
         }
 
         function renderYearsList() {
@@ -5945,16 +5994,23 @@
             // Handle file upload if chosen
             const fileInput = document.getElementById('form106File');
             const file = fileInput.files && fileInput.files[0];
+            let driveOk = false;
+            let localOk = false;
             if (file) {
                 _lastUploadError = null;
                 const result = await uploadDocument(file, 'טפסים/106', 'form106', form.id);
-                if (result.local || result.drive) {
+                localOk = !!result.local;
+                driveOk = !!(result.drive && result.drive.id);
+                if (localOk || driveOk) {
                     form.fileName = file.name;
                     form.fileSize = file.size;
                     form.fileType = file.type;
                     form.localPath = result.local;
                     form.driveId = result.drive?.id;
-                    form.driveLink = result.drive?.link;
+                    // Always construct a Drive link if we got an id, even if
+                    // webViewLink was missing from the response.
+                    form.driveLink = result.drive?.link
+                        || (result.drive?.id ? ('https://drive.google.com/file/d/' + result.drive.id + '/view') : null);
                     form.uploadDate = new Date().toISOString();
                 } else {
                     alert(explainUploadFailure());
@@ -5965,6 +6021,18 @@
             saveData();
             closeModal('form106Modal');
             renderAll();
+
+            // After the table re-renders, give the user clear feedback about
+            // where the file actually ended up. Silence when no file was picked.
+            if (file) {
+                if (driveOk) {
+                    console.log('[106] Drive upload OK:', form.driveLink);
+                    // Small non-blocking toast feel — use alert so mobile sees it
+                    setTimeout(() => alert('✅ הקובץ הועלה בהצלחה ל־Google Drive.\n\nלחץ 👁️ על השורה כדי לפתוח אותו.'), 50);
+                } else if (localOk) {
+                    setTimeout(() => alert('⚠️ הקובץ נשמר מקומית בלבד.\nההעלאה ל־Google Drive נכשלה:\n\n' + explainUploadFailure() + '\n\nפתח הגדרות וודא שאתה מחובר ל־Drive, ואז לחץ ✏️ ושמור שוב.'), 50);
+                }
+            }
         }
 
         function deleteForm106(employer) {
@@ -6018,16 +6086,21 @@
 
             const fileInput = document.getElementById('shomaFile');
             const file = fileInput.files && fileInput.files[0];
+            let shomaDriveOk = false;
+            let shomaLocalOk = false;
             if (file) {
                 _lastUploadError = null;
                 const result = await uploadDocument(file, 'טפסים/שומה', 'shoma', form.id);
-                if (result.local || result.drive) {
+                shomaLocalOk = !!result.local;
+                shomaDriveOk = !!(result.drive && result.drive.id);
+                if (shomaLocalOk || shomaDriveOk) {
                     form.fileName = file.name;
                     form.fileSize = file.size;
                     form.fileType = file.type;
                     form.localPath = result.local;
                     form.driveId = result.drive?.id;
-                    form.driveLink = result.drive?.link;
+                    form.driveLink = result.drive?.link
+                        || (result.drive?.id ? ('https://drive.google.com/file/d/' + result.drive.id + '/view') : null);
                     form.uploadDate = new Date().toISOString();
                 } else {
                     alert(explainUploadFailure());
@@ -6037,6 +6110,14 @@
             saveData();
             closeModal('shomaModal');
             renderAll();
+
+            if (file) {
+                if (shomaDriveOk) {
+                    setTimeout(() => alert('✅ הקובץ הועלה בהצלחה ל־Google Drive.'), 50);
+                } else if (shomaLocalOk) {
+                    setTimeout(() => alert('⚠️ הקובץ נשמר מקומית בלבד.\nההעלאה ל־Google Drive נכשלה:\n\n' + explainUploadFailure()), 50);
+                }
+            }
         }
 
         function deleteShoma() {
@@ -6143,14 +6224,25 @@
             }
         }
 
-        // Open the attached form file — handles Drive, local, and stale refs
+        // Open the attached form file — handles Drive, local, and stale refs.
+        // Prefers Drive (opens in new tab) over local (reads via File System API).
         async function viewFormFile(formId) {
             const yd = getYearData();
             const form = (yd.forms || []).find(f => String(f.id) === String(formId));
             if (!form) { alert('לא נמצא הטופס.'); return; }
 
-            if (form.driveLink) {
-                window.open(form.driveLink, '_blank');
+            // Build effective Drive URL — fall back to constructing from id if
+            // driveLink was never stored (old records, or webViewLink missing).
+            const driveUrl = form.driveLink
+                || (form.driveId ? ('https://drive.google.com/file/d/' + form.driveId + '/view') : null);
+
+            if (driveUrl) {
+                const w = window.open(driveUrl, '_blank');
+                if (!w) {
+                    // Popup blocked — fall back to copying the link
+                    try { await navigator.clipboard.writeText(driveUrl); } catch (_) {}
+                    alert('⚠️ הדפדפן חסם את פתיחת הלשונית.\n\nהקישור לקובץ הועתק ל־clipboard:\n' + driveUrl + '\n\nהדבק בכתובת והמשך.');
+                }
                 return;
             }
             if (form.localPath) {
@@ -6222,7 +6314,7 @@
                 blCell    = dash;
             }
 
-            const hasAnyFile = hasForm && !!(form.driveLink || form.localPath || form.fileName);
+            const hasAnyFile = hasForm && !!(form.driveLink || form.driveId || form.localPath || form.fileName);
             const viewBtn = hasAnyFile
                 ? `<button class="btn btn-icon btn-sm" onclick="viewFormFile('${form.id}')" title="צפה בקובץ">👁️</button>`
                 : '';
@@ -6267,7 +6359,7 @@
 
             const computedCell = computed > 0 ? formatCurrency(computed) : '<span style="color:var(--text-muted)">—</span>';
 
-            const hasAnyFile = !!(form.driveLink || form.localPath || form.fileName);
+            const hasAnyFile = !!(form.driveLink || form.driveId || form.localPath || form.fileName);
             const viewBtn = hasAnyFile
                 ? `<button class="btn btn-icon btn-sm" onclick="viewFormFile('${form.id}')" title="צפה בקובץ">👁️</button>`
                 : '';
