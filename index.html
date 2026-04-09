@@ -329,7 +329,76 @@
             justify-content: flex-start;
             gap: 10px;
         }
-        
+
+        /* ===== NICE POPUP (replaces native alert/confirm for critical flows) ===== */
+        .popup-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            z-index: 500;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+        }
+        .popup-overlay.active { display: flex; animation: fadeIn 0.15s ease-out; }
+        .popup-card {
+            background: var(--bg-card);
+            border-radius: 18px;
+            max-width: 460px;
+            width: 100%;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            overflow: hidden;
+            animation: popupIn 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+        }
+        @keyframes popupIn {
+            from { transform: translateY(20px) scale(0.95); opacity: 0; }
+            to   { transform: translateY(0) scale(1);      opacity: 1; }
+        }
+        .popup-icon {
+            font-size: 3rem;
+            text-align: center;
+            padding: 28px 20px 8px;
+            line-height: 1;
+        }
+        .popup-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            text-align: center;
+            padding: 0 24px 8px;
+            color: var(--text);
+        }
+        .popup-body {
+            font-size: 0.95rem;
+            text-align: center;
+            padding: 0 24px 20px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .popup-body a {
+            color: var(--cyan);
+            text-decoration: underline;
+            word-break: break-all;
+        }
+        .popup-footer {
+            display: flex;
+            gap: 10px;
+            padding: 16px 20px 20px;
+            justify-content: center;
+        }
+        .popup-footer button {
+            min-width: 110px;
+            font-weight: 600;
+        }
+        .popup-card.popup-error   .popup-icon { color: var(--danger); }
+        .popup-card.popup-success .popup-icon { color: var(--success); }
+        .popup-card.popup-warning .popup-icon { color: var(--warning); }
+        .popup-card.popup-info    .popup-icon { color: var(--cyan); }
+
         .badge {
             padding: 4px 10px;
             border-radius: 20px;
@@ -2929,7 +2998,89 @@
         </div>
     </div>
 
+    <!-- ===== NICE POPUP (error/success/warning/confirm) ===== -->
+    <div id="popupOverlay" class="popup-overlay" onclick="if(event.target===this)closePopup(false)">
+        <div id="popupCard" class="popup-card popup-info">
+            <div id="popupIcon" class="popup-icon">ℹ️</div>
+            <div id="popupTitle" class="popup-title">הודעה</div>
+            <div id="popupBody" class="popup-body"></div>
+            <div id="popupFooter" class="popup-footer">
+                <button id="popupCancel" class="btn" onclick="closePopup(false)" style="display:none;">ביטול</button>
+                <button id="popupOk" class="btn btn-primary" onclick="closePopup(true)">אישור</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // ========== NICE POPUP ==========
+        // Promise-based replacement for alert() / confirm(). Use for critical
+        // user feedback instead of the browser native modal dialogs.
+        let _popupResolve = null;
+        function showPopup(opts) {
+            return new Promise(resolve => {
+                _popupResolve = resolve;
+                const {
+                    type = 'info',            // error | success | warning | info
+                    icon = null,              // override emoji
+                    title = 'הודעה',
+                    message = '',
+                    link = null,              // optional clickable URL shown after message
+                    okText = 'אישור',
+                    cancelText = null         // show cancel button if set
+                } = opts || {};
+
+                const defaultIcons = { error: '❌', success: '✅', warning: '⚠️', info: 'ℹ️' };
+                const card = document.getElementById('popupCard');
+                card.classList.remove('popup-error','popup-success','popup-warning','popup-info');
+                card.classList.add('popup-' + type);
+
+                document.getElementById('popupIcon').textContent = icon || defaultIcons[type] || 'ℹ️';
+                document.getElementById('popupTitle').textContent = title;
+
+                const bodyEl = document.getElementById('popupBody');
+                bodyEl.textContent = message;
+                if (link) {
+                    const a = document.createElement('a');
+                    a.href = link;
+                    a.target = '_blank';
+                    a.rel = 'noopener';
+                    a.textContent = link;
+                    bodyEl.appendChild(document.createElement('br'));
+                    bodyEl.appendChild(document.createElement('br'));
+                    bodyEl.appendChild(a);
+                }
+
+                document.getElementById('popupOk').textContent = okText;
+                const cancelBtn = document.getElementById('popupCancel');
+                if (cancelText) {
+                    cancelBtn.textContent = cancelText;
+                    cancelBtn.style.display = '';
+                } else {
+                    cancelBtn.style.display = 'none';
+                }
+
+                document.getElementById('popupOverlay').classList.add('active');
+            });
+        }
+        function closePopup(result) {
+            document.getElementById('popupOverlay').classList.remove('active');
+            if (_popupResolve) { const r = _popupResolve; _popupResolve = null; r(result); }
+        }
+        // Close on Escape
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && document.getElementById('popupOverlay').classList.contains('active')) {
+                closePopup(false);
+            }
+        });
+
+        // Shortcuts
+        const popupError   = (title, message, link) => showPopup({ type: 'error',   title, message, link });
+        const popupSuccess = (title, message, link) => showPopup({ type: 'success', title, message, link });
+        const popupWarning = (title, message, link) => showPopup({ type: 'warning', title, message, link });
+        const popupInfo    = (title, message, link) => showPopup({ type: 'info',    title, message, link });
+        const popupConfirm = (title, message, okText = 'אישור', cancelText = 'ביטול') =>
+            showPopup({ type: 'warning', title, message, okText, cancelText });
+
         // ========== GOOGLE DRIVE INTEGRATION ==========
         const GOOGLE_CLIENT_ID = '831800526620-vrar20hjjjne49jrr6gpv9dmr54224g5.apps.googleusercontent.com';
         const GOOGLE_API_KEY = 'AIzaSyB30a84J6yYYHgRYddgd97vOVIR-r95Z94';
@@ -3050,7 +3201,7 @@
                 } catch(e) {
                     console.error('Token renewal failed:', e);
                     updateDriveStatus(false, 'טוקן פג - יש להתחבר מחדש');
-                    remindUserToConnectDrive('⏰ החיבור ל־Google Drive פג.\n\nכדי שהקבצים החדשים ימשיכו להתארכב בענן אוטומטית, יש להתחבר מחדש.\n\nלחץ "אישור" כדי להתחבר עכשיו.');
+                    remindUserToConnectDrive('⏰ החיבור ל־Google Drive פג.\n\nכדי שהקבצים החדשים ימשיכו להתארכב בענן אוטומטית, יש להתחבר מחדש.');
                 }
             }, renewIn);
         }
@@ -3061,7 +3212,7 @@
                 const ok = await ensureValidToken();
                 if (!ok) {
                     updateDriveStatus(false, 'טוקן פג - יש להתחבר מחדש');
-                    remindUserToConnectDrive('⏰ החיבור ל־Google Drive פג.\n\nלחץ "אישור" כדי להתחבר מחדש.');
+                    remindUserToConnectDrive('⏰ החיבור ל־Google Drive פג. התחבר מחדש כדי להמשיך לסנכרן קבצים לענן.');
                 }
             }
         });
@@ -3302,7 +3453,7 @@
                     localStorage.removeItem('googleTokenExpiry');
                     updateDriveStatus(false);
                     // Token expired and silent renewal failed — pop up the reminder.
-                    remindUserToConnectDrive('⏰ החיבור ל־Google Drive פג.\n\nכדי שהקבצים החדשים ימשיכו להתארכב בענן אוטומטית, יש להתחבר מחדש.\n\nלחץ "אישור" כדי להתחבר עכשיו.');
+                    remindUserToConnectDrive('⏰ החיבור ל־Google Drive פג.\n\nכדי שהקבצים החדשים ימשיכו להתארכב בענן אוטומטית, יש להתחבר מחדש.');
                     return;
                 }
             }
@@ -3313,7 +3464,7 @@
             if (hasAnyUserData() && !sessionStorage.getItem('driveConnectReminderShown')) {
                 sessionStorage.setItem('driveConnectReminderShown', '1');
                 setTimeout(() => {
-                    remindUserToConnectDrive('⚠️ לא מחובר ל־Google Drive.\n\nקבצים שתעלה כעת לא יתארכבו בענן עד שתתחבר.\n\nלחץ "אישור" כדי להתחבר עכשיו.');
+                    remindUserToConnectDrive('⚠️ לא מחובר ל־Google Drive.\n\nקבצים שתעלה כעת לא יתארכבו בענן עד שתתחבר.');
                 }, 1200);
             }
         }
@@ -3332,12 +3483,20 @@
 
         // Offer the user a one-click reconnect. If they agree, we run the
         // full initGoogleDrive() which shows Google's consent popup.
-        function remindUserToConnectDrive(msg) {
-            if (confirm(msg)) {
-                initGoogleDrive().catch(err => {
-                    console.error('Manual reconnect failed:', err);
-                    alert('❌ ההתחברות נכשלה: ' + (err.message || err));
-                });
+        async function remindUserToConnectDrive(msg) {
+            const ok = await showPopup({
+                type: 'warning',
+                title: 'לא מחובר ל־Google Drive',
+                message: msg,
+                okText: 'התחבר עכשיו',
+                cancelText: 'בהמשך'
+            });
+            if (!ok) return;
+            try {
+                await initGoogleDrive();
+            } catch (err) {
+                console.error('Manual reconnect failed:', err);
+                await popupError('ההתחברות נכשלה', String(err && err.message || err));
             }
         }
 
@@ -4040,10 +4199,28 @@
                 
                 saveData();
             }
-            
+
             return results;
         }
-        
+
+        // Uploads a file and REQUIRES it to land in Google Drive.
+        // Returns the results on success. On failure, shows a styled popup
+        // and returns null — callers MUST abort their save when this is null.
+        async function requireDriveUpload(file, subFolder, recordType, recordId) {
+            _lastUploadError = null;
+            const results = await uploadDocument(file, subFolder, recordType, recordId);
+            const driveOk = !!(results && results.drive && results.drive.id);
+            if (!driveOk) {
+                await popupError(
+                    'ההעלאה ל־Google Drive נכשלה',
+                    'השורה לא נשמרה — כדי לא להציג מצג שווא של קובץ שלא קיים בענן.\n\n' +
+                    explainUploadFailure() + '\n\nהתחבר מחדש ל־Drive ונסה שוב.'
+                );
+                return null;
+            }
+            return results;
+        }
+
         // Initialize local folder on page load
         async function initLocalFolder() {
             if (!isFileSystemSupported()) {
@@ -5102,23 +5279,22 @@
                 notes: document.getElementById('salaryNotes').value
             };
             
-            // Handle file upload
+            // Handle file upload — REQUIRES Drive success
             const fileInput = document.getElementById('salaryFile');
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 document.getElementById('salaryFileStatus').textContent = '⏳ מעלה...';
-                
-                const results = await uploadDocument(file, 'שכיר', 'salary', recordId);
-                
-                if (results.local || results.drive) {
-                    itemData.fileName = file.name;
-                    itemData.localPath = results.local;
-                    itemData.driveId = results.drive?.id;
-                    itemData.driveLink = results.drive?.link;
-                    document.getElementById('salaryFileStatus').textContent = '✅ הועלה!';
-                } else {
-                    document.getElementById('salaryFileStatus').textContent = '⚠️ לא הועלה';
+
+                const results = await requireDriveUpload(file, 'שכיר', 'salary', recordId);
+                if (!results) {
+                    document.getElementById('salaryFileStatus').textContent = '❌ נכשל';
+                    return; // ABORT — don't save row
                 }
+                itemData.fileName = file.name;
+                itemData.localPath = results.local;
+                itemData.driveId = results.drive.id;
+                itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
+                document.getElementById('salaryFileStatus').textContent = '✅ הועלה!';
             }
             
             if (editingId) {
@@ -5150,23 +5326,22 @@
                 notes: document.getElementById('unemploymentNotes').value
             };
             
-            // Handle file upload
+            // Handle file upload — REQUIRES Drive success
             const fileInput = document.getElementById('unemploymentFile');
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 document.getElementById('unemploymentFileStatus').textContent = '⏳ מעלה...';
-                
-                const results = await uploadDocument(file, 'אבטלה', 'unemployment', recordId);
-                
-                if (results.local || results.drive) {
-                    itemData.fileName = file.name;
-                    itemData.localPath = results.local;
-                    itemData.driveId = results.drive?.id;
-                    itemData.driveLink = results.drive?.link;
-                    document.getElementById('unemploymentFileStatus').textContent = '✅ הועלה!';
-                } else {
-                    document.getElementById('unemploymentFileStatus').textContent = '⚠️ לא הועלה';
+
+                const results = await requireDriveUpload(file, 'אבטלה', 'unemployment', recordId);
+                if (!results) {
+                    document.getElementById('unemploymentFileStatus').textContent = '❌ נכשל';
+                    return;
                 }
+                itemData.fileName = file.name;
+                itemData.localPath = results.local;
+                itemData.driveId = results.drive.id;
+                itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
+                document.getElementById('unemploymentFileStatus').textContent = '✅ הועלה!';
             }
             
             if (editingId) {
@@ -5208,23 +5383,22 @@
                 notes: document.getElementById('miluimNotes').value
             };
             
-            // Handle file upload
+            // Handle file upload — REQUIRES Drive success
             const fileInput = document.getElementById('miluimFile');
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 document.getElementById('miluimFileStatus').textContent = '⏳ מעלה...';
-                
-                const results = await uploadDocument(file, 'מילואים', 'miluim', recordId);
-                
-                if (results.local || results.drive) {
-                    itemData.fileName = file.name;
-                    itemData.localPath = results.local;
-                    itemData.driveId = results.drive?.id;
-                    itemData.driveLink = results.drive?.link;
-                    document.getElementById('miluimFileStatus').textContent = '✅ הועלה!';
-                } else {
-                    document.getElementById('miluimFileStatus').textContent = '⚠️ לא הועלה';
+
+                const results = await requireDriveUpload(file, 'מילואים', 'miluim', recordId);
+                if (!results) {
+                    document.getElementById('miluimFileStatus').textContent = '❌ נכשל';
+                    return;
                 }
+                itemData.fileName = file.name;
+                itemData.localPath = results.local;
+                itemData.driveId = results.drive.id;
+                itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
+                document.getElementById('miluimFileStatus').textContent = '✅ הועלה!';
             }
             
             if (editingId) {
@@ -5254,23 +5428,22 @@
                 notes: document.getElementById('selfNotes').value
             };
             
-            // Handle file upload
+            // Handle file upload — REQUIRES Drive success
             const fileInput = document.getElementById('selfFile');
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 document.getElementById('selfFileStatus').textContent = '⏳ מעלה...';
-                
-                const results = await uploadDocument(file, 'חשבוניות-עצמאי', 'selfEmployed', recordId);
-                
-                if (results.local || results.drive) {
-                    itemData.fileName = file.name;
-                    itemData.localPath = results.local;
-                    itemData.driveId = results.drive?.id;
-                    itemData.driveLink = results.drive?.link;
-                    document.getElementById('selfFileStatus').textContent = '✅ הועלה!';
-                } else {
-                    document.getElementById('selfFileStatus').textContent = '⚠️ לא הועלה';
+
+                const results = await requireDriveUpload(file, 'חשבוניות-עצמאי', 'selfEmployed', recordId);
+                if (!results) {
+                    document.getElementById('selfFileStatus').textContent = '❌ נכשל';
+                    return;
                 }
+                itemData.fileName = file.name;
+                itemData.localPath = results.local;
+                itemData.driveId = results.drive.id;
+                itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
+                document.getElementById('selfFileStatus').textContent = '✅ הועלה!';
             }
             
             if (editingId) {
@@ -5302,23 +5475,22 @@
                 notes: document.getElementById('expenseNotes').value
             };
             
-            // Handle file upload
+            // Handle file upload — REQUIRES Drive success
             const fileInput = document.getElementById('expenseFile');
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 document.getElementById('expenseFileStatus').textContent = '⏳ מעלה...';
-                
-                const results = await uploadDocument(file, 'הוצאות-מוכרות', 'expense', recordId);
-                
-                if (results.local || results.drive) {
-                    itemData.fileName = file.name;
-                    itemData.localPath = results.local;
-                    itemData.driveId = results.drive?.id;
-                    itemData.driveLink = results.drive?.link;
-                    document.getElementById('expenseFileStatus').textContent = '✅ הועלה!';
-                } else {
-                    document.getElementById('expenseFileStatus').textContent = '⚠️ לא הועלה';
+
+                const results = await requireDriveUpload(file, 'הוצאות-מוכרות', 'expense', recordId);
+                if (!results) {
+                    document.getElementById('expenseFileStatus').textContent = '❌ נכשל';
+                    return;
                 }
+                itemData.fileName = file.name;
+                itemData.localPath = results.local;
+                itemData.driveId = results.drive.id;
+                itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
+                document.getElementById('expenseFileStatus').textContent = '✅ הועלה!';
             }
             
             if (editingId) {
@@ -5347,23 +5519,22 @@
                 notes: document.getElementById('taxAdvanceNotes').value
             };
             
-            // Handle file upload
+            // Handle file upload — REQUIRES Drive success
             const fileInput = document.getElementById('taxAdvanceFile');
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 document.getElementById('taxAdvanceFileStatus').textContent = '⏳ מעלה...';
-                
-                const results = await uploadDocument(file, 'מקדמות-מס', 'taxAdvance', recordId);
-                
-                if (results.local || results.drive) {
-                    itemData.fileName = file.name;
-                    itemData.localPath = results.local;
-                    itemData.driveId = results.drive?.id;
-                    itemData.driveLink = results.drive?.link;
-                    document.getElementById('taxAdvanceFileStatus').textContent = '✅ הועלה!';
-                } else {
-                    document.getElementById('taxAdvanceFileStatus').textContent = '⚠️ לא הועלה';
+
+                const results = await requireDriveUpload(file, 'מקדמות-מס', 'taxAdvance', recordId);
+                if (!results) {
+                    document.getElementById('taxAdvanceFileStatus').textContent = '❌ נכשל';
+                    return;
                 }
+                itemData.fileName = file.name;
+                itemData.localPath = results.local;
+                itemData.driveId = results.drive.id;
+                itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
+                document.getElementById('taxAdvanceFileStatus').textContent = '✅ הועלה!';
             }
             
             if (editingId) {
@@ -5394,17 +5565,17 @@
             openModal('taxAdvanceModal');
         }
 
-        function deleteTaxAdvance(id) {
+        async function deleteTaxAdvance(id) {
+            const ok = await popupConfirm('מחיקת מקדמת מס', 'למחוק את הרישום?\n\nקובץ מצורף (אם קיים) יימחק גם מ־Google Drive.', 'מחק', 'ביטול');
+            if (!ok) return;
             const yd = getYearData();
-            if (confirm('למחוק?')) {
-                const item = yd.taxAdvances.find(p => p.id === id);
-                if (item) {
-                    if (item.driveId) deleteDriveFile(item.driveId);
-                    item._deleted = true; item._deletedAt = Date.now();
-                }
-                saveData();
-                renderAll();
+            const item = yd.taxAdvances.find(p => p.id === id);
+            if (item) {
+                if (item.driveId) deleteDriveFile(item.driveId).catch(err => console.warn('[drive] delete failed:', err));
+                item._deleted = true; item._deletedAt = Date.now();
             }
+            saveData();
+            renderAll();
         }
 
         async function addBLAdvance() {
@@ -5417,23 +5588,22 @@
                 notes: document.getElementById('blAdvanceNotes').value
             };
             
-            // Handle file upload
+            // Handle file upload — REQUIRES Drive success
             const fileInput = document.getElementById('blAdvanceFile');
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 document.getElementById('blAdvanceFileStatus').textContent = '⏳ מעלה...';
-                
-                const results = await uploadDocument(file, 'ביטוח-לאומי', 'blAdvance', recordId);
-                
-                if (results.local || results.drive) {
-                    itemData.fileName = file.name;
-                    itemData.localPath = results.local;
-                    itemData.driveId = results.drive?.id;
-                    itemData.driveLink = results.drive?.link;
-                    document.getElementById('blAdvanceFileStatus').textContent = '✅ הועלה!';
-                } else {
-                    document.getElementById('blAdvanceFileStatus').textContent = '⚠️ לא הועלה';
+
+                const results = await requireDriveUpload(file, 'ביטוח-לאומי', 'blAdvance', recordId);
+                if (!results) {
+                    document.getElementById('blAdvanceFileStatus').textContent = '❌ נכשל';
+                    return;
                 }
+                itemData.fileName = file.name;
+                itemData.localPath = results.local;
+                itemData.driveId = results.drive.id;
+                itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
+                document.getElementById('blAdvanceFileStatus').textContent = '✅ הועלה!';
             }
             
             if (editingId) {
@@ -5464,17 +5634,17 @@
             openModal('blAdvanceModal');
         }
 
-        function deleteBLAdvance(id) {
+        async function deleteBLAdvance(id) {
+            const ok = await popupConfirm('מחיקת מקדמת ביטוח לאומי', 'למחוק את הרישום?\n\nקובץ מצורף (אם קיים) יימחק גם מ־Google Drive.', 'מחק', 'ביטול');
+            if (!ok) return;
             const yd = getYearData();
-            if (confirm('למחוק?')) {
-                const item = yd.blAdvances.find(p => p.id === id);
-                if (item) {
-                    if (item.driveId) deleteDriveFile(item.driveId);
-                    item._deleted = true; item._deletedAt = Date.now();
-                }
-                saveData();
-                renderAll();
+            const item = yd.blAdvances.find(p => p.id === id);
+            if (item) {
+                if (item.driveId) deleteDriveFile(item.driveId).catch(err => console.warn('[drive] delete failed:', err));
+                item._deleted = true; item._deletedAt = Date.now();
             }
+            saveData();
+            renderAll();
         }
 
         // ========== BUSINESS STATUS & VAT ==========
@@ -5570,17 +5740,17 @@
             openModal('vatModal');
         }
 
-        function deleteVatReport(id) {
+        async function deleteVatReport(id) {
+            const ok = await popupConfirm('מחיקת דוח מע"מ', 'למחוק את הדוח?\n\nקובץ מצורף (אם קיים) יימחק גם מ־Google Drive.', 'מחק', 'ביטול');
+            if (!ok) return;
             const yd = getYearData();
-            if (confirm('למחוק?')) {
-                const item = yd.vatReports.find(v => v.id === id);
-                if (item) {
-                    if (item.driveId) deleteDriveFile(item.driveId);
-                    item._deleted = true; item._deletedAt = Date.now();
-                }
-                saveData();
-                renderAll();
+            const item = yd.vatReports.find(v => v.id === id);
+            if (item) {
+                if (item.driveId) deleteDriveFile(item.driveId).catch(err => console.warn('[drive] delete failed:', err));
+                item._deleted = true; item._deletedAt = Date.now();
             }
+            saveData();
+            renderAll();
         }
 
         function renderVatTable() {
@@ -5662,17 +5832,25 @@
             } catch (e) { console.error('Drive delete error:', e); }
         }
 
-        function deleteItem(type, id) {
+        async function deleteItem(type, id) {
+            const labels = {
+                salary: 'משכורת',
+                unemployment: 'דמי אבטלה',
+                miluim: 'מילואים',
+                selfEmployed: 'חשבונית עצמאי',
+                expenses: 'הוצאה מוכרת'
+            };
+            const label = labels[type] || 'רישום';
+            const ok = await popupConfirm('מחיקת ' + label, 'למחוק את ה' + label + '?\n\nקובץ מצורף (אם קיים) יימחק גם מ־Google Drive.', 'מחק', 'ביטול');
+            if (!ok) return;
             const yd = getYearData();
-            if (confirm('למחוק?')) {
-                const item = yd[type].find(i => i.id === id);
-                if (item) {
-                    if (item.driveId) deleteDriveFile(item.driveId);
-                    item._deleted = true; item._deletedAt = Date.now();
-                }
-                saveData();
-                renderAll();
+            const item = yd[type].find(i => i.id === id);
+            if (item) {
+                if (item.driveId) deleteDriveFile(item.driveId).catch(err => console.warn('[drive] delete failed:', err));
+                item._deleted = true; item._deletedAt = Date.now();
             }
+            saveData();
+            renderAll();
         }
 
         // ========== EDIT FUNCTIONS ==========
@@ -6103,7 +6281,7 @@
         async function saveForm106() {
             const employer = String(document.getElementById('form106Employer').value || '').trim();
             if (!employer) {
-                alert('יש להזין שם מעסיק');
+                await popupWarning('חסר שם מעסיק', 'יש להזין שם מעסיק לפני שמירת ה־106.');
                 return;
             }
             const parseNum = (id) => {
@@ -6129,7 +6307,11 @@
                 uploadResult = await uploadDocument(file, 'טפסים/106', 'form106', Date.now());
                 const driveOk = !!(uploadResult.drive && uploadResult.drive.id);
                 if (!driveOk) {
-                    alert('❌ העלאת הקובץ ל־Google Drive נכשלה.\n\nהשורה לא נשמרה כדי לא להציג מצג שווא של קובץ שלא קיים בענן.\n\n' + explainUploadFailure() + '\n\nהתחבר מחדש ל־Drive ונסה שוב.');
+                    await popupError(
+                        'העלאת ה־106 ל־Drive נכשלה',
+                        'השורה לא נשמרה — כדי לא להציג מצג שווא של קובץ שלא קיים בענן.\n\n' +
+                        explainUploadFailure() + '\n\nהתחבר מחדש ל־Drive ונסה שוב.'
+                    );
                     return; // ABORT — do not create/update the row
                 }
             }
@@ -6171,14 +6353,25 @@
 
             if (file) {
                 console.log('[106] Drive upload OK:', form.driveLink);
-                setTimeout(() => alert('✅ הקובץ הועלה בהצלחה ל־Google Drive.\n\n' + form.driveLink), 50);
+                popupSuccess('ה־106 הועלה ל־Drive', 'הקובץ נשמר בהצלחה בענן.', form.driveLink);
             }
         }
 
-        function deleteForm106(employer) {
-            if (!confirm(`למחוק את ה־106 של "${employer}"?\n(הקובץ בדרייב לא יימחק - רק הרישום במערכת)`)) return;
+        async function deleteForm106(employer) {
+            const ok = await popupConfirm(
+                'מחיקת 106',
+                `למחוק את ה־106 של "${employer}"?\n\nהקובץ יימחק גם מ־Google Drive כדי לא להשאיר קבצים יתומים.`,
+                'מחק',
+                'ביטול'
+            );
+            if (!ok) return;
             const yd = getYearData();
             const key = normalizeEmployerKey(employer);
+            const toDelete = (yd.forms || []).filter(f => f.formType === '106' && normalizeEmployerKey(f.employer) === key);
+            // Purge Drive files in parallel — fire and forget, failures shouldn't block the local delete.
+            for (const f of toDelete) {
+                if (f.driveId) { deleteDriveFile(f.driveId).catch(err => console.warn('[drive] 106 delete failed:', err)); }
+            }
             yd.forms = (yd.forms || []).filter(f => !(f.formType === '106' && normalizeEmployerKey(f.employer) === key));
             saveData();
             renderAll();
@@ -6217,7 +6410,11 @@
                 uploadResult = await uploadDocument(file, 'טפסים/שומה', 'shoma', Date.now());
                 const driveOk = !!(uploadResult.drive && uploadResult.drive.id);
                 if (!driveOk) {
-                    alert('❌ העלאת הקובץ ל־Google Drive נכשלה.\n\nהשורה לא נשמרה כדי לא להציג מצג שווא של קובץ שלא קיים בענן.\n\n' + explainUploadFailure() + '\n\nהתחבר מחדש ל־Drive ונסה שוב.');
+                    await popupError(
+                        'העלאת השומה ל־Drive נכשלה',
+                        'השורה לא נשמרה — כדי לא להציג מצג שווא של קובץ שלא קיים בענן.\n\n' +
+                        explainUploadFailure() + '\n\nהתחבר מחדש ל־Drive ונסה שוב.'
+                    );
                     return;
                 }
             }
@@ -6255,13 +6452,23 @@
             renderAll();
 
             if (file) {
-                setTimeout(() => alert('✅ הקובץ הועלה בהצלחה ל־Google Drive.\n\n' + form.driveLink), 50);
+                popupSuccess('השומה הועלתה ל־Drive', 'הקובץ נשמר בהצלחה בענן.', form.driveLink);
             }
         }
 
-        function deleteShoma() {
-            if (!confirm('למחוק את השומה?\n(הקובץ בדרייב לא יימחק - רק הרישום במערכת)')) return;
+        async function deleteShoma() {
+            const ok = await popupConfirm(
+                'מחיקת שומה',
+                'למחוק את השומה?\n\nהקובץ יימחק גם מ־Google Drive כדי לא להשאיר קבצים יתומים.',
+                'מחק',
+                'ביטול'
+            );
+            if (!ok) return;
             const yd = getYearData();
+            const toDelete = (yd.forms || []).filter(f => f.formType === 'שומה');
+            for (const f of toDelete) {
+                if (f.driveId) { deleteDriveFile(f.driveId).catch(err => console.warn('[drive] shoma delete failed:', err)); }
+            }
             yd.forms = (yd.forms || []).filter(f => f.formType !== 'שומה');
             saveData();
             renderAll();
@@ -6409,7 +6616,7 @@
             const empName = displayName || (form && form.employer) || '(לא מוגדר)';
             const empSafe = escapeFormJsArg(empName);
             const empHtml = escapeFormHtml(empName);
-            const fileHtml = (form && form.fileName)
+            const fileHtml = (form && form.fileName && (form.driveId || form.driveLink))
                 ? '<span data-tip="' + escapeFormHtml(form.fileName) + '" style="cursor:help;">📎</span>'
                 : '';
 
@@ -6453,7 +6660,10 @@
                 blCell    = dash;
             }
 
-            const hasAnyFile = hasForm && !!(form.driveLink || form.driveId || form.localPath || form.fileName);
+            // Only show the view button if we actually have the file in Drive.
+            // A bare localPath/fileName without driveId means the upload never reached the cloud —
+            // clicking "view" would be a dead end, so we hide it rather than lie.
+            const hasAnyFile = hasForm && !!(form.driveLink || form.driveId);
             const viewBtn = hasAnyFile
                 ? `<button class="btn btn-icon btn-sm" onclick="viewFormFile('${form.id}')" title="צפה בקובץ">👁️</button>`
                 : '';
@@ -6481,7 +6691,7 @@
             const d = form.declared || {};
             const isDeclared = (v) => v != null && v !== '' && !isNaN(Number(v));
             const hasOverride = isDeclared(d.gross);
-            const fileHtml = form.fileName
+            const fileHtml = (form.fileName && (form.driveId || form.driveLink))
                 ? '<span data-tip="' + escapeFormHtml(form.fileName) + '" style="cursor:help;">📎</span>'
                 : '';
             const badge = hasOverride
@@ -6498,7 +6708,9 @@
 
             const computedCell = computed > 0 ? formatCurrency(computed) : '<span style="color:var(--text-muted)">—</span>';
 
-            const hasAnyFile = !!(form.driveLink || form.driveId || form.localPath || form.fileName);
+            // Only show the view button if the file actually lives in Drive. Having just a
+            // localPath/fileName means the upload never reached the cloud — don't lie to the user.
+            const hasAnyFile = !!(form.driveLink || form.driveId);
             const viewBtn = hasAnyFile
                 ? `<button class="btn btn-icon btn-sm" onclick="viewFormFile('${form.id}')" title="צפה בקובץ">👁️</button>`
                 : '';
