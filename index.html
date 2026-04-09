@@ -3050,6 +3050,7 @@
                 } catch(e) {
                     console.error('Token renewal failed:', e);
                     updateDriveStatus(false, 'טוקן פג - יש להתחבר מחדש');
+                    remindUserToConnectDrive('⏰ החיבור ל־Google Drive פג.\n\nכדי שהקבצים החדשים ימשיכו להתארכב בענן אוטומטית, יש להתחבר מחדש.\n\nלחץ "אישור" כדי להתחבר עכשיו.');
                 }
             }, renewIn);
         }
@@ -3057,7 +3058,11 @@
         // Renew token when tab becomes visible again
         document.addEventListener('visibilitychange', async () => {
             if (document.visibilityState === 'visible' && googleAccessToken) {
-                await ensureValidToken();
+                const ok = await ensureValidToken();
+                if (!ok) {
+                    updateDriveStatus(false, 'טוקן פג - יש להתחבר מחדש');
+                    remindUserToConnectDrive('⏰ החיבור ל־Google Drive פג.\n\nלחץ "אישור" כדי להתחבר מחדש.');
+                }
             }
         });
 
@@ -3103,20 +3108,26 @@
         }
 
         // ===== FIND OR CREATE FOLDER =====
+        // Only match folders owned by the current user. Without this filter,
+        // leftover "zombie" folders created by the old Service Account (which
+        // has 0 storage quota) show up alongside the real OAuth folder, and
+        // uploads silently land in whichever one Google returns first.
         async function findOrCreateFolder() {
             const search = await gapi.client.drive.files.list({
-                q: "name='john-finance' and mimeType='application/vnd.google-apps.folder' and trashed=false",
-                fields: 'files(id)'
+                q: "name='john-finance' and mimeType='application/vnd.google-apps.folder' and trashed=false and 'me' in owners",
+                fields: 'files(id, name, owners)'
             });
 
             if (search.result.files.length > 0) {
                 driveFolderId = search.result.files[0].id;
+                console.log('[drive] using existing user-owned folder:', driveFolderId);
             } else {
                 const create = await gapi.client.drive.files.create({
                     resource: { name: 'john-finance', mimeType: 'application/vnd.google-apps.folder' },
                     fields: 'id'
                 });
                 driveFolderId = create.result.id;
+                console.log('[drive] created new user-owned folder:', driveFolderId);
             }
 
             // Create full folder structure
@@ -3135,13 +3146,13 @@
             console.log('Creating folders for years:', years);
             
             for (const year of years) {
-                // Find or create year folder
+                // Find or create year folder (user-owned only)
                 let yearFolderId;
                 const yearSearch = await gapi.client.drive.files.list({
-                    q: `name='${year}' and '${driveFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+                    q: `name='${year}' and '${driveFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false and 'me' in owners`,
                     fields: 'files(id)'
                 });
-                
+
                 if (yearSearch.result.files.length > 0) {
                     yearFolderId = yearSearch.result.files[0].id;
                 } else {
@@ -3156,14 +3167,14 @@
                     yearFolderId = yearFolder.result.id;
                     console.log('Created year folder:', year);
                 }
-                
-                // Create subfolders
+
+                // Create subfolders (user-owned only)
                 for (const folderName of subFolders) {
                     const subSearch = await gapi.client.drive.files.list({
-                        q: `name='${folderName}' and '${yearFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+                        q: `name='${folderName}' and '${yearFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false and 'me' in owners`,
                         fields: 'files(id)'
                     });
-                    
+
                     if (subSearch.result.files.length === 0) {
                         await gapi.client.drive.files.create({
                             resource: {
@@ -3189,9 +3200,9 @@
             const jsonContent = JSON.stringify(data, null, 2);
             console.log('Syncing data, size:', jsonContent.length, 'bytes');
             
-            // Check if data.json exists
+            // Check if data.json exists (user-owned only — ignore SA zombies)
             const search = await gapi.client.drive.files.list({
-                q: `name='data.json' and '${driveFolderId}' in parents and trashed=false`,
+                q: `name='data.json' and '${driveFolderId}' in parents and trashed=false and 'me' in owners`,
                 fields: 'files(id)'
             });
             
@@ -3266,6 +3277,7 @@
 
                     // Check if cloud has newer data
                     await pullFromCloudIfNewer();
+                    return;
                 } catch (e) {
                     console.log('Auto-connect failed, clearing token:', e);
                     localStorage.removeItem('googleAccessToken');
@@ -3283,12 +3295,49 @@
                     updateDriveStatus(true);
                     await pullFromCloudIfNewer();
                     console.log('✅ Token renewed and reconnected!');
+                    return;
                 } catch (e) {
                     console.log('Silent renewal failed:', e);
                     localStorage.removeItem('googleAccessToken');
                     localStorage.removeItem('googleTokenExpiry');
                     updateDriveStatus(false);
+                    // Token expired and silent renewal failed — pop up the reminder.
+                    remindUserToConnectDrive('⏰ החיבור ל־Google Drive פג.\n\nכדי שהקבצים החדשים ימשיכו להתארכב בענן אוטומטית, יש להתחבר מחדש.\n\nלחץ "אישור" כדי להתחבר עכשיו.');
+                    return;
                 }
+            }
+
+            // No saved token at all. Prompt once per session so the user
+            // doesn't upload files before connecting, only if they already
+            // have data (not a brand-new install).
+            if (hasAnyUserData() && !sessionStorage.getItem('driveConnectReminderShown')) {
+                sessionStorage.setItem('driveConnectReminderShown', '1');
+                setTimeout(() => {
+                    remindUserToConnectDrive('⚠️ לא מחובר ל־Google Drive.\n\nקבצים שתעלה כעת לא יתארכבו בענן עד שתתחבר.\n\nלחץ "אישור" כדי להתחבר עכשיו.');
+                }, 1200);
+            }
+        }
+
+        // Does the user have any data worth protecting?
+        function hasAnyUserData() {
+            if (!data || !data.yearData) return false;
+            for (const yd of Object.values(data.yearData)) {
+                if (!yd) continue;
+                for (const key of ['salary','unemployment','miluim','selfEmployed','expenses','taxAdvances','blAdvances','vatReports','forms']) {
+                    if (Array.isArray(yd[key]) && yd[key].some(x => !x._deleted)) return true;
+                }
+            }
+            return false;
+        }
+
+        // Offer the user a one-click reconnect. If they agree, we run the
+        // full initGoogleDrive() which shows Google's consent popup.
+        function remindUserToConnectDrive(msg) {
+            if (confirm(msg)) {
+                initGoogleDrive().catch(err => {
+                    console.error('Manual reconnect failed:', err);
+                    alert('❌ ההתחברות נכשלה: ' + (err.message || err));
+                });
             }
         }
 
@@ -3351,7 +3400,7 @@
 
             try {
                 const search = await gapi.client.drive.files.list({
-                    q: `name='data.json' and '${driveFolderId}' in parents and trashed=false`,
+                    q: `name='data.json' and '${driveFolderId}' in parents and trashed=false and 'me' in owners`,
                     fields: 'files(id,modifiedTime)'
                 });
 
@@ -3472,10 +3521,10 @@
                 document.getElementById('btnRestore').textContent = '⏳ משחזר...';
                 
                 const search = await gapi.client.drive.files.list({
-                    q: `name='data.json' and '${driveFolderId}' in parents and trashed=false`,
+                    q: `name='data.json' and '${driveFolderId}' in parents and trashed=false and 'me' in owners`,
                     fields: 'files(id)'
                 });
-                
+
                 if (search.result.files.length === 0) {
                     alert('❌ לא נמצא קובץ גיבוי');
                     document.getElementById('btnRestore').textContent = '📥 שחזר מענן';
@@ -3903,17 +3952,19 @@
             }
         }
         
-        // Helper: find or create Drive folder
+        // Helper: find or create Drive folder. Only matches folders owned by
+        // the current user to avoid picking Service Account zombie folders.
         async function findOrCreateDriveFolder(name, parentId) {
+            const safeName = String(name).replace(/'/g, "\\'");
             const search = await gapi.client.drive.files.list({
-                q: `name='${name}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-                fields: 'files(id)'
+                q: `name='${safeName}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false and 'me' in owners`,
+                fields: 'files(id, name)'
             });
-            
+
             if (search.result.files.length > 0) {
                 return search.result.files[0].id;
             }
-            
+
             const create = await gapi.client.drive.files.create({
                 resource: {
                     name: name,
@@ -3922,22 +3973,50 @@
                 },
                 fields: 'id'
             });
-            
+
             return create.result.id;
         }
         
         // Upload file to BOTH local and Drive
         async function uploadDocument(file, subFolder, recordType, recordId) {
             const results = { local: null, drive: null };
-            
+
             // Save locally
             if (localFolderHandle) {
-                results.local = await saveFileLocally(file, subFolder);
+                try { results.local = await saveFileLocally(file, subFolder); }
+                catch (e) { console.error('[upload] local save failed:', e); }
             }
-            
+
+            // If Drive isn't connected yet, try to auto-connect on the fly so
+            // the first-ever upload after page load doesn't silently fall back
+            // to "local only". This will show Google's popup exactly once, then
+            // everything is automatic for the rest of the session.
+            if (!googleAccessToken || !driveFolderId) {
+                try {
+                    console.log('[upload] Drive not connected — triggering OAuth…');
+                    await loadGoogleAPI();
+                    await getGoogleToken();
+                    if (!driveFolderId) {
+                        await findOrCreateFolder();
+                    }
+                    updateDriveStatus(true);
+                    scheduleTokenRenewal();
+                } catch (e) {
+                    console.error('[upload] On-demand Drive connect failed:', e);
+                    _lastUploadError = e.message || String(e);
+                }
+            }
+
             // Upload to Drive
             if (googleAccessToken && driveFolderId) {
-                results.drive = await uploadFileToDrive(file, subFolder);
+                try {
+                    results.drive = await uploadFileToDrive(file, subFolder);
+                } catch (e) {
+                    console.error('[upload] Drive upload failed:', e);
+                    _lastUploadError = e.message || String(e);
+                }
+            } else if (!_lastUploadError) {
+                _lastUploadError = 'לא מחובר ל־Google Drive';
             }
             
             // Store reference in data
@@ -6037,6 +6116,25 @@
             const tax = parseNum('form106Tax');
             const bl = parseNum('form106BL');
 
+            // === CRITICAL: if a file was picked, it MUST land in Drive ===
+            // Otherwise the row would be "fake" — showing a file icon for
+            // something that only exists in local storage. We upload first
+            // and abort the entire save on Drive failure.
+            const fileInput = document.getElementById('form106File');
+            const file = fileInput.files && fileInput.files[0];
+            let uploadResult = null;
+
+            if (file) {
+                _lastUploadError = null;
+                uploadResult = await uploadDocument(file, 'טפסים/106', 'form106', Date.now());
+                const driveOk = !!(uploadResult.drive && uploadResult.drive.id);
+                if (!driveOk) {
+                    alert('❌ העלאת הקובץ ל־Google Drive נכשלה.\n\nהשורה לא נשמרה כדי לא להציג מצג שווא של קובץ שלא קיים בענן.\n\n' + explainUploadFailure() + '\n\nהתחבר מחדש ל־Drive ונסה שוב.');
+                    return; // ABORT — do not create/update the row
+                }
+            }
+
+            // Only now do we touch yd.forms
             const yd = getYearData();
             if (!yd.forms) yd.forms = [];
 
@@ -6056,47 +6154,24 @@
             }
             form.declared = { gross, tax, bl };
 
-            // Handle file upload if chosen
-            const fileInput = document.getElementById('form106File');
-            const file = fileInput.files && fileInput.files[0];
-            let driveOk = false;
-            let localOk = false;
-            if (file) {
-                _lastUploadError = null;
-                const result = await uploadDocument(file, 'טפסים/106', 'form106', form.id);
-                localOk = !!result.local;
-                driveOk = !!(result.drive && result.drive.id);
-                if (localOk || driveOk) {
-                    form.fileName = file.name;
-                    form.fileSize = file.size;
-                    form.fileType = file.type;
-                    form.localPath = result.local;
-                    form.driveId = result.drive?.id;
-                    // Always construct a Drive link if we got an id, even if
-                    // webViewLink was missing from the response.
-                    form.driveLink = result.drive?.link
-                        || (result.drive?.id ? ('https://drive.google.com/file/d/' + result.drive.id + '/view') : null);
-                    form.uploadDate = new Date().toISOString();
-                } else {
-                    alert(explainUploadFailure());
-                    // Still save the numeric data so user doesn't lose it
-                }
+            if (file && uploadResult) {
+                form.fileName = file.name;
+                form.fileSize = file.size;
+                form.fileType = file.type;
+                form.localPath = uploadResult.local;
+                form.driveId = uploadResult.drive.id;
+                form.driveLink = uploadResult.drive.link
+                    || ('https://drive.google.com/file/d/' + uploadResult.drive.id + '/view');
+                form.uploadDate = new Date().toISOString();
             }
 
             saveData();
             closeModal('form106Modal');
             renderAll();
 
-            // After the table re-renders, give the user clear feedback about
-            // where the file actually ended up. Silence when no file was picked.
             if (file) {
-                if (driveOk) {
-                    console.log('[106] Drive upload OK:', form.driveLink);
-                    // Small non-blocking toast feel — use alert so mobile sees it
-                    setTimeout(() => alert('✅ הקובץ הועלה בהצלחה ל־Google Drive.\n\nלחץ 👁️ על השורה כדי לפתוח אותו.'), 50);
-                } else if (localOk) {
-                    setTimeout(() => alert('⚠️ הקובץ נשמר מקומית בלבד.\nההעלאה ל־Google Drive נכשלה:\n\n' + explainUploadFailure() + '\n\nפתח הגדרות וודא שאתה מחובר ל־Drive, ואז לחץ ✏️ ושמור שוב.'), 50);
-                }
+                console.log('[106] Drive upload OK:', form.driveLink);
+                setTimeout(() => alert('✅ הקובץ הועלה בהצלחה ל־Google Drive.\n\n' + form.driveLink), 50);
             }
         }
 
@@ -6132,6 +6207,21 @@
             };
             const gross = parseNum('shomaGross');
 
+            // Upload first — abort row save if Drive fails
+            const fileInput = document.getElementById('shomaFile');
+            const file = fileInput.files && fileInput.files[0];
+            let uploadResult = null;
+
+            if (file) {
+                _lastUploadError = null;
+                uploadResult = await uploadDocument(file, 'טפסים/שומה', 'shoma', Date.now());
+                const driveOk = !!(uploadResult.drive && uploadResult.drive.id);
+                if (!driveOk) {
+                    alert('❌ העלאת הקובץ ל־Google Drive נכשלה.\n\nהשורה לא נשמרה כדי לא להציג מצג שווא של קובץ שלא קיים בענן.\n\n' + explainUploadFailure() + '\n\nהתחבר מחדש ל־Drive ונסה שוב.');
+                    return;
+                }
+            }
+
             const yd = getYearData();
             if (!yd.forms) yd.forms = [];
             let form = yd.forms.find(f => !f._deleted && f.formType === 'שומה');
@@ -6149,27 +6239,15 @@
             }
             form.declared = { gross, tax: null, bl: null };
 
-            const fileInput = document.getElementById('shomaFile');
-            const file = fileInput.files && fileInput.files[0];
-            let shomaDriveOk = false;
-            let shomaLocalOk = false;
-            if (file) {
-                _lastUploadError = null;
-                const result = await uploadDocument(file, 'טפסים/שומה', 'shoma', form.id);
-                shomaLocalOk = !!result.local;
-                shomaDriveOk = !!(result.drive && result.drive.id);
-                if (shomaLocalOk || shomaDriveOk) {
-                    form.fileName = file.name;
-                    form.fileSize = file.size;
-                    form.fileType = file.type;
-                    form.localPath = result.local;
-                    form.driveId = result.drive?.id;
-                    form.driveLink = result.drive?.link
-                        || (result.drive?.id ? ('https://drive.google.com/file/d/' + result.drive.id + '/view') : null);
-                    form.uploadDate = new Date().toISOString();
-                } else {
-                    alert(explainUploadFailure());
-                }
+            if (file && uploadResult) {
+                form.fileName = file.name;
+                form.fileSize = file.size;
+                form.fileType = file.type;
+                form.localPath = uploadResult.local;
+                form.driveId = uploadResult.drive.id;
+                form.driveLink = uploadResult.drive.link
+                    || ('https://drive.google.com/file/d/' + uploadResult.drive.id + '/view');
+                form.uploadDate = new Date().toISOString();
             }
 
             saveData();
@@ -6177,11 +6255,7 @@
             renderAll();
 
             if (file) {
-                if (shomaDriveOk) {
-                    setTimeout(() => alert('✅ הקובץ הועלה בהצלחה ל־Google Drive.'), 50);
-                } else if (shomaLocalOk) {
-                    setTimeout(() => alert('⚠️ הקובץ נשמר מקומית בלבד.\nההעלאה ל־Google Drive נכשלה:\n\n' + explainUploadFailure()), 50);
-                }
+                setTimeout(() => alert('✅ הקובץ הועלה בהצלחה ל־Google Drive.\n\n' + form.driveLink), 50);
             }
         }
 
