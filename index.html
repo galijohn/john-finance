@@ -5598,8 +5598,21 @@
             if (!yd.forms) yd.forms = [];
 
             // ===== SALARY (שכיר) - group by employer + apply 106 overrides =====
+            // Normalize employer names so "אוטופיה" / "אוטופיה " / "אוטופיה בע״מ"
+            // match the same record and the 106 REPLACES the slip sum instead of
+            // being added on top of it.
+            const normalizeEmp = (s) => String(s == null ? '' : s)
+                .trim()
+                .toLowerCase()
+                .replace(/\s+/g, ' ')
+                .replace(/["״'׳`]/g, '"')
+                .replace(/\s*בע"?מ\s*$/i, '')   // strip trailing בע"מ / בעמ
+                .replace(/\s*בע״מ\s*$/i, '')
+                .trim();
+
             const salaryItems = active(yd.salary);
-            const employerSums = {};
+            const employerSums = {};         // keyed by raw display name
+            const employerSumsByKey = {};    // keyed by normalized key
             salaryItems.forEach(s => {
                 const emp = s.employer || '(לא מוגדר)';
                 if (!employerSums[emp]) employerSums[emp] = { gross: 0, tax: 0, bl: 0, count: 0 };
@@ -5607,6 +5620,8 @@
                 employerSums[emp].tax += Number(s.taxDeducted) || 0;
                 employerSums[emp].bl += Number(s.blDeducted) || 0;
                 employerSums[emp].count++;
+                const key = normalizeEmp(emp);
+                employerSumsByKey[key] = employerSums[emp];
             });
 
             const forms106 = active(yd.forms).filter(f => f.formType === '106');
@@ -5615,11 +5630,12 @@
 
             let totalSalary = 0, taxFromSalary = 0, blFromSalary = 0;
             const salaryBreakdown = [];
-            const seenEmployers = new Set();
+            const seenKeys = new Set();
 
             Object.entries(employerSums).forEach(([emp, sums]) => {
-                seenEmployers.add(emp);
-                const form = forms106.find(f => f.employer === emp && hasFormDeclared(f));
+                const key = normalizeEmp(emp);
+                seenKeys.add(key);
+                const form = forms106.find(f => normalizeEmp(f.employer) === key && hasFormDeclared(f));
                 if (form) {
                     const g = Number(form.declared.gross) || 0;
                     const t = Number(form.declared.tax) || 0;
@@ -5632,10 +5648,15 @@
                 }
             });
 
-            // 106s for employers without any salary records (form-only)
+            // 106s for employers without any salary records (truly form-only).
+            // We use the NORMALIZED key so a mistyped 106 that actually matches
+            // a slip employer does NOT get added a second time.
             forms106.forEach(f => {
-                if (!f.employer || seenEmployers.has(f.employer)) return;
+                if (!f.employer) return;
                 if (!hasFormDeclared(f)) return;
+                const key = normalizeEmp(f.employer);
+                if (seenKeys.has(key)) return;
+                seenKeys.add(key);
                 const g = Number(f.declared.gross) || 0;
                 const t = Number(f.declared.tax) || 0;
                 const b = Number(f.declared.bl) || 0;
@@ -5696,7 +5717,9 @@
                 totalTaxPaid: taxFromSalary + taxFromUnemployment + taxFromMiluim + taxFromSelf,
                 salaryBreakdown,
                 salaryHasOverride: salaryBreakdown.some(b => b.source === '106' || b.source === '106-only'),
-                employerSums
+                employerSums,
+                employerSumsByKey,
+                normalizeEmp
             };
         }
 
@@ -5799,36 +5822,88 @@
         }
 
         // ========== 106 FORM — modal-based CRUD (uniform with salary table) ==========
-        let _editingForm106Employer = null;
-        let _editingShoma = false;
+        // Anchor by normalized employer key so "אוטופיה" / "אוטופיה " / "אוטופיה בע״מ"
+        // never create two different slots (and never get double-counted).
+        const normalizeEmployerKey = (s) => String(s == null ? '' : s)
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .replace(/["״'׳`]/g, '"')
+            .replace(/\s*בע"?מ\s*$/i, '')
+            .replace(/\s*בע״מ\s*$/i, '')
+            .trim();
 
-        function openForm106Modal() {
-            _editingForm106Employer = null;
-            document.getElementById('form106Employer').value = '';
-            document.getElementById('form106Employer').readOnly = false;
-            document.getElementById('form106Gross').value = '';
-            document.getElementById('form106Tax').value = '';
-            document.getElementById('form106BL').value = '';
-            document.getElementById('form106File').value = '';
-            document.getElementById('form106FileStatus').textContent = '';
-            document.querySelector('#form106Modal .modal-header h3').textContent = '📄 הוסף טופס 106';
-            openModal('form106Modal');
+        function getSlipEmployerSums(yd) {
+            const map = {};
+            active(yd.salary).forEach(s => {
+                const emp = s.employer || '(לא מוגדר)';
+                if (!map[emp]) map[emp] = { displayName: emp, key: normalizeEmployerKey(emp), gross: 0, tax: 0, bl: 0 };
+                map[emp].gross += Number(s.gross) || 0;
+                map[emp].tax += Number(s.taxDeducted) || 0;
+                map[emp].bl += Number(s.blDeducted) || 0;
+            });
+            return Object.values(map);
         }
 
+        function findForm106ByKey(yd, key) {
+            return (yd.forms || []).find(f => !f._deleted && f.formType === '106' && normalizeEmployerKey(f.employer) === key);
+        }
+
+        // "+ הוסף 106" header button — manual add for an employer WITHOUT slips.
+        // When the user actually has slip records we route them through
+        // editForm106(employer) instead so the name is locked.
+        function openForm106Modal() {
+            const yd = getYearData();
+            const slipEmps = getSlipEmployerSums(yd);
+            const missing = slipEmps.filter(s => !findForm106ByKey(yd, s.key));
+            if (missing.length > 0) {
+                // Prefer to fill the slip employers first — avoid name typos.
+                editForm106(missing[0].displayName);
+                return;
+            }
+            // No slip employers left unfilled → free-text manual add
+            const employer = prompt('אין מעסיקים מתלושים שעדיין לא מולאו.\nהזן שם מעסיק חדש ל־106 (מעסיק ללא תלושים):');
+            if (!employer || !employer.trim()) return;
+            const name = employer.trim();
+            if (findForm106ByKey(yd, normalizeEmployerKey(name))) {
+                alert('כבר קיים 106 עבור "' + name + '" בשנה זו.');
+                return;
+            }
+            editForm106(name);
+        }
+
+        // Opens the modal for a given employer. Works both for:
+        //  • existing 106 records (edit mode — values loaded from record)
+        //  • slip employers without a 106 yet (pre-fill from slip sums so the
+        //    user just verifies and presses save, no typing required)
         function editForm106(employer) {
             const yd = getYearData();
-            const form = (yd.forms || []).find(f => !f._deleted && f.formType === '106' && f.employer === employer);
-            if (!form) return;
-            _editingForm106Employer = employer;
-            const d = form.declared || {};
-            document.getElementById('form106Employer').value = employer;
+            const key = normalizeEmployerKey(employer);
+            const form = findForm106ByKey(yd, key);
+            const slipRec = getSlipEmployerSums(yd).find(s => s.key === key);
+            const displayName = form?.employer || slipRec?.displayName || employer;
+
+            document.getElementById('form106Employer').value = displayName;
             document.getElementById('form106Employer').readOnly = true;
-            document.getElementById('form106Gross').value = d.gross ?? '';
-            document.getElementById('form106Tax').value = d.tax ?? '';
-            document.getElementById('form106BL').value = d.bl ?? '';
+
+            if (form) {
+                const d = form.declared || {};
+                document.getElementById('form106Gross').value = d.gross ?? '';
+                document.getElementById('form106Tax').value = d.tax ?? '';
+                document.getElementById('form106BL').value = d.bl ?? '';
+                document.getElementById('form106FileStatus').textContent = form.fileName ? '📎 ' + form.fileName : '';
+                document.querySelector('#form106Modal .modal-header h3').textContent = '📄 עריכת טופס 106';
+            } else {
+                // Pre-fill from slip sums — this is the "106 is a summary of the
+                // slips" case. User just confirms what their physical 106 says.
+                const pre = slipRec || { gross: 0, tax: 0, bl: 0 };
+                document.getElementById('form106Gross').value = pre.gross || '';
+                document.getElementById('form106Tax').value = pre.tax || '';
+                document.getElementById('form106BL').value = pre.bl || '';
+                document.getElementById('form106FileStatus').textContent = '';
+                document.querySelector('#form106Modal .modal-header h3').textContent = '📄 הזנת טופס 106';
+            }
             document.getElementById('form106File').value = '';
-            document.getElementById('form106FileStatus').textContent = form.fileName ? '📎 ' + form.fileName : '';
-            document.querySelector('#form106Modal .modal-header h3').textContent = '📄 עריכת טופס 106';
             openModal('form106Modal');
         }
 
@@ -5851,16 +5926,8 @@
             const yd = getYearData();
             if (!yd.forms) yd.forms = [];
 
-            // When editing, key stays the same; when adding, must be unique per year
-            if (_editingForm106Employer === null) {
-                const exists = yd.forms.some(f => !f._deleted && f.formType === '106' && f.employer === employer);
-                if (exists) {
-                    alert('כבר קיים 106 עבור "' + employer + '" בשנה זו.');
-                    return;
-                }
-            }
-
-            let form = yd.forms.find(f => !f._deleted && f.formType === '106' && f.employer === employer);
+            const key = normalizeEmployerKey(employer);
+            let form = findForm106ByKey(yd, key);
             if (!form) {
                 form = {
                     id: Date.now() + Math.random(),
@@ -5903,7 +5970,8 @@
         function deleteForm106(employer) {
             if (!confirm(`למחוק את ה־106 של "${employer}"?\n(הקובץ בדרייב לא יימחק - רק הרישום במערכת)`)) return;
             const yd = getYearData();
-            yd.forms = (yd.forms || []).filter(f => !(f.formType === '106' && f.employer === employer));
+            const key = normalizeEmployerKey(employer);
+            yd.forms = (yd.forms || []).filter(f => !(f.formType === '106' && normalizeEmployerKey(f.employer) === key));
             saveData();
             renderAll();
         }
@@ -5986,24 +6054,45 @@
             const totals = calculateTotals();
 
             // --- 106 table ---
-            const salaryItems = active(yd.salary);
-            const employerSums = {};
-            salaryItems.forEach(s => {
-                const emp = s.employer || '(לא מוגדר)';
-                if (!employerSums[emp]) employerSums[emp] = { gross: 0, tax: 0, bl: 0 };
-                employerSums[emp].gross += Number(s.gross) || 0;
-                employerSums[emp].tax += Number(s.taxDeducted) || 0;
-                employerSums[emp].bl += Number(s.blDeducted) || 0;
-            });
+            // Build a UNION of slip employers + 106-only employers so every slip
+            // employer automatically shows a row (empty = "click ✏️ to fill in").
+            // This makes it impossible to type a mismatched name and end up with
+            // both the slips AND a separate 106 being counted (the bug that made
+            // the balance jump from ~₪9,000 to ~₪22,000).
+            const slipEmps = getSlipEmployerSums(yd);                        // from slips
             const forms106 = active(yd.forms).filter(f => f.formType === '106');
             const tbody106 = document.getElementById('forms106Table');
+
             if (tbody106) {
-                if (forms106.length === 0) {
-                    tbody106.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">📄</div><p>אין טפסי 106 בשנה זו. לחץ "+ הוסף 106" להזנה.</p></td></tr>';
+                const rows = [];
+                const seenKeys = new Set();
+
+                // 1) One row per slip employer — either linked to its 106 or empty placeholder
+                slipEmps.forEach(se => {
+                    seenKeys.add(se.key);
+                    const form = findForm106ByKey(yd, se.key);
+                    rows.push({
+                        sortName: se.displayName,
+                        html: render106TableRow(form, se, se.displayName)
+                    });
+                });
+
+                // 2) 106-only employers (no slip records at all)
+                forms106.forEach(f => {
+                    const key = normalizeEmployerKey(f.employer || '');
+                    if (seenKeys.has(key)) return;   // already rendered via slip row
+                    seenKeys.add(key);
+                    rows.push({
+                        sortName: f.employer || '',
+                        html: render106TableRow(f, { gross: 0, tax: 0, bl: 0 }, f.employer || '(לא מוגדר)')
+                    });
+                });
+
+                if (rows.length === 0) {
+                    tbody106.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">📄</div><p>אין תלושי משכורת או טפסי 106 בשנה זו. הוסף תלוש משכורת או לחץ "+ הוסף 106".</p></td></tr>';
                 } else {
-                    tbody106.innerHTML = [...forms106]
-                        .sort((a,b) => String(a.employer||'').localeCompare(String(b.employer||''),'he'))
-                        .map(f => render106TableRow(f, employerSums[f.employer])).join('');
+                    rows.sort((a, b) => String(a.sortName).localeCompare(String(b.sortName), 'he'));
+                    tbody106.innerHTML = rows.map(r => r.html).join('');
                 }
             }
 
@@ -6075,35 +6164,74 @@
             alert('אין קובץ מצורף לטופס זה.');
         }
 
-        function render106TableRow(form, slipSums) {
-            const d = form.declared || {};
+        // Render a single row of the 106 table.
+        //   form         — the 106 record (may be NULL for slip employers that
+        //                  don't have a 106 yet; render as placeholder row).
+        //   slipSums     — { gross, tax, bl } from this employer's salary slips.
+        //   displayName  — employer name to show (comes from slip or from form).
+        function render106TableRow(form, slipSums, displayName) {
+            const d = (form && form.declared) || {};
             const slips = slipSums || { gross: 0, tax: 0, bl: 0 };
             const isDeclared = (v) => v != null && v !== '' && !isNaN(Number(v));
-            const hasOverride = isDeclared(d.gross);
-            const empSafe = escapeFormJsArg(form.employer || '');
-            const empHtml = escapeFormHtml(form.employer || '(לא מוגדר)');
-            const fileHtml = form.fileName
+            const hasForm = !!form;
+            const hasOverride = hasForm && isDeclared(d.gross);
+            const empName = displayName || (form && form.employer) || '(לא מוגדר)';
+            const empSafe = escapeFormJsArg(empName);
+            const empHtml = escapeFormHtml(empName);
+            const fileHtml = (form && form.fileName)
                 ? '<span data-tip="' + escapeFormHtml(form.fileName) + '" style="cursor:help;">📎</span>'
                 : '';
-            const badge = hasOverride
-                ? '<span style="font-size:0.7rem;background:var(--cyan);color:white;padding:3px 10px;border-radius:10px;white-space:nowrap;">📄 פעיל</span>'
-                : '<span style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;">📋 תלושים</span>';
 
-            // Diff tooltip on the gross cell if both exist
-            let grossCell = isDeclared(d.gross) ? formatCurrency(d.gross) : '<span style="color:var(--text-muted)">—</span>';
-            if (hasOverride && (slips.gross > 0 || slips.tax > 0 || slips.bl > 0)) {
-                const dGross = (Number(d.gross) || 0) - slips.gross;
-                const sign = dGross > 0 ? '+' : '';
-                const color = Math.abs(dGross) < 100 ? 'var(--success)' : (Math.abs(dGross) < 1000 ? 'var(--warning)' : 'var(--danger)');
-                grossCell += `<div style="font-size:0.7rem;color:${color};margin-top:2px;">Δ ${sign}${formatCurrency(dGross)}</div>`;
+            // Badge shows where each row's numbers come from:
+            //   📄 פעיל  — 106 exists and overrides the slips
+            //   📋 תלושים — slip employer without a filled 106 yet (most common)
+            //   ➕ להזין  — truly empty row (no slips, no 106) — rarely shown
+            let badge;
+            if (hasOverride) {
+                badge = '<span style="font-size:0.7rem;background:var(--cyan);color:white;padding:3px 10px;border-radius:10px;white-space:nowrap;">📄 פעיל</span>';
+            } else if (slips.gross > 0 || slips.tax > 0 || slips.bl > 0) {
+                badge = '<span style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;">📋 תלושים</span>';
+            } else {
+                badge = '<span style="font-size:0.7rem;color:var(--warning);white-space:nowrap;">➕ להזין</span>';
             }
-            const taxCell = isDeclared(d.tax) ? formatCurrency(d.tax) : '<span style="color:var(--text-muted)">—</span>';
-            const blCell = isDeclared(d.bl) ? formatCurrency(d.bl) : '<span style="color:var(--text-muted)">—</span>';
 
-            const hasAnyFile = !!(form.driveLink || form.localPath || form.fileName);
+            // When the 106 is NOT filled, show the slip totals themselves in gray
+            // (so the user can see "this is what will be used until I fill the 106").
+            const fmtMuted = (v) => `<span style="color:var(--text-muted)">${formatCurrency(v || 0)}</span>`;
+            const dash = '<span style="color:var(--text-muted)">—</span>';
+
+            let grossCell, taxCell, blCell;
+            if (hasOverride) {
+                grossCell = formatCurrency(d.gross);
+                if (slips.gross > 0 || slips.tax > 0 || slips.bl > 0) {
+                    const dGross = (Number(d.gross) || 0) - slips.gross;
+                    const sign = dGross > 0 ? '+' : '';
+                    const color = Math.abs(dGross) < 100 ? 'var(--success)' : (Math.abs(dGross) < 1000 ? 'var(--warning)' : 'var(--danger)');
+                    grossCell += `<div style="font-size:0.7rem;color:${color};margin-top:2px;">Δ ${sign}${formatCurrency(dGross)}</div>`;
+                }
+                taxCell = isDeclared(d.tax) ? formatCurrency(d.tax) : dash;
+                blCell  = isDeclared(d.bl)  ? formatCurrency(d.bl)  : dash;
+            } else if (slips.gross > 0 || slips.tax > 0 || slips.bl > 0) {
+                // Placeholder row — show the slip sums in muted color
+                grossCell = fmtMuted(slips.gross);
+                taxCell   = fmtMuted(slips.tax);
+                blCell    = fmtMuted(slips.bl);
+            } else {
+                grossCell = dash;
+                taxCell   = dash;
+                blCell    = dash;
+            }
+
+            const hasAnyFile = hasForm && !!(form.driveLink || form.localPath || form.fileName);
             const viewBtn = hasAnyFile
                 ? `<button class="btn btn-icon btn-sm" onclick="viewFormFile('${form.id}')" title="צפה בקובץ">👁️</button>`
                 : '';
+            // Delete button only makes sense when there's an actual 106 to delete.
+            const deleteBtn = hasForm
+                ? `<button class="btn btn-icon btn-sm" onclick="deleteForm106('${empSafe}')" title="מחיקה">🗑️</button>`
+                : '';
+            const editTitle = hasForm ? 'עריכה' : 'הזנת 106 למעסיק זה';
+
             return `<tr>
                 <td>${empHtml} ${fileHtml}</td>
                 <td>${grossCell}</td>
@@ -6112,8 +6240,8 @@
                 <td>${badge}</td>
                 <td>
                     ${viewBtn}
-                    <button class="btn btn-icon btn-sm" onclick="editForm106('${empSafe}')" title="עריכה">✏️</button>
-                    <button class="btn btn-icon btn-sm" onclick="deleteForm106('${empSafe}')" title="מחיקה">🗑️</button>
+                    <button class="btn btn-icon btn-sm" onclick="editForm106('${empSafe}')" title="${editTitle}">✏️</button>
+                    ${deleteBtn}
                 </td>
             </tr>`;
         }
