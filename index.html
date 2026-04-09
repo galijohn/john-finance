@@ -6019,8 +6019,43 @@
             }
         }
 
+        // Open a file that lives inside localFolderHandle. Reads it as a Blob,
+        // creates an object URL and opens it in a new tab.
+        async function openLocalFileByPath(localPath) {
+            if (!localFolderHandle) {
+                alert('📂 הקובץ נשמר מקומית:\n\n' + localPath + '\n\nאך התיקייה המקומית לא מחוברת בדפדפן הזה (למשל בנייד / GitHub Pages).\nכדי לצפות בו — פתח אותו מסייר הקבצים של המחשב, או ערוך את הטופס והעלה שוב ל־Drive.');
+                return;
+            }
+            try {
+                const permission = await localFolderHandle.requestPermission({ mode: 'read' });
+                if (permission !== 'granted') {
+                    alert('אין הרשאת קריאה לתיקייה המקומית.');
+                    return;
+                }
+                // localPath looks like "rootFolderName/john-finance/2025/טפסים/106/file.pdf"
+                // localFolderHandle already points to "rootFolderName", so skip that prefix.
+                const segments = String(localPath).split('/').filter(Boolean);
+                if (segments[0] === localFolderHandle.name) segments.shift();
+                if (segments.length === 0) { alert('נתיב לא תקין.'); return; }
+
+                let cur = localFolderHandle;
+                for (let i = 0; i < segments.length - 1; i++) {
+                    cur = await cur.getDirectoryHandle(segments[i]);
+                }
+                const fileHandle = await cur.getFileHandle(segments[segments.length - 1]);
+                const file = await fileHandle.getFile();
+                const blobUrl = URL.createObjectURL(file);
+                window.open(blobUrl, '_blank');
+                // Free the blob URL after a minute so memory doesn't leak
+                setTimeout(() => { try { URL.revokeObjectURL(blobUrl); } catch(_){} }, 60000);
+            } catch (e) {
+                console.error('openLocalFileByPath error:', e);
+                alert('❌ לא הצלחתי לפתוח את הקובץ המקומי:\n' + (e && e.message ? e.message : e) + '\n\nייתכן שהקובץ נמחק או הועבר. ערוך את הטופס והעלה שוב.');
+            }
+        }
+
         // Open the attached form file — handles Drive, local, and stale refs
-        function viewFormFile(formId) {
+        async function viewFormFile(formId) {
             const yd = getYearData();
             const form = (yd.forms || []).find(f => String(f.id) === String(formId));
             if (!form) { alert('לא נמצא הטופס.'); return; }
@@ -6030,7 +6065,7 @@
                 return;
             }
             if (form.localPath) {
-                alert('📄 הקובץ נשמר מקומית בלבד:\n\n' + form.localPath + '\n\nפתח אותו מסייר הקבצים של המחשב. כדי שיהיה זמין גם מהנייד ומ־Google Drive — ערוך את הטופס והעלה שוב (עכשיו ההעלאה ל־Drive פעילה).');
+                await openLocalFileByPath(form.localPath);
                 return;
             }
             if (form.fileName) {
