@@ -8553,17 +8553,13 @@
             (async function() {
                 try {
                     // Step 1: Convert report to image using dom-to-image (uses browser's native text rendering)
+                    // NOTE: do NOT use {transform:scale, width, height} for retina — it produces a blank canvas
+                    // in dom-to-image-more 3.4.5. Use the built-in `scale` option instead.
                     document.getElementById('pdfDetail').textContent = 'ממיר דוח ל-PDF...';
                     const reportEl = container.firstChild;
-                    const pixelScale = 2; // 2x for crisp text
                     const canvas = await domtoimage.toCanvas(reportEl, {
                         bgcolor: '#ffffff',
-                        width: reportEl.scrollWidth * pixelScale,
-                        height: reportEl.scrollHeight * pixelScale,
-                        style: {
-                            transform: 'scale(' + pixelScale + ')',
-                            transformOrigin: 'top left'
-                        }
+                        scale: 2
                     });
                     document.body.removeChild(container);
 
