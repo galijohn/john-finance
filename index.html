@@ -8200,11 +8200,121 @@
             return { images, pdfs };
         }
 
+        // WYSIWYG: rasterize a live DOM element (e.g. the dashboard page) into a paginated PDF.
+        // Honors the user's current theme/customizations because we capture the actual DOM.
+        function exportLivePageAsPDF(elementId, title, year, opts) {
+            opts = opts || {};
+            const target = document.getElementById(elementId);
+            if (!target) { alert('אלמנט לא נמצא: ' + elementId); return; }
+
+            // Loading overlay
+            const overlay = document.createElement('div');
+            overlay.id = 'pdfOverlay';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;';
+            overlay.innerHTML = '<div style="background:#1e293b;color:white;padding:40px 60px;border-radius:12px;text-align:center;font-family:Segoe UI,Tahoma,sans-serif;"><h2 id="pdfMsg">מייצר דוח PDF...</h2><p id="pdfDetail" style="color:#94a3b8;margin-top:10px;">אנא המתן</p></div>';
+            document.body.appendChild(overlay);
+
+            (async function() {
+                try {
+                    document.getElementById('pdfDetail').textContent = 'ממיר עמוד ל-PDF...';
+
+                    // Build a filter that excludes UI controls (buttons that don't belong in a printout)
+                    const excludeSelectors = opts.excludeSelectors || [];
+                    const filter = (node) => {
+                        if (!node || node.nodeType !== 1) return true;
+                        for (const sel of excludeSelectors) {
+                            try { if (node.matches && node.matches(sel)) return false; } catch(e) {}
+                        }
+                        return true;
+                    };
+
+                    // Use the body's actual computed background so the rendered PDF matches the on-screen theme
+                    const bgcolor = getComputedStyle(document.body).backgroundColor || '#ffffff';
+
+                    const canvas = await domtoimage.toCanvas(target, {
+                        bgcolor: bgcolor,
+                        scale: 2,
+                        filter: filter
+                    });
+
+                    // Split tall canvas into A4 pages
+                    const { PDFDocument } = PDFLib;
+                    const finalPdf = await PDFDocument.create();
+                    const a4W = 595.28, a4H = 841.89, pdfMargin = 20;
+                    const usableW = a4W - 2 * pdfMargin;
+                    const usableH = a4H - 2 * pdfMargin;
+                    const imgScale = usableW / canvas.width;
+                    const pageHeightPx = usableH / imgScale;
+                    const numPages = Math.max(1, Math.ceil(canvas.height / pageHeightPx));
+
+                    for (let p = 0; p < numPages; p++) {
+                        const yStart = p * pageHeightPx;
+                        const thisH = Math.min(pageHeightPx, canvas.height - yStart);
+                        const pageCanvas = document.createElement('canvas');
+                        pageCanvas.width = canvas.width;
+                        pageCanvas.height = thisH;
+                        pageCanvas.getContext('2d').drawImage(canvas, 0, yStart, canvas.width, thisH, 0, 0, canvas.width, thisH);
+                        const pageDataUrl = pageCanvas.toDataURL('image/png', 1.0);
+                        const pageImgBytes = Uint8Array.from(atob(pageDataUrl.split(',')[1]), c => c.charCodeAt(0));
+                        const pageImg = await finalPdf.embedPng(pageImgBytes);
+                        const drawH = thisH * imgScale;
+                        const pdfPage = finalPdf.addPage([a4W, a4H]);
+                        pdfPage.drawImage(pageImg, { x: pdfMargin, y: a4H - pdfMargin - drawH, width: usableW, height: drawH });
+                    }
+
+                    // Save and display
+                    document.getElementById('pdfDetail').textContent = 'פותח PDF...';
+                    const finalBytes = await finalPdf.save();
+                    const blob = new Blob([finalBytes], { type: 'application/pdf' });
+                    const url = URL.createObjectURL(blob);
+                    const fileName = (title || 'דוח').replace(/[^\u0590-\u05FFa-zA-Z0-9 ]/g, '') + ' ' + (year || '') + '.pdf';
+
+                    overlay.innerHTML = '';
+                    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#333;display:flex;flex-direction:column;';
+                    const toolbar = document.createElement('div');
+                    toolbar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 15px;background:#1e293b;color:white;font-family:Segoe UI,Tahoma,sans-serif;';
+                    toolbar.innerHTML = '<span style="font-size:14px;">' + fileName + '</span>';
+                    const btns = document.createElement('div');
+                    const dlBtn = document.createElement('a');
+                    dlBtn.href = url;
+                    dlBtn.download = fileName;
+                    dlBtn.textContent = '⬇ הורד';
+                    dlBtn.style.cssText = 'color:white;background:#0891b2;padding:6px 16px;border-radius:4px;text-decoration:none;margin-left:10px;font-size:13px;';
+                    const closeBtn = document.createElement('button');
+                    closeBtn.textContent = '✕ סגור';
+                    closeBtn.style.cssText = 'color:white;background:#dc2626;padding:6px 16px;border:none;border-radius:4px;cursor:pointer;font-size:13px;margin-left:10px;';
+                    closeBtn.onclick = () => { overlay.remove(); URL.revokeObjectURL(url); };
+                    btns.appendChild(dlBtn);
+                    btns.appendChild(closeBtn);
+                    toolbar.appendChild(btns);
+                    overlay.appendChild(toolbar);
+                    const iframe = document.createElement('iframe');
+                    iframe.src = url;
+                    iframe.style.cssText = 'flex:1;border:none;';
+                    overlay.appendChild(iframe);
+                } catch(e) {
+                    console.error('Live PDF export error:', e);
+                    document.getElementById('pdfMsg').textContent = 'שגיאה';
+                    document.getElementById('pdfDetail').textContent = e.message;
+                    setTimeout(() => { try { overlay.remove(); } catch(x) {} }, 3000);
+                }
+            })();
+        }
+
         function exportPagePDF(page) {
             const { headers, rows, title, year } = getPageData(page);
             const yd = getYearData();
             const dateStr = new Date().toLocaleDateString('he-IL');
             document.querySelectorAll('.export-dropdown-content.show').forEach(d => d.classList.remove('show'));
+
+            // Dashboard: WYSIWYG rasterization of the live page (no custom HTML, no attachments).
+            // This automatically reflects any user customizations (theme, hidden cards, etc.).
+            if (page === 'dashboard') {
+                exportLivePageAsPDF('page-dashboard', title, year, {
+                    excludeSelectors: ['.export-dropdown', 'button[title="התאם דשבורד"]']
+                });
+                return;
+            }
 
             function fmtNum(n) {
                 const val = Number(n) || 0;
