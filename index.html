@@ -8296,31 +8296,87 @@
 
             } else if (rows._custom === 'dashboard') {
                 const d = rows._data;
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">א. סיכום הכנסות</h3>';
-                bodyContent += '<table><thead><tr><th>מקור</th><th>סכום</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>הכנסה כשכיר</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.salary) + '</td></tr>';
-                bodyContent += '<tr><td>דמי אבטלה</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.unemployment) + '</td></tr>';
-                bodyContent += '<tr><td>מילואים</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.miluim) + '</td></tr>';
-                bodyContent += '<tr><td>הכנסה כעצמאי</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.selfEmployed) + '</td></tr>';
-                bodyContent += '<tr><td>(-) הוצאות מוכרות</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.expenses) + '</td></tr>';
-                bodyContent += '</tbody></table>';
-                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>הכנסה חייבת</span><span>' + fmtNum(d.totals.taxableIncome) + '</span></div>';
+                const ds = data.dashboardSettings || {};
+                // Default to showing if the key isn't present (backward compat). The dashboard
+                // customize modal always populates all keys, so user choices are honored exactly.
+                const show = (k) => ds[k] !== false;
+                const sectionLetters = ['א', 'ב', 'ג', 'ד'];
+                let sectionIdx = 0;
+                const nextLetter = () => sectionLetters[sectionIdx++] || '';
 
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ב. מס הכנסה</h3>';
-                bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>מס ברוטו</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.grossTax) + '</td></tr>';
-                bodyContent += '<tr><td>נקודות זיכוי: ' + d.credits.toFixed(2) + '</td><td style="text-align:left;direction:ltr;">-' + fmtNum(Math.min(d.creditValue, d.grossTax)) + '</td></tr>';
-                bodyContent += '<tr><td>מס נטו לתשלום</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.netTax) + '</td></tr>';
-                bodyContent += '<tr><td>מס ששולם</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.totalTaxPaid) + '</td></tr>';
-                bodyContent += '</tbody></table>';
-                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>' + (d.taxDiff > 0 ? 'החזר מס' : d.taxDiff < 0 ? 'יתרה לתשלום' : 'מאוזן') + '</span><span>' + fmtNum(Math.abs(d.taxDiff)) + '</span></div>';
+                // Section: Income summary
+                const incomeRows = [];
+                if (show('salary')) incomeRows.push(['הכנסה כשכיר', d.totals.salary]);
+                if (show('unemployment')) incomeRows.push(['דמי אבטלה', d.totals.unemployment]);
+                if (show('miluim')) incomeRows.push(['מילואים', d.totals.miluim]);
+                if (show('selfemployed')) incomeRows.push(['הכנסה כעצמאי', d.totals.selfEmployed]);
+                if (show('expenses')) incomeRows.push(['(-) הוצאות מוכרות', d.totals.expenses]);
+                if (incomeRows.length > 0 || show('totalIncome')) {
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">' + nextLetter() + '. סיכום הכנסות</h3>';
+                    if (incomeRows.length > 0) {
+                        bodyContent += '<table><thead><tr><th>מקור</th><th>סכום</th></tr></thead><tbody>';
+                        incomeRows.forEach(r => {
+                            bodyContent += '<tr><td>' + r[0] + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(r[1]) + '</td></tr>';
+                        });
+                        bodyContent += '</tbody></table>';
+                    }
+                    if (show('totalIncome')) {
+                        bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>הכנסה חייבת</span><span>' + fmtNum(d.totals.taxableIncome) + '</span></div>';
+                    }
+                }
 
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ג. ביטוח לאומי</h3>';
-                bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
-                bodyContent += '<tr><td>ביט"ל חייב</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.bl.total) + '</td></tr>';
-                bodyContent += '<tr><td>ביט"ל ששולם</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.totalBLPaid) + '</td></tr>';
-                bodyContent += '</tbody></table>';
-                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>' + (d.blDiff > 0 ? 'שילמת יותר' : d.blDiff < 0 ? 'יתרה לתשלום' : 'מאוזן') + '</span><span>' + fmtNum(Math.abs(d.blDiff)) + '</span></div>';
+                // Section: Income tax
+                const taxRows = [];
+                if (show('taxDue')) taxRows.push(['מס ברוטו', d.grossTax]);
+                if (show('credits')) taxRows.push(['נקודות זיכוי: ' + d.credits.toFixed(2), -Math.min(d.creditValue, d.grossTax)]);
+                if (show('taxDue')) taxRows.push(['מס נטו לתשלום', d.netTax]);
+                if (show('taxPaid')) taxRows.push(['מס ששולם', d.totals.totalTaxPaid]);
+                if (taxRows.length > 0 || show('result')) {
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">' + nextLetter() + '. מס הכנסה</h3>';
+                    if (taxRows.length > 0) {
+                        bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
+                        taxRows.forEach(r => {
+                            const val = r[1];
+                            const txt = val < 0 ? '-' + fmtNum(Math.abs(val)) : fmtNum(val);
+                            bodyContent += '<tr><td>' + r[0] + '</td><td style="text-align:left;direction:ltr;">' + txt + '</td></tr>';
+                        });
+                        bodyContent += '</tbody></table>';
+                    }
+                    if (show('result')) {
+                        bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>' + (d.taxDiff > 0 ? 'החזר מס' : d.taxDiff < 0 ? 'יתרה לתשלום' : 'מאוזן') + '</span><span>' + fmtNum(Math.abs(d.taxDiff)) + '</span></div>';
+                    }
+                }
+
+                // Section: Bituach Leumi
+                const blRows = [];
+                if (show('blDue')) blRows.push(['ביט"ל חייב', d.bl.total]);
+                if (show('blPaid')) blRows.push(['ביט"ל ששולם', d.totals.totalBLPaid]);
+                if (blRows.length > 0 || show('result')) {
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">' + nextLetter() + '. ביטוח לאומי</h3>';
+                    if (blRows.length > 0) {
+                        bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
+                        blRows.forEach(r => {
+                            bodyContent += '<tr><td>' + r[0] + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(r[1]) + '</td></tr>';
+                        });
+                        bodyContent += '</tbody></table>';
+                    }
+                    if (show('result')) {
+                        bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>' + (d.blDiff > 0 ? 'שילמת יותר' : d.blDiff < 0 ? 'יתרה לתשלום' : 'מאוזן') + '</span><span>' + fmtNum(Math.abs(d.blDiff)) + '</span></div>';
+                    }
+                }
+
+                // Section: Payments breakdown (matches the dashboard's "פירוט תשלומים" card)
+                if (show('paymentsSummary')) {
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">' + nextLetter() + '. פירוט תשלומים שנוכו/שולמו</h3>';
+                    bodyContent += '<table><thead><tr><th>מקור</th><th>סכום</th></tr></thead><tbody>';
+                    bodyContent += '<tr><td>מס הכנסה שנוכה מהמשכורת</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.taxFromSalary) + '</td></tr>';
+                    bodyContent += '<tr><td>מס הכנסה שנוכה מדמי אבטלה</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.taxFromUnemployment) + '</td></tr>';
+                    bodyContent += '<tr><td>מס הכנסה שנוכה מדמי מילואים</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.taxFromMiluim) + '</td></tr>';
+                    bodyContent += '<tr><td>מקדמות מס הכנסה (עצמאי)</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.taxFromSelf) + '</td></tr>';
+                    bodyContent += '<tr><td>מקדמות ביט"ל + בריאות (עצמאי)</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.blFromSelf) + '</td></tr>';
+                    bodyContent += '</tbody></table>';
+                    bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ מס הכנסה ששולם</span><span>' + fmtNum(d.totals.totalTaxPaid) + '</span></div>';
+                }
 
             } else if (rows._custom === 'taxCalc') {
                 const t = rows._data;
@@ -8590,8 +8646,8 @@
 
                     // Report pages already added above via canvas splitting
 
-                    // Step 2: Fetch and merge attachments
-                    if (pageDocs.length > 0) {
+                    // Step 2: Fetch and merge attachments (skip for dashboard — it's a summary view, not a backup of source documents)
+                    if (page !== 'dashboard' && pageDocs.length > 0) {
                         document.getElementById('pdfDetail').textContent = 'טוען ' + pageDocs.length + ' נספחים מ-Google Drive...';
                         const attachments = await fetchAttachments(pageDocs);
 
