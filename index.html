@@ -662,6 +662,43 @@
             text-align: left;
         }
 
+        .rec-due-btn {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .rec-due-btn:hover {
+            background: var(--danger);
+            color: white;
+        }
+
+        .rec-paid-chip {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success);
+            border: 1px solid transparent;
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .rec-paid-chip.clickable {
+            cursor: pointer;
+        }
+
+        .rec-paid-chip.clickable:hover {
+            border-color: var(--success);
+        }
+
         .btn-sm {
             padding: 5px 12px;
             font-size: 0.82rem;
@@ -7704,34 +7741,28 @@
             const payment = findRecurringPayment(monthKey, item.id);
             const rk = realMonthKey();
             const today = new Date().getDate();
+            const monthNum = parseInt(monthKey.split('-')[1]);
             let cls = 'rec-row';
-            let badge = '';
+            let statusBtn = '';
             if (payment) {
                 cls += ' paid';
-                badge = `<span class="rec-badge ok">שולם ${formatDate(payment.date)}</span>`;
-            } else if (isCarry) {
-                cls += ' overdue';
-                badge = `<span class="rec-badge late">⚠️ באיחור מ${monthLabelFromKey(monthKey)}</span>`;
-            } else if (monthKey === rk && item.dueDay && today > item.dueDay) {
-                cls += ' overdue';
-                badge = `<span class="rec-badge late">באיחור · עד ה־${item.dueDay}</span>`;
-            } else if (monthKey === rk && item.dueDay && item.dueDay - today <= 3) {
-                const left = item.dueDay - today;
-                badge = `<span class="rec-badge soon">${left === 0 ? 'היום' : 'עוד ' + left + ' ימים'}</span>`;
-            } else if (item.dueDay) {
-                badge = `<span class="rec-sub">עד ה־${item.dueDay}</span>`;
+                statusBtn = payment.driveLink
+                    ? `<span class="rec-paid-chip clickable" onclick="window.open('${payment.driveLink}','_blank')" title="שולם ואורכב — לחץ לצפייה בקבלה">✓ שולם ${formatDate(payment.date)}</span>`
+                    : `<span class="rec-paid-chip">✓ שולם ${formatDate(payment.date)}</span>`;
+            } else {
+                const label = isCarry
+                    ? `לתשלום · ${monthLabelFromKey(monthKey)}`
+                    : (item.dueDay ? `לתשלום עד ${String(item.dueDay).padStart(2, '0')}/${String(monthNum).padStart(2, '0')}` : 'לתשלום');
+                if (isCarry || (monthKey === rk && item.dueDay && today > item.dueDay)) cls += ' overdue';
+                statusBtn = `<button class="rec-due-btn" onclick="payRecurring('${monthKey}','${item.id}')" title="שילמת? עדכן כמה שולם וצרף מסמך — יהפוך לירוק">${label}</button>`;
             }
             return `<div class="${cls}">
-                <span style="font-size:1.05rem;">${payment ? '✅' : '⬜'}</span>
                 <div style="flex:1;min-width:0;">
                     <span class="rec-name">${item.description}</span>
                     <span class="rec-sub" style="margin-inline-start:8px;">${item.category}</span>
                 </div>
-                ${badge}
                 <span class="rec-amount" style="color:${payment ? 'var(--success)' : 'var(--text)'};">${formatCurrency(payment ? payment.amount : item.amount)}</span>
-                ${payment
-                    ? (payment.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${payment.driveLink}','_blank')" title="צפה בקבלה">👁️</button>` : '')
-                    : `<button class="btn btn-sm btn-primary" onclick="payRecurring('${monthKey}','${item.id}')" title="שילמת? צרף קבלה וזה יירשם בהוצאות">שילמתי 📎</button>`}
+                ${statusBtn}
                 <button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${monthKey}','${item.id}')" title="עריכה">✏️</button>
                 <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${monthKey}','${item.id}')" title="מחיקה">🗑️</button>
             </div>`;
