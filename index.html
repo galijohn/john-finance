@@ -2810,7 +2810,7 @@
                 </div>
                 <div class="form-group">
                     <label>קטגוריה</label>
-                    <select class="form-control" id="expenseCategory">
+                    <select class="form-control" id="expenseCategory" onchange="onCategorySelectChange(this)">
                         <option value="ציוד">ציוד</option>
                         <option value="תוכנה">תוכנה ומנויים</option>
                         <option value="נסיעות">נסיעות</option>
@@ -2869,7 +2869,7 @@
                 </div>
                 <div class="form-group">
                     <label>קטגוריה</label>
-                    <select class="form-control" id="recCategory">
+                    <select class="form-control" id="recCategory" onchange="onCategorySelectChange(this)">
                         <option value="ציוד">ציוד</option>
                         <option value="תוכנה">תוכנה ומנויים</option>
                         <option value="נסיעות">נסיעות</option>
@@ -2917,6 +2917,25 @@
                     <button class="btn" onclick="resolveRecurringScope('month')" style="width:100%;">רק החודש הזה</button>
                     <button class="btn" onclick="resolveRecurringScope(null)" style="width:100%;">ביטול</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="categoryModal">
+        <div class="modal" style="max-width:380px;">
+            <div class="modal-header">
+                <h3>➕ קטגוריה חדשה</h3>
+                <button class="btn-icon" onclick="closeModal('categoryModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>שם הקטגוריה</label>
+                    <input type="text" class="form-control" id="newCategoryName" placeholder="לדוגמה: ביטוחים" onkeydown="if(event.key==='Enter')saveNewCategory()">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveNewCategory()">שמור</button>
+                <button class="btn" onclick="closeModal('categoryModal')">ביטול</button>
             </div>
         </div>
     </div>
@@ -3787,6 +3806,9 @@
             // Merge recurring fixed-expenses (template + month snapshots)
             const mergedRecurring = mergeRecurring(localData.recurring, cloudData.recurring);
             if (mergedRecurring) merged.recurring = mergedRecurring;
+            // Merge user-defined expense categories (union)
+            const allCats = new Set([...(localData.customCategories || []), ...(cloudData.customCategories || [])]);
+            if (allCats.size) merged.customCategories = [...allCats];
             // Keep PIN from whichever has it
             if (!merged.pin && cloudData.pin) merged.pin = cloudData.pin;
             // Keep favorites from local
@@ -7709,7 +7731,7 @@
                 <span class="rec-amount" style="color:${payment ? 'var(--success)' : 'var(--text)'};">${formatCurrency(payment ? payment.amount : item.amount)}</span>
                 ${payment
                     ? (payment.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${payment.driveLink}','_blank')" title="צפה בקבלה">👁️</button>` : '')
-                    : `<button class="btn btn-sm btn-primary" onclick="payRecurring('${monthKey}','${item.id}')">שולם</button>`}
+                    : `<button class="btn btn-sm btn-primary" onclick="payRecurring('${monthKey}','${item.id}')" title="שילמת? צרף קבלה וזה יירשם בהוצאות">שילמתי 📎</button>`}
                 <button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${monthKey}','${item.id}')" title="עריכה">✏️</button>
                 <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${monthKey}','${item.id}')" title="מחיקה">🗑️</button>
             </div>`;
@@ -7874,6 +7896,140 @@
             renderAll();
         }
 
+        // Turn an already-recorded expense into a recurring template item (from its month forward),
+        // marking the expense itself as that month's payment.
+        async function makeExpenseRecurring(id) {
+            const yd = getYearData();
+            const e = active(yd.expenses).find(x => x.id === id);
+            if (!e) return;
+            if (!e.date || e.date.length < 7) {
+                await popupError('אין תאריך', 'להוצאה אין תאריך — ערוך אותה והוסף תאריך קודם');
+                return;
+            }
+            const monthKey = e.date.slice(0, 7);
+            const ok = await showPopup({
+                type: 'info',
+                icon: '🔁',
+                title: 'הפוך להוצאה קבועה',
+                message: '"' + (e.description || '') + '" תתווסף לצ׳ק־ליסט הקבוע מ' + monthLabelFromKey(monthKey) + ' והלאה, והרישום הקיים ייחשב כתשלום של ' + monthLabelFromKey(monthKey) + '.',
+                okText: 'הוסף',
+                cancelText: 'ביטול'
+            });
+            if (!ok) return;
+            const rec = getRecurring();
+            const values = {
+                description: e.description || 'הוצאה קבועה',
+                category: e.category || 'אחר',
+                amount: e.amount,
+                recognition: e.recognition ?? 100,
+                dueDay: parseInt(e.date.slice(8, 10)) || null
+            };
+            // Materialize existing template months first, then create earlier months (before the
+            // template started) as empty — they should only carry this new item, not the others.
+            ensureRecurringMonths(monthKey);
+            let k = monthKey;
+            let guard = 0;
+            while (rec.startMonth && k < rec.startMonth && guard++ < 240) {
+                if (!rec.months[k]) rec.months[k] = [];
+                k = nextMonthKey(k);
+            }
+            if (!rec.startMonth || monthKey < rec.startMonth) rec.startMonth = monthKey;
+            const tid = genRecId();
+            rec.template.push({ id: tid, ...values });
+            let firstItemId = null;
+            Object.keys(rec.months).sort().forEach(mk => {
+                if (mk >= monthKey) {
+                    const iid = genRecId();
+                    rec.months[mk].push({ id: iid, templateId: tid, ...values });
+                    if (mk === monthKey) firstItemId = iid;
+                }
+            });
+            if (firstItemId) e.recurringKey = monthKey + ':' + firstItemId;
+            saveData();
+            renderAll();
+            popupSuccess('נוסף לקבועות', '"' + values.description + '" היא עכשיו הוצאה קבועה מ' + monthLabelFromKey(monthKey) + ' והלאה');
+        }
+
+        // Detach an expense from its recurring-checklist row (the expense stays in the table;
+        // the checklist row goes back to unpaid).
+        async function unlinkExpenseRecurring(id) {
+            const yd = getYearData();
+            const e = active(yd.expenses).find(x => x.id === id);
+            if (!e || !e.recurringKey) return;
+            const ok = await showPopup({
+                type: 'warning',
+                title: 'ניתוק מהוצאות קבועות',
+                message: 'ההוצאה תישאר בטבלה כרגיל, אבל השורה בצ׳ק־ליסט תחזור להיות "לא שולם". להמשיך?',
+                okText: 'נתק',
+                cancelText: 'ביטול'
+            });
+            if (!ok) return;
+            delete e.recurringKey;
+            saveData();
+            renderAll();
+        }
+
+        // ===== USER-DEFINED EXPENSE CATEGORIES =====
+        const BASE_CATEGORIES = [
+            ['ציוד', 'ציוד'], ['תוכנה', 'תוכנה ומנויים'], ['נסיעות', 'נסיעות'], ['טלפון', 'טלפון ואינטרנט'],
+            ['משרד', 'הוצאות משרד'], ['שיווק', 'שיווק'], ['מקצועי', 'שירותים מקצועיים'], ['אחר', 'אחר']
+        ];
+
+        function allCategories() {
+            const set = new Set(BASE_CATEGORIES.map(c => c[0]));
+            (data.customCategories || []).forEach(c => set.add(c));
+            Object.values(data.yearData || {}).forEach(yd => {
+                if (yd) active(yd.expenses).forEach(e => { if (e.category) set.add(e.category); });
+            });
+            if (data.recurring) active(data.recurring.template).forEach(t => { if (t.category) set.add(t.category); });
+            return [...set];
+        }
+
+        let _catSelectOrigin = null;
+
+        function buildCategoryOptions() {
+            const cats = allCategories();
+            const sig = cats.join('|');
+            const labelOf = v => (BASE_CATEGORIES.find(c => c[0] === v) || [v, v])[1];
+            ['expenseCategory', 'recCategory'].forEach(sid => {
+                const sel = document.getElementById(sid);
+                if (!sel || sel.dataset.catsig === sig) return;
+                const prev = sel.value;
+                sel.innerHTML = cats.map(v => `<option value="${v}">${labelOf(v)}</option>`).join('') +
+                    '<option value="__addcat__">➕ קטגוריה חדשה...</option>';
+                sel.dataset.catsig = sig;
+                if (prev && cats.includes(prev)) sel.value = prev;
+                sel.dataset.prev = sel.value;
+            });
+        }
+
+        function onCategorySelectChange(sel) {
+            if (sel.value === '__addcat__') {
+                _catSelectOrigin = sel.id;
+                sel.value = sel.dataset.prev || allCategories()[0];
+                document.getElementById('newCategoryName').value = '';
+                openModal('categoryModal');
+                setTimeout(() => document.getElementById('newCategoryName').focus(), 100);
+            } else {
+                sel.dataset.prev = sel.value;
+            }
+        }
+
+        async function saveNewCategory() {
+            const name = document.getElementById('newCategoryName').value.trim();
+            if (!name) { await popupError('חסר שם', 'תן שם לקטגוריה'); return; }
+            if (!data.customCategories) data.customCategories = [];
+            if (!allCategories().includes(name)) data.customCategories.push(name);
+            saveData();
+            closeModal('categoryModal');
+            buildCategoryOptions();
+            if (_catSelectOrigin) {
+                const sel = document.getElementById(_catSelectOrigin);
+                if (sel) { sel.value = name; sel.dataset.prev = name; }
+                _catSelectOrigin = null;
+            }
+        }
+
         function toggleExpenseSort() {
             expenseSortAsc = !expenseSortAsc;
             document.getElementById('expenseSortBtn').innerHTML = `📅 תאריך ${expenseSortAsc ? '↓' : '↑'}`;
@@ -7926,6 +8082,7 @@
             }
 
             buildExpenseCategoryFilter(allItems);
+            buildCategoryOptions();
 
             // Calculate totals with recognition (for the current view) + annual reference
             const totalGross = expenseItems.reduce((sum, e) => sum + e.amount, 0);
@@ -7995,6 +8152,9 @@
                 <td style="color:var(--success)">${formatCurrency(recognized)}</td>
                 <td>
                     ${e.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${e.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
+                    ${e.recurringKey
+                        ? `<button class="btn btn-icon btn-sm" onclick="unlinkExpenseRecurring(${e.id})" title="מקושר להוצאה קבועה — לחץ לניתוק">🔁</button>`
+                        : `<button class="btn btn-icon btn-sm" onclick="makeExpenseRecurring(${e.id})" title="הפוך להוצאה קבועה" style="opacity:0.45;">🔁</button>`}
                     <button class="btn btn-icon btn-sm" onclick="editExpense(${e.id})" title="עריכה">✏️</button>
                     <button class="btn btn-icon btn-sm" onclick="deleteItem('expenses',${e.id})" title="מחיקה">🗑️</button>
                 </td>
