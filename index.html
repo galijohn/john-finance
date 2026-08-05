@@ -532,6 +532,136 @@
             color: white;
         }
 
+        /* ===== Month navigation + recurring fixed-expenses checklist ===== */
+        .month-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .month-select {
+            font-size: 1.05rem;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg-input);
+            color: var(--text);
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .month-step {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 1.1rem;
+            line-height: 1;
+        }
+
+        .month-step:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .recurring-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .rec-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .rec-progress {
+            width: 110px;
+            height: 6px;
+            background: var(--bg-input);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .rec-progress > div {
+            height: 100%;
+            background: var(--success);
+        }
+
+        .rec-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .rec-row:last-child {
+            border-bottom: none;
+        }
+
+        .rec-row.paid {
+            opacity: 0.75;
+        }
+
+        .rec-row.paid .rec-name {
+            text-decoration: line-through;
+            color: var(--text-muted);
+        }
+
+        .rec-row.overdue {
+            background: rgba(239, 68, 68, 0.10);
+            border-radius: 8px;
+        }
+
+        .rec-name {
+            font-weight: 600;
+        }
+
+        .rec-sub {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
+        .rec-badge {
+            font-size: 0.75rem;
+            padding: 2px 9px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+
+        .rec-badge.late {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+        }
+
+        .rec-badge.soon {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+        }
+
+        .rec-badge.ok {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success);
+        }
+
+        .rec-amount {
+            min-width: 90px;
+            text-align: left;
+        }
+
         .btn-sm {
             padding: 5px 12px;
             font-size: 0.82rem;
@@ -1548,7 +1678,7 @@
                         </div>
                     </div>
                 </div>
-                <button class="btn btn-primary" onclick="openModal('expenseModal')">+ הוסף הוצאה</button>
+                <button class="btn btn-primary" onclick="openAddExpense()">+ הוסף הוצאה</button>
             </div>
 
             <div class="info-box">
@@ -1556,12 +1686,21 @@
                 הוצאות שהוצאת לצורך הפקת ההכנסה כעצמאי. הן מקטינות את ההכנסה החייבת במס.
             </div>
 
+            <!-- Month navigation -->
+            <div class="month-bar">
+                <button class="month-step" onclick="stepExpenseMonth(-1)" title="חודש קודם">‹</button>
+                <select class="month-select" id="expenseMonthSelect" onchange="setExpenseMonth(this.value)"></select>
+                <button class="month-step" onclick="stepExpenseMonth(1)" title="חודש הבא">›</button>
+            </div>
+
+            <!-- Recurring fixed-expenses monthly checklist -->
+            <div class="recurring-panel" id="recurringPanel" style="display:none;"></div>
+
             <!-- Filter & Sort Controls -->
             <div class="expense-controls">
                 <div class="expense-filters">
-                    <label style="color:var(--text-muted);font-size:0.85rem;">סינון:</label>
-                    <button class="filter-btn active" onclick="filterExpenses('all', this)">הכל</button>
-                    <span id="expenseFilterButtons"></span>
+                    <label style="color:var(--text-muted);font-size:0.85rem;">קטגוריה:</label>
+                    <select class="btn-sm" id="expenseCategoryFilter" onchange="filterExpenses(this.value)" style="cursor:pointer;color:var(--text);"></select>
                 </div>
                 <div class="expense-actions">
                     <button class="btn btn-sm" id="expenseSortBtn" onclick="toggleExpenseSort()" title="סדר לפי תאריך">
@@ -1592,12 +1731,16 @@
 
             <div class="summary-box">
                 <div class="summary-row">
-                    <span>סה"כ הוצאות (לפני הכרה)</span>
+                    <span id="expSummaryGrossLabel">סה"כ הוצאות (לפני הכרה)</span>
                     <span id="totalExpensesGross">₪0</span>
                 </div>
                 <div class="summary-row total">
-                    <span>סה"כ הוצאות מוכרות</span>
+                    <span id="expSummaryNetLabel">סה"כ הוצאות מוכרות</span>
                     <span id="totalExpenses">₪0</span>
+                </div>
+                <div class="summary-row" id="expAnnualRow" style="display:none;font-size:0.85rem;color:var(--text-muted);">
+                    <span>סה"כ שנתי מוכר (כל השנה)</span>
+                    <span id="totalExpensesAnnual">₪0</span>
                 </div>
             </div>
         </div>
@@ -2713,6 +2856,71 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="recurringModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="recurringModalTitle">🔁 הוצאה קבועה</h3>
+                <button class="btn-icon" onclick="closeModal('recurringModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>תיאור</label>
+                    <input type="text" class="form-control" id="recDesc" placeholder="לדוגמה: בזק">
+                </div>
+                <div class="form-group">
+                    <label>קטגוריה</label>
+                    <select class="form-control" id="recCategory">
+                        <option value="ציוד">ציוד</option>
+                        <option value="תוכנה">תוכנה ומנויים</option>
+                        <option value="נסיעות">נסיעות</option>
+                        <option value="טלפון">טלפון ואינטרנט</option>
+                        <option value="משרד">הוצאות משרד</option>
+                        <option value="שיווק">שיווק</option>
+                        <option value="מקצועי">שירותים מקצועיים</option>
+                        <option value="אחר">אחר</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>סכום משוער (₪)</label>
+                    <input type="number" class="form-control" id="recAmount">
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">אפשר לתקן את הסכום המדויק בכל תשלום</div>
+                </div>
+                <div class="form-group">
+                    <label>% הכרה</label>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <input type="number" class="form-control" id="recRecognition" min="0" max="100" value="100" style="width:100px;">
+                        <span style="color:var(--text-muted);font-size:0.85rem;">% מהסכום מוכר כהוצאה</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>יום תשלום בחודש (לא חובה)</label>
+                    <input type="number" class="form-control" id="recDueDay" min="1" max="31" placeholder="למשל 15" style="width:100px;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveRecurringItem()">שמור</button>
+                <button class="btn" onclick="closeModal('recurringModal')">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="recurringScopeModal">
+        <div class="modal" style="max-width:420px;">
+            <div class="modal-header">
+                <h3 id="recurringScopeTitle">על מה להחיל?</h3>
+                <button class="btn-icon" onclick="resolveRecurringScope(null)">✕</button>
+            </div>
+            <div class="modal-body">
+                <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:15px;">חודשים שכבר עברו לא ישתנו בשום מקרה.</p>
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    <button class="btn btn-primary" onclick="resolveRecurringScope('forward')" style="width:100%;">מהחודש הזה והלאה (עדכון קבוע)</button>
+                    <button class="btn" onclick="resolveRecurringScope('month')" style="width:100%;">רק החודש הזה</button>
+                    <button class="btn" onclick="resolveRecurringScope(null)" style="width:100%;">ביטול</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="vatModal">
         <div class="modal">
             <div class="modal-header">
@@ -3544,6 +3752,24 @@
             return merged;
         }
 
+        function mergeRecurring(localR, cloudR) {
+            if (!localR && !cloudR) return undefined;
+            if (!localR) return cloudR;
+            if (!cloudR) return localR;
+            const merged = {
+                template: mergeArrayById(localR.template, cloudR.template),
+                months: {},
+                startMonth: null
+            };
+            const keys = new Set([...Object.keys(localR.months || {}), ...Object.keys(cloudR.months || {})]);
+            keys.forEach(k => {
+                merged.months[k] = mergeArrayById(localR.months?.[k], cloudR.months?.[k]);
+            });
+            const starts = [localR.startMonth, cloudR.startMonth].filter(Boolean).sort();
+            merged.startMonth = starts[0] || null;
+            return merged;
+        }
+
         function mergeData(localData, cloudData) {
             const merged = JSON.parse(JSON.stringify(localData));
             // Merge years list
@@ -3558,6 +3784,9 @@
                     cloudData.yearData?.[year]
                 );
             });
+            // Merge recurring fixed-expenses (template + month snapshots)
+            const mergedRecurring = mergeRecurring(localData.recurring, cloudData.recurring);
+            if (mergedRecurring) merged.recurring = mergedRecurring;
             // Keep PIN from whichever has it
             if (!merged.pin && cloudData.pin) merged.pin = cloudData.pin;
             // Keep favorites from local
@@ -5269,6 +5498,7 @@
                 if (!data.yearData[currentYear]) {
                     data.yearData[currentYear] = createEmptyYearData(currentYear);
                 }
+                expenseMonth = defaultExpenseMonth();
                 loadCreditsToUI();
                 loadBusinessStatus();
                 renderAll();
@@ -5281,9 +5511,10 @@
                 renderYearsList();
             }
         }
-        function closeModal(id) { 
+        function closeModal(id) {
             document.getElementById(id).classList.remove('active');
             editingId = null;
+            if (id === 'expenseModal') recurringPayContext = null;
             clearForm(id);
         }
         
@@ -5515,7 +5746,12 @@
                 recognition: parseFloat(document.getElementById('expenseRecognition').value) ?? 100,
                 notes: document.getElementById('expenseNotes').value
             };
-            
+
+            // Link this payment to its recurring-checklist row (paid status is derived from this)
+            if (!editingId && recurringPayContext) {
+                itemData.recurringKey = recurringPayContext.monthKey + ':' + recurringPayContext.itemId;
+            }
+
             // Handle file upload — REQUIRES Drive success
             const fileInput = document.getElementById('expenseFile');
             if (fileInput.files.length > 0) {
@@ -7266,10 +7502,375 @@
         let expenseGrouped = true;
         let collapsedCategories = {};
 
-        function filterExpenses(category, el) {
+        function filterExpenses(category) {
             expenseFilter = category;
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            if (el) el.classList.add('active');
+            renderAll();
+        }
+
+        // ===== RECURRING FIXED EXPENSES — monthly checklist =====
+        // data.recurring = { template: [...], months: { 'YYYY-MM': [...] }, startMonth: 'YYYY-MM' }
+        // Each month is born as a snapshot of the template and is frozen from then on;
+        // 'forward' edits update the template + this month and later, never the past.
+        // Paid status is DERIVED: an active expense record with recurringKey === 'YYYY-MM:itemId'.
+
+        function realMonthKey() {
+            const n = new Date();
+            return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
+        }
+
+        function defaultExpenseMonth() {
+            return currentYear === new Date().getFullYear() ? realMonthKey() : 'all';
+        }
+
+        let expenseMonth = defaultExpenseMonth();
+        let recurringPayContext = null;
+        let editingRecurring = null;
+
+        function getRecurring() {
+            if (!data.recurring) data.recurring = { template: [], months: {}, startMonth: null };
+            if (!data.recurring.template) data.recurring.template = [];
+            if (!data.recurring.months) data.recurring.months = {};
+            return data.recurring;
+        }
+
+        function monthLabelFromKey(k) {
+            const parts = k.split('-');
+            return MONTHS[parseInt(parts[1])] + ' ' + parts[0];
+        }
+
+        function nextMonthKey(k) {
+            let [y, m] = k.split('-').map(Number);
+            m++;
+            if (m > 12) { m = 1; y++; }
+            return y + '-' + String(m).padStart(2, '0');
+        }
+
+        let _recIdSeq = 0;
+        function genRecId() {
+            return 'r' + Date.now().toString(36) + '_' + (_recIdSeq++) + Math.floor(Math.random() * 1e4).toString(36);
+        }
+
+        // Materialize month snapshots from the template, from startMonth up to
+        // max(current real month, targetKey). Existing months are never touched.
+        function ensureRecurringMonths(targetKey) {
+            const rec = getRecurring();
+            if (!rec.startMonth) return;
+            let upto = realMonthKey();
+            if (targetKey && targetKey > upto) upto = targetKey;
+            let k = rec.startMonth;
+            let changed = false;
+            let guard = 0;
+            while (k <= upto && guard++ < 240) {
+                if (!rec.months[k]) {
+                    rec.months[k] = active(rec.template).map(t => ({
+                        id: genRecId(),
+                        templateId: t.id,
+                        description: t.description,
+                        category: t.category,
+                        amount: t.amount,
+                        recognition: t.recognition ?? 100,
+                        dueDay: t.dueDay || null
+                    }));
+                    changed = true;
+                }
+                k = nextMonthKey(k);
+            }
+            if (changed) saveData();
+        }
+
+        function findRecurringPayment(monthKey, itemId) {
+            const key = monthKey + ':' + itemId;
+            for (const yd of Object.values(data.yearData || {})) {
+                const hit = active(yd && yd.expenses).find(e => e.recurringKey === key);
+                if (hit) return hit;
+            }
+            return null;
+        }
+
+        function unpaidRecurringCount(monthKey) {
+            const rec = getRecurring();
+            return active(rec.months[monthKey] || []).filter(i => !findRecurringPayment(monthKey, i.id)).length;
+        }
+
+        function setExpenseMonth(v) {
+            expenseMonth = v;
+            renderAll();
+        }
+
+        function stepExpenseMonth(dir) {
+            if (expenseMonth === 'all') {
+                expenseMonth = currentYear === new Date().getFullYear() ? realMonthKey() : currentYear + '-12';
+            } else {
+                let [y, m] = expenseMonth.split('-').map(Number);
+                m += dir;
+                if (m < 1) m = 1;
+                if (m > 12) m = 12;
+                expenseMonth = y + '-' + String(m).padStart(2, '0');
+            }
+            renderAll();
+        }
+
+        function renderExpenseMonthBar() {
+            const sel = document.getElementById('expenseMonthSelect');
+            const rec = getRecurring();
+            ensureRecurringMonths(expenseMonth !== 'all' ? expenseMonth : null);
+            const yd = getYearData();
+            const present = new Set();
+            active(yd.expenses).forEach(e => { if ((e.date || '').length >= 7) present.add(e.date.slice(0, 7)); });
+            Object.keys(rec.months).forEach(k => present.add(k));
+            if (currentYear === new Date().getFullYear()) present.add(realMonthKey());
+            if (expenseMonth !== 'all') present.add(expenseMonth);
+            const keys = [...present].filter(k => k.startsWith(String(currentYear))).sort().reverse();
+            const rk = realMonthKey();
+            sel.innerHTML = keys.map(k => {
+                let mark = '';
+                if (rec.months[k] && active(rec.months[k]).length > 0 && k <= rk) {
+                    const un = unpaidRecurringCount(k);
+                    mark = un === 0 ? ' · ✅' : ' · 🔴 ' + un;
+                }
+                return `<option value="${k}" ${expenseMonth === k ? 'selected' : ''}>${monthLabelFromKey(k)}${mark}</option>`;
+            }).join('') + `<option value="all" ${expenseMonth === 'all' ? 'selected' : ''}>📅 כל שנת ${currentYear}</option>`;
+            sel.value = expenseMonth;
+        }
+
+        function renderRecurringPanel() {
+            const panel = document.getElementById('recurringPanel');
+            if (expenseMonth === 'all') { panel.style.display = 'none'; return; }
+            const rec = getRecurring();
+            const items = active(rec.months[expenseMonth] || []);
+            const hasTemplate = active(rec.template).length > 0;
+            panel.style.display = '';
+
+            if (!hasTemplate && items.length === 0) {
+                panel.innerHTML = `<div class="rec-head">
+                        <strong>🔁 הוצאות קבועות — ${monthLabelFromKey(expenseMonth)}</strong>
+                        <button class="btn btn-sm btn-primary" onclick="openRecurringAdd()">+ הוצאה קבועה</button>
+                    </div>
+                    <div style="color:var(--text-muted);font-size:0.85rem;">בנה פעם אחת את רשימת התשלומים הקבועים שלך — היא תיווצר אוטומטית בכל חודש, ותסמן ✔ עם קבלה על כל תשלום.</div>`;
+                return;
+            }
+
+            const carry = [];
+            Object.keys(rec.months).sort().forEach(k => {
+                if (k >= expenseMonth) return;
+                active(rec.months[k]).forEach(i => {
+                    if (!findRecurringPayment(k, i.id)) carry.push({ monthKey: k, item: i });
+                });
+            });
+
+            const paidCount = items.filter(i => findRecurringPayment(expenseMonth, i.id)).length;
+            const pct = items.length ? Math.round(paidCount / items.length * 100) : 0;
+            const sorted = [...items].sort((a, b) => (a.dueDay || 99) - (b.dueDay || 99));
+
+            let html = `<div class="rec-head">
+                <strong>🔁 הוצאות קבועות — ${monthLabelFromKey(expenseMonth)}</strong>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <span style="font-size:0.8rem;color:var(--text-muted);">שולמו ${paidCount} מתוך ${items.length}</span>
+                    <div class="rec-progress"><div style="width:${pct}%"></div></div>
+                    <button class="btn btn-sm btn-primary" onclick="openRecurringAdd()">+ הוצאה קבועה</button>
+                </div>
+            </div>`;
+            carry.forEach(c => { html += recurringRowHtml(c.monthKey, c.item, true); });
+            sorted.forEach(i => { html += recurringRowHtml(expenseMonth, i, false); });
+            if (items.length === 0) {
+                html += `<div style="color:var(--text-muted);font-size:0.85rem;padding:6px 8px;">אין הוצאות קבועות בחודש הזה.</div>`;
+            }
+            panel.innerHTML = html;
+        }
+
+        function recurringRowHtml(monthKey, item, isCarry) {
+            const payment = findRecurringPayment(monthKey, item.id);
+            const rk = realMonthKey();
+            const today = new Date().getDate();
+            let cls = 'rec-row';
+            let badge = '';
+            if (payment) {
+                cls += ' paid';
+                badge = `<span class="rec-badge ok">שולם ${formatDate(payment.date)}</span>`;
+            } else if (isCarry) {
+                cls += ' overdue';
+                badge = `<span class="rec-badge late">⚠️ באיחור מ${monthLabelFromKey(monthKey)}</span>`;
+            } else if (monthKey === rk && item.dueDay && today > item.dueDay) {
+                cls += ' overdue';
+                badge = `<span class="rec-badge late">באיחור · עד ה־${item.dueDay}</span>`;
+            } else if (monthKey === rk && item.dueDay && item.dueDay - today <= 3) {
+                const left = item.dueDay - today;
+                badge = `<span class="rec-badge soon">${left === 0 ? 'היום' : 'עוד ' + left + ' ימים'}</span>`;
+            } else if (item.dueDay) {
+                badge = `<span class="rec-sub">עד ה־${item.dueDay}</span>`;
+            }
+            return `<div class="${cls}">
+                <span style="font-size:1.05rem;">${payment ? '✅' : '⬜'}</span>
+                <div style="flex:1;min-width:0;">
+                    <span class="rec-name">${item.description}</span>
+                    <span class="rec-sub" style="margin-inline-start:8px;">${item.category}</span>
+                </div>
+                ${badge}
+                <span class="rec-amount" style="color:${payment ? 'var(--success)' : 'var(--text)'};">${formatCurrency(payment ? payment.amount : item.amount)}</span>
+                ${payment
+                    ? (payment.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${payment.driveLink}','_blank')" title="צפה בקבלה">👁️</button>` : '')
+                    : `<button class="btn btn-sm btn-primary" onclick="payRecurring('${monthKey}','${item.id}')">שולם</button>`}
+                <button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${monthKey}','${item.id}')" title="עריכה">✏️</button>
+                <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${monthKey}','${item.id}')" title="מחיקה">🗑️</button>
+            </div>`;
+        }
+
+        function localTodayISO() {
+            const n = new Date();
+            return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
+        }
+
+        function openAddExpense() {
+            recurringPayContext = null;
+            editingId = null;
+            openModal('expenseModal');
+        }
+
+        function payRecurring(monthKey, itemId) {
+            const rec = getRecurring();
+            const item = active(rec.months[monthKey] || []).find(i => String(i.id) === String(itemId));
+            if (!item) return;
+            recurringPayContext = { monthKey: monthKey, itemId: itemId };
+            editingId = null;
+            document.getElementById('expenseDate').value = localTodayISO();
+            document.getElementById('expenseDesc').value = item.description;
+            document.getElementById('expenseCategory').value = item.category;
+            document.getElementById('expenseAmount').value = item.amount;
+            document.getElementById('expenseRecognition').value = item.recognition ?? 100;
+            document.getElementById('expenseNotes').value = 'תשלום קבוע · ' + monthLabelFromKey(monthKey);
+            openModal('expenseModal');
+        }
+
+        function openRecurringAdd() {
+            editingRecurring = null;
+            clearForm('recurringModal');
+            document.getElementById('recurringModalTitle').textContent = '🔁 הוספת הוצאה קבועה';
+            document.getElementById('recRecognition').value = 100;
+            openModal('recurringModal');
+        }
+
+        function openRecurringEdit(monthKey, itemId) {
+            const rec = getRecurring();
+            const item = active(rec.months[monthKey] || []).find(i => String(i.id) === String(itemId));
+            if (!item) return;
+            editingRecurring = { monthKey: monthKey, itemId: itemId };
+            document.getElementById('recurringModalTitle').textContent = '🔁 עריכת הוצאה קבועה';
+            document.getElementById('recDesc').value = item.description;
+            document.getElementById('recCategory').value = item.category;
+            document.getElementById('recAmount').value = item.amount;
+            document.getElementById('recRecognition').value = item.recognition ?? 100;
+            document.getElementById('recDueDay').value = item.dueDay || '';
+            openModal('recurringModal');
+        }
+
+        let _recurringScopeResolve = null;
+        function askRecurringScope(title) {
+            return new Promise(resolve => {
+                _recurringScopeResolve = resolve;
+                document.getElementById('recurringScopeTitle').textContent = title;
+                document.getElementById('recurringScopeModal').classList.add('active');
+            });
+        }
+        function resolveRecurringScope(v) {
+            document.getElementById('recurringScopeModal').classList.remove('active');
+            const r = _recurringScopeResolve;
+            _recurringScopeResolve = null;
+            if (r) r(v);
+        }
+
+        async function saveRecurringItem() {
+            const desc = document.getElementById('recDesc').value.trim();
+            if (!desc) { await popupError('חסר תיאור', 'תן שם להוצאה הקבועה'); return; }
+            const values = {
+                description: desc,
+                category: document.getElementById('recCategory').value,
+                amount: parseFloat(document.getElementById('recAmount').value) || 0,
+                recognition: Math.min(100, Math.max(0, parseFloat(document.getElementById('recRecognition').value) || 100)),
+                dueDay: parseInt(document.getElementById('recDueDay').value) || null
+            };
+            const ctx = editingRecurring;
+            const monthKey = ctx ? ctx.monthKey : (expenseMonth !== 'all' ? expenseMonth : realMonthKey());
+            const scope = await askRecurringScope(ctx ? 'על מה להחיל את השינוי?' : 'להוסיף את "' + desc + '"?');
+            if (!scope) return;
+            const rec = getRecurring();
+
+            if (!ctx) {
+                if (scope === 'forward') {
+                    if (!rec.startMonth || monthKey < rec.startMonth) rec.startMonth = monthKey;
+                    ensureRecurringMonths(monthKey);
+                    const tid = genRecId();
+                    rec.template.push({ id: tid, ...values });
+                    Object.keys(rec.months).forEach(k => {
+                        if (k >= monthKey) rec.months[k].push({ id: genRecId(), templateId: tid, ...values });
+                    });
+                } else {
+                    if (!rec.months[monthKey]) rec.months[monthKey] = [];
+                    rec.months[monthKey].push({ id: genRecId(), templateId: null, ...values });
+                    if (!rec.startMonth || monthKey < rec.startMonth) rec.startMonth = monthKey;
+                }
+            } else {
+                const item = (rec.months[ctx.monthKey] || []).find(i => String(i.id) === String(ctx.itemId));
+                if (item) {
+                    Object.assign(item, values);
+                    if (scope === 'forward') {
+                        if (item.templateId) {
+                            Object.keys(rec.months).forEach(k => {
+                                if (k > ctx.monthKey) active(rec.months[k]).forEach(i => {
+                                    if (i.templateId === item.templateId) Object.assign(i, values);
+                                });
+                            });
+                            const t = rec.template.find(t => t.id === item.templateId);
+                            if (t) Object.assign(t, values);
+                        } else {
+                            // Promote a month-only item into the permanent template from here on
+                            const tid = genRecId();
+                            item.templateId = tid;
+                            rec.template.push({ id: tid, ...values });
+                            Object.keys(rec.months).forEach(k => {
+                                if (k > ctx.monthKey) rec.months[k].push({ id: genRecId(), templateId: tid, ...values });
+                            });
+                        }
+                    }
+                }
+            }
+
+            editingRecurring = null;
+            closeModal('recurringModal');
+            saveData();
+            renderAll();
+        }
+
+        async function deleteRecurring(monthKey, itemId) {
+            const rec = getRecurring();
+            const item = (rec.months[monthKey] || []).find(i => String(i.id) === String(itemId) && !i._deleted);
+            if (!item) return;
+            const payment = findRecurringPayment(monthKey, itemId);
+            if (payment) {
+                const ok = await showPopup({
+                    type: 'warning',
+                    title: 'ההוצאה כבר שולמה',
+                    message: 'התשלום והקבלה שצורפו יישארו בטבלת ההוצאות. להסיר את השורה מהצ׳ק־ליסט?',
+                    okText: 'הסר',
+                    cancelText: 'ביטול'
+                });
+                if (!ok) return;
+            }
+            let scope = 'month';
+            if (item.templateId) {
+                scope = await askRecurringScope('למחוק את "' + item.description + '"?');
+                if (!scope) return;
+            }
+            item._deleted = true;
+            if (scope === 'forward' && item.templateId) {
+                Object.keys(rec.months).forEach(k => {
+                    if (k > monthKey) (rec.months[k] || []).forEach(i => {
+                        if (i.templateId === item.templateId) i._deleted = true;
+                    });
+                });
+                const t = rec.template.find(t => t.id === item.templateId);
+                if (t) t._deleted = true;
+            }
+            saveData();
             renderAll();
         }
 
@@ -7293,18 +7894,14 @@
             renderAll();
         }
 
-        function buildExpenseFilterButtons() {
-            const yd = getYearData();
-            const categories = [...new Set(active(yd.expenses).map(e => e.category))];
-            const container = document.getElementById('expenseFilterButtons');
-            container.innerHTML = categories.map(c =>
-                `<button class="filter-btn ${expenseFilter === c ? 'active' : ''}" onclick="filterExpenses('${c}', this)">${c}</button>`
+        function buildExpenseCategoryFilter(allItems) {
+            const sel = document.getElementById('expenseCategoryFilter');
+            const categories = [...new Set(allItems.map(e => e.category))];
+            if (expenseFilter !== 'all' && !categories.includes(expenseFilter)) expenseFilter = 'all';
+            sel.innerHTML = '<option value="all">הכל</option>' + categories.map(c =>
+                `<option value="${c}" ${expenseFilter === c ? 'selected' : ''}>${c}</option>`
             ).join('');
-            // Update "all" button
-            const allBtn = container.previousElementSibling;
-            if (allBtn && allBtn.classList.contains('filter-btn')) {
-                allBtn.classList.toggle('active', expenseFilter === 'all');
-            }
+            sel.value = expenseFilter;
         }
 
         let expenseFirstRender = true;
@@ -7313,26 +7910,38 @@
             const yd = getYearData();
             const tbody = document.getElementById('expenseTable');
 
-            const expenseItems = active(yd.expenses);
+            renderExpenseMonthBar();
+            renderRecurringPanel();
+
+            const allItems = active(yd.expenses);
+            const expenseItems = expenseMonth === 'all'
+                ? allItems
+                : allItems.filter(e => (e.date || '').startsWith(expenseMonth));
 
             // On first render, collapse all categories
             if (expenseFirstRender && expenseGrouped) {
-                const cats = [...new Set(expenseItems.map(e => e.category))];
+                const cats = [...new Set(allItems.map(e => e.category))];
                 cats.forEach(c => { collapsedCategories[c] = true; });
                 expenseFirstRender = false;
             }
 
-            // Build filter buttons
-            buildExpenseFilterButtons();
+            buildExpenseCategoryFilter(allItems);
 
-            // Calculate totals with recognition
+            // Calculate totals with recognition (for the current view) + annual reference
             const totalGross = expenseItems.reduce((sum, e) => sum + e.amount, 0);
             const totalRecognized = expenseItems.reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+            const annualRecognized = allItems.reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+            const scopeLabel = expenseMonth === 'all' ? '' : ' — ' + monthLabelFromKey(expenseMonth);
+            document.getElementById('expSummaryGrossLabel').textContent = 'סה"כ הוצאות (לפני הכרה)' + scopeLabel;
+            document.getElementById('expSummaryNetLabel').textContent = 'סה"כ הוצאות מוכרות' + scopeLabel;
             document.getElementById('totalExpensesGross').textContent = formatCurrency(totalGross);
             document.getElementById('totalExpenses').textContent = formatCurrency(totalRecognized);
+            document.getElementById('expAnnualRow').style.display = expenseMonth === 'all' ? 'none' : '';
+            document.getElementById('totalExpensesAnnual').textContent = formatCurrency(annualRecognized);
 
             if (expenseItems.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div class="icon">🧾</div><p>לחץ + להוסיף</p></td></tr>';
+                const msg = expenseMonth === 'all' ? 'לחץ + להוסיף' : 'אין הוצאות ב' + monthLabelFromKey(expenseMonth);
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div class="icon">🧾</div><p>' + msg + '</p></td></tr>';
                 return;
             }
 
