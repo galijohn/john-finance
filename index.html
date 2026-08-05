@@ -1710,8 +1710,8 @@
                     <div class="export-dropdown">
                         <button class="btn btn-sm" onclick="toggleExportMenu(this)">🖨️ הדפסה</button>
                         <div class="export-dropdown-content">
-                            <button onclick="exportPageExcel('expenses')">📊 Excel</button>
-                            <button onclick="exportPagePDF('expenses')">📄 PDF</button>
+                            <button onclick="openExportScope('excel')">📊 Excel</button>
+                            <button onclick="openExportScope('pdf')">📄 PDF</button>
                         </div>
                     </div>
                 </div>
@@ -2973,6 +2973,24 @@
             <div class="modal-footer">
                 <button class="btn btn-primary" onclick="saveNewCategory()">שמור</button>
                 <button class="btn" onclick="closeModal('categoryModal')">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="exportScopeModal">
+        <div class="modal" style="max-width:420px;">
+            <div class="modal-header">
+                <h3>🖨️ מה לייצא?</h3>
+                <button class="btn-icon" onclick="closeModal('exportScopeModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    <button class="btn btn-primary" id="exportScopeMonthBtn" onclick="runScopedExport('month')" style="width:100%;"></button>
+                    <button class="btn" id="exportScopeYearBtn" onclick="runScopedExport('year')" style="width:100%;"></button>
+                    <button class="btn" id="exportScopeFlatBtn" onclick="runScopedExport('flat')" style="width:100%;"></button>
+                    <button class="btn" onclick="closeModal('exportScopeModal')" style="width:100%;">ביטול</button>
+                </div>
+                <p id="exportScopeCatNote" style="color:var(--text-muted);font-size:0.82rem;margin-top:12px;display:none;"></p>
             </div>
         </div>
     </div>
@@ -8061,6 +8079,58 @@
             }
         }
 
+        // ===== SCOPED EXPORT (expenses): month / year-by-months / flat =====
+        let expenseExportScope = null;
+        let _exportKind = 'pdf';
+
+        function getScopedExpenses() {
+            const yd = getYearData();
+            let list = active(yd.expenses);
+            const s = expenseExportScope;
+            if (s && s.mode === 'month') list = list.filter(e => (e.date || '').startsWith(s.monthKey));
+            if (expenseFilter !== 'all') list = list.filter(e => e.category === expenseFilter);
+            return list;
+        }
+
+        function expenseScopeSubtitle() {
+            const s = expenseExportScope || { mode: 'year' };
+            let t = s.mode === 'month' ? 'תקופה: ' + monthLabelFromKey(s.monthKey)
+                : s.mode === 'flat' ? 'כל השנה — ללא חלוקה'
+                : 'כל השנה — לפי חודשים';
+            if (expenseFilter !== 'all') t += ' · קטגוריה: ' + expenseFilter;
+            return t;
+        }
+
+        function openExportScope(kind) {
+            _exportKind = kind;
+            document.querySelectorAll('.export-dropdown-content.show').forEach(d => d.classList.remove('show'));
+            const mk = expenseMonth !== 'all' ? expenseMonth : realMonthKey();
+            const icon = kind === 'excel' ? '📊' : '📄';
+            document.getElementById('exportScopeMonthBtn').textContent = icon + ' ' + monthLabelFromKey(mk) + ' — החודש המוצג';
+            document.getElementById('exportScopeYearBtn').textContent = icon + ' כל שנת ' + currentYear + ' — לפי חודשים';
+            document.getElementById('exportScopeFlatBtn').textContent = icon + ' הכל — ללא חלוקה';
+            const note = document.getElementById('exportScopeCatNote');
+            if (expenseFilter !== 'all') {
+                note.textContent = 'סינון קטגוריה פעיל: הדוח יכלול רק "' + expenseFilter + '"';
+                note.style.display = '';
+            } else {
+                note.style.display = 'none';
+            }
+            openModal('exportScopeModal');
+        }
+
+        async function runScopedExport(mode) {
+            const mk = expenseMonth !== 'all' ? expenseMonth : realMonthKey();
+            expenseExportScope = { mode: mode, monthKey: mk };
+            closeModal('exportScopeModal');
+            if (getScopedExpenses().length === 0) {
+                await popupError('אין נתונים', 'אין הוצאות בתקופה שנבחרה');
+                return;
+            }
+            if (_exportKind === 'excel') exportPageExcel('expenses');
+            else exportPagePDF('expenses');
+        }
+
         function toggleExpenseSort() {
             expenseSortAsc = !expenseSortAsc;
             document.getElementById('expenseSortBtn').innerHTML = `📅 תאריך ${expenseSortAsc ? '↓' : '↑'}`;
@@ -8701,29 +8771,54 @@
             }
 
             // === Build per page ===
-            if (page === 'expenses' && yd.expenses.length > 0) {
-                const S = 5;
-                addTitle(S); addInfo(S); ws.addRow([]);
-                ws.getColumn(1).width = 14; ws.getColumn(2).width = 30; ws.getColumn(3).width = 14; ws.getColumn(4).width = 10; ws.getColumn(5).width = 14;
+            if (page === 'expenses' && getScopedExpenses().length > 0) {
+                const mode = (expenseExportScope || {}).mode || 'year';
+                const scoped = getScopedExpenses();
+                const byDate = (a, b) => (a.date || '').localeCompare(b.date || '');
+                const recOf = e => e.amount * ((e.recognition ?? 100) / 100);
+                const S = mode === 'month' ? 5 : 6;
+                addTitle(S); addInfo(S);
+                const subR = ws.addRow([expenseScopeSubtitle()]);
+                subR.getCell(1).font = { bold: true, size: 10, color: { argb: 'FF475569' }, name: 'Segoe UI' };
+                ws.addRow([]);
+                ws.getColumn(1).width = 14; ws.getColumn(2).width = 30; ws.getColumn(3).width = 14; ws.getColumn(4).width = 12; ws.getColumn(5).width = 14;
+                if (S === 6) ws.getColumn(6).width = 14;
 
-                const groups = {}; const catOrder = [];
-                yd.expenses.forEach(e => { if (!groups[e.category]) { groups[e.category] = []; catOrder.push(e.category); } groups[e.category].push(e); });
-                let grandTotal = 0, grandRecognized = 0;
-                const letters = ['א','ב','ג','ד','ה','ו','ז','ח','ט','י'];
+                const grandTotal = scoped.reduce((s, e) => s + e.amount, 0);
+                const grandRecognized = scoped.reduce((s, e) => s + recOf(e), 0);
+                const HDR6 = ['תאריך', 'תיאור', 'קטגוריה', 'סכום', '% הכרה', 'מוכר'];
+                const row6 = e => { const pct = e.recognition ?? 100; return [formatDate(e.date), e.description || '', e.category || '', e.amount, pct + '%', recOf(e)]; };
 
-                catOrder.forEach((cat, idx) => {
-                    const items = groups[cat];
-                    items.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-                    const catTotal = items.reduce((s, e) => s + e.amount, 0);
-                    const catRecognized = items.reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
-                    grandTotal += catTotal; grandRecognized += catRecognized;
-
-                    addSection(letters[idx] + '. ' + cat, S);
-                    addHdr(['תאריך', 'תיאור', 'סכום', '% הכרה', 'מוכר']);
-                    items.forEach((e, i) => { const pct = e.recognition ?? 100; addDR([formatDate(e.date), e.description || '', e.amount, pct + '%', e.amount * (pct / 100)], i); });
-                    addSub(['סה"כ ' + cat + ' (' + items.length + ')', '', catTotal, '', catRecognized]);
-                });
-                addGrand(['סה"כ הוצאות מוכרות', '', grandTotal, '', grandRecognized]);
+                if (mode === 'flat') {
+                    addHdr(HDR6);
+                    [...scoped].sort(byDate).forEach((e, i) => addDR(row6(e), i));
+                    addGrand(['סה"כ הוצאות מוכרות (' + scoped.length + ')', '', '', grandTotal, '', grandRecognized]);
+                } else if (mode === 'year') {
+                    const byMonth = {};
+                    scoped.forEach(e => { const k = (e.date || '').slice(0, 7) || 'ללא תאריך'; (byMonth[k] = byMonth[k] || []).push(e); });
+                    Object.keys(byMonth).sort().forEach(k => {
+                        const items = byMonth[k].sort(byDate);
+                        const label = k.includes('-') ? monthLabelFromKey(k) : k;
+                        addSection(label, S);
+                        addHdr(HDR6);
+                        items.forEach((e, i) => addDR(row6(e), i));
+                        addSub(['סה"כ ' + label + ' (' + items.length + ')', '', '', items.reduce((s, e) => s + e.amount, 0), '', items.reduce((s, e) => s + recOf(e), 0)]);
+                    });
+                    addGrand(['סה"כ הוצאות מוכרות', '', '', grandTotal, '', grandRecognized]);
+                } else {
+                    // month scope — classic category-grouped layout
+                    const groups = {}; const catOrder = [];
+                    scoped.forEach(e => { if (!groups[e.category]) { groups[e.category] = []; catOrder.push(e.category); } groups[e.category].push(e); });
+                    const letters = ['א','ב','ג','ד','ה','ו','ז','ח','ט','י'];
+                    catOrder.forEach((cat, idx) => {
+                        const items = groups[cat].sort(byDate);
+                        addSection((letters[idx] || '') + '. ' + cat, S);
+                        addHdr(['תאריך', 'תיאור', 'סכום', '% הכרה', 'מוכר']);
+                        items.forEach((e, i) => { const pct = e.recognition ?? 100; addDR([formatDate(e.date), e.description || '', e.amount, pct + '%', recOf(e)], i); });
+                        addSub(['סה"כ ' + cat + ' (' + items.length + ')', '', items.reduce((s, e) => s + e.amount, 0), '', items.reduce((s, e) => s + recOf(e), 0)]);
+                    });
+                    addGrand(['סה"כ הוצאות מוכרות', '', grandTotal, '', grandRecognized]);
+                }
                 if (grandTotal !== grandRecognized) { const r = ws.addRow(['סה"כ לפני הכרה: ₪' + grandTotal.toLocaleString('he-IL')]); r.getCell(1).font = { size: 9, color: { argb: 'FF94A3B8' }, name: 'Segoe UI' }; }
                 addFooter(S);
 
@@ -8968,7 +9063,8 @@
                 addRecordDocs(yd.taxAdvances, 'מקדמות מס');
                 addRecordDocs(yd.blAdvances, 'מקדמות ביט"ל');
             } else if (page === 'expenses') {
-                addRecordDocs(yd.expenses, 'הוצאות');
+                // Only attach receipts belonging to the exported scope (month/year + category filter)
+                addRecordDocs(getScopedExpenses(), 'הוצאות');
             } else if (page === 'selfEmployed') {
                 addRecordDocs(yd.selfEmployed, 'עצמאי');
                 addRecordDocs(yd.taxAdvances, 'מקדמות מס');
@@ -9055,39 +9151,63 @@
 
             let bodyContent = '';
 
-            const activeExpenses = active(yd.expenses);
-            if (page === 'expenses' && activeExpenses.length > 0) {
-                const groups = {};
-                const catOrder = [];
-                activeExpenses.forEach(e => {
-                    if (!groups[e.category]) { groups[e.category] = []; catOrder.push(e.category); }
-                    groups[e.category].push(e);
-                });
+            if (page === 'expenses' && getScopedExpenses().length > 0) {
+                const mode = (expenseExportScope || {}).mode || 'year';
+                const scoped = getScopedExpenses();
+                const byDate = (a, b) => (a.date || '').localeCompare(b.date || '');
+                const recOf = e => e.amount * ((e.recognition ?? 100) / 100);
+                const grandTotal = scoped.reduce((s, e) => s + e.amount, 0);
+                const grandRecognized = scoped.reduce((s, e) => s + recOf(e), 0);
 
-                let grandTotal = 0, grandRecognized = 0;
-                const letters = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י'];
+                bodyContent += '<div style="font-size:11px;font-weight:bold;color:#475569;margin-bottom:10px;">' + expenseScopeSubtitle() + '</div>';
+                const h3 = t => '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">' + t + '</h3>';
+                const subTotal = (label, val) => '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>' + label + '</span><span>' + fmtNum(val) + '</span></div>';
+                const tableOpen6 = '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>קטגוריה</th><th>סכום</th><th>% הכרה</th><th>מוכר</th></tr></thead><tbody>';
+                const rowHtml6 = e => {
+                    const pct = e.recognition ?? 100;
+                    return '<tr><td>' + formatDate(e.date) + '</td><td>' + (e.description || '-') + '</td><td>' + (e.category || '') + '</td>' +
+                        '<td style="text-align:left;direction:ltr;">' + fmtNum(e.amount) + '</td>' +
+                        '<td style="text-align:left;direction:ltr;' + (pct < 100 ? 'color:#d97706;' : '') + '">' + pct + '%</td>' +
+                        '<td style="text-align:left;direction:ltr;">' + fmtNum(recOf(e)) + '</td></tr>';
+                };
 
-                catOrder.forEach((cat, idx) => {
-                    const items = groups[cat];
-                    items.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-                    const catTotal = items.reduce((s, e) => s + e.amount, 0);
-                    const catRecognized = items.reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
-                    grandTotal += catTotal;
-                    grandRecognized += catRecognized;
-
-                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">' + letters[idx] + '. ' + cat + '</h3>';
-                    bodyContent += '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>סכום</th><th>% הכרה</th><th>מוכר</th></tr></thead><tbody>';
-                    items.forEach(e => {
-                        const pct = e.recognition ?? 100;
-                        const recognized = e.amount * (pct / 100);
-                        bodyContent += '<tr><td>' + formatDate(e.date) + '</td><td>' + (e.description || '-') + '</td>';
-                        bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(e.amount) + '</td>';
-                        bodyContent += '<td style="text-align:left;direction:ltr;' + (pct < 100 ? 'color:#d97706;' : '') + '">' + pct + '%</td>';
-                        bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(recognized) + '</td></tr>';
-                    });
+                if (mode === 'flat') {
+                    bodyContent += tableOpen6;
+                    [...scoped].sort(byDate).forEach(e => { bodyContent += rowHtml6(e); });
                     bodyContent += '</tbody></table>';
-                    bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ ' + cat + ' (' + items.length + ' פריטים)</span><span>' + fmtNum(catRecognized) + '</span></div>';
-                });
+                } else if (mode === 'year') {
+                    const byMonth = {};
+                    scoped.forEach(e => { const k = (e.date || '').slice(0, 7) || 'ללא תאריך'; (byMonth[k] = byMonth[k] || []).push(e); });
+                    Object.keys(byMonth).sort().forEach(k => {
+                        const items = byMonth[k].sort(byDate);
+                        const label = k.includes('-') ? monthLabelFromKey(k) : k;
+                        bodyContent += h3(label) + tableOpen6;
+                        items.forEach(e => { bodyContent += rowHtml6(e); });
+                        bodyContent += '</tbody></table>' + subTotal('סה"כ ' + label + ' (' + items.length + ' פריטים)', items.reduce((s, e) => s + recOf(e), 0));
+                    });
+                } else {
+                    // month scope — classic category-grouped layout
+                    const groups = {};
+                    const catOrder = [];
+                    scoped.forEach(e => {
+                        if (!groups[e.category]) { groups[e.category] = []; catOrder.push(e.category); }
+                        groups[e.category].push(e);
+                    });
+                    const letters = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י'];
+                    catOrder.forEach((cat, idx) => {
+                        const items = groups[cat].sort(byDate);
+                        bodyContent += h3((letters[idx] || '') + '. ' + cat);
+                        bodyContent += '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>סכום</th><th>% הכרה</th><th>מוכר</th></tr></thead><tbody>';
+                        items.forEach(e => {
+                            const pct = e.recognition ?? 100;
+                            bodyContent += '<tr><td>' + formatDate(e.date) + '</td><td>' + (e.description || '-') + '</td>';
+                            bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(e.amount) + '</td>';
+                            bodyContent += '<td style="text-align:left;direction:ltr;' + (pct < 100 ? 'color:#d97706;' : '') + '">' + pct + '%</td>';
+                            bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(recOf(e)) + '</td></tr>';
+                        });
+                        bodyContent += '</tbody></table>' + subTotal('סה"כ ' + cat + ' (' + items.length + ' פריטים)', items.reduce((s, e) => s + recOf(e), 0));
+                    });
+                }
 
                 bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:15px;"><span>סה"כ הוצאות מוכרות</span><span>' + fmtNum(grandRecognized) + '</span></div>';
                 if (grandTotal !== grandRecognized) {
@@ -9397,9 +9517,13 @@
             }
 
             // Build report HTML for pdf conversion (all inline styles - html2canvas ignores CSS classes)
+            let titleLine = title + ' לשנת המס ' + year;
+            if (page === 'expenses' && expenseExportScope && expenseExportScope.mode === 'month') {
+                titleLine = title + ' — ' + monthLabelFromKey(expenseExportScope.monthKey);
+            }
             const reportHTML = '<div dir="rtl" style="font-family:Segoe UI,Tahoma,Arial,sans-serif; color:#1e293b; padding:20px 25px; font-size:11px; width:700px; background:white;">' +
                 '<div style="border-top:3px double #1e293b; border-bottom:3px double #1e293b; padding:15px 0; margin-bottom:5px; text-align:center;">' +
-                '<h1 style="font-size:20px; margin:0 0 5px;">' + title + ' לשנת המס ' + year + '</h1></div>' +
+                '<h1 style="font-size:20px; margin:0 0 5px;">' + titleLine + '</h1></div>' +
                 '<table style="width:100%; margin-bottom:20px; border-bottom:1px solid #cbd5e1;"><tr>' +
                 '<td style="padding:8px 0; font-size:10px; color:#64748b; text-align:right;">שם: John Levy</td>' +
                 '<td style="padding:8px 0; font-size:10px; color:#64748b; text-align:center;">סוג עוסק: עוסק מורשה</td>' +
