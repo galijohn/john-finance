@@ -1076,6 +1076,7 @@
                     <button class="btn" onclick="biometricLogin()" style="width:100%;padding:15px;background:linear-gradient(135deg, #06b6d4, #0891b2);color:white;font-size:1rem;">
                         🔓 כניסה ביומטרית
                     </button>
+                    <p id="biometricHint" style="display:none;color:var(--text-muted);margin-top:10px;font-size:0.85rem;">לחץ על הכפתור כדי להפעיל זיהוי ביומטרי</p>
                 </div>
             </div>
             
@@ -3101,11 +3102,21 @@
                 // 3. Find or create folder
                 await findOrCreateFolder();
 
-                // 4. SYNC ALL DATA NOW
+                // 4. PULL from cloud first, merge with local, then push the merged result.
+                //    DO NOT call syncToCloud() directly here — that would OVERWRITE the cloud
+                //    with whatever stale data this device happens to have, deleting anything
+                //    other devices added in the meantime (e.g. a milluim record added on the
+                //    laptop while this phone was offline). pullFromCloudIfNewer handles
+                //    download + merge-by-id + push the merged result back.
+                await pullFromCloudIfNewer();
+
+                // 5. Ensure data.json exists on Drive even on the very first connect
+                //    (pullFromCloudIfNewer returns silently if there's nothing to pull).
                 await syncToCloud();
 
-                // 5. Update status
+                // 6. Update status
                 updateDriveStatus(true);
+                scheduleTokenRenewal();
 
             } catch (error) {
                 console.error('Google Drive error:', error);
@@ -4717,7 +4728,7 @@
         function checkPin() {
             const pin = document.getElementById('pinInput').value;
             const savedPin = data.pin || null;
-            
+
             if (pin === savedPin) {
                 document.getElementById('pinLockScreen').style.display = 'none';
                 // Reload data from localStorage (in case it was just restored from cloud)
@@ -4728,6 +4739,10 @@
                 loadBusinessStatus();
                 loadFavorites();
                 renderAll();
+                // Now that the user is in, connect to Drive and pull any newer data
+                // from the cloud. tryAutoConnect handles silent renewal and falls back
+                // to a one-tap reconnect if needed.
+                postUnlockSync();
             } else {
                 document.getElementById('pinError').textContent = 'קוד שגוי';
                 document.getElementById('pinError').style.display = 'block';
@@ -4880,8 +4895,15 @@
                 loadBusinessStatus();
                 loadFavorites();
                 renderAll();
+                // Pull any newer data from the cloud now that the user is in.
+                postUnlockSync();
             } catch(e) {
-                if (e.name !== 'NotAllowedError') {
+                // NotAllowedError = user dismissed prompt OR auto-trigger lost user activation.
+                // In that case make the manual button obvious so the user can retry with a real tap.
+                if (e.name === 'NotAllowedError') {
+                    const hint = document.getElementById('biometricHint');
+                    if (hint) hint.style.display = 'block';
+                } else {
                     alert('❌ שגיאה בזיהוי: ' + e.message);
                 }
             }
@@ -4892,8 +4914,25 @@
             const section = document.getElementById('biometricLoginSection');
             if (credId && section && isBiometricAvailable()) {
                 section.style.display = 'block';
-                // Auto-trigger biometric on load
-                setTimeout(() => biometricLogin(), 500);
+                // Auto-trigger biometric once the page is fully painted and has had a moment
+                // for user activation to settle. On Android Chrome the auto-trigger sometimes
+                // fails (NotAllowedError) when fired too early after a cold start — in that
+                // case the visible button below acts as a one-tap fallback.
+                requestAnimationFrame(() => {
+                    setTimeout(() => biometricLogin(), 800);
+                });
+            }
+        }
+
+        // Called after a successful unlock (PIN or biometric). Reconnects to Google Drive
+        // (silent renewal if possible, one-tap reconnect prompt otherwise) and pulls any
+        // newer data from the cloud so the user immediately sees what was added on other
+        // devices — without races against the lock screen.
+        async function postUnlockSync() {
+            try {
+                await tryAutoConnect();
+            } catch (e) {
+                console.error('postUnlockSync error:', e);
             }
         }
 
@@ -4922,10 +4961,12 @@
             renderAll();
             checkLastBackup();
             initLocalFolder();
-            
-            // Try to auto-connect to Google Drive
-            tryAutoConnect();
-            
+
+            // NOTE: tryAutoConnect() is intentionally NOT called here. It runs
+            // after the user unlocks (checkPin / biometricLogin / connectAndRestore)
+            // so that "לא מחובר ל־Google" popups don't appear on top of the lock screen,
+            // and so the cloud-pull happens right when the user actually starts using the app.
+
             // Start clock
             updateClock();
             setInterval(updateClock, 1000);
