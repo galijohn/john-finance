@@ -5041,7 +5041,9 @@
             for (const [yearKey, yd] of Object.entries(data.yearData || {})) {
                 if (!yd || !yd.documents) continue;
                 const live = new Set();
-                ['expenses','salary','unemployment','miluim','selfEmployed','taxAdvances','blAdvances','forms'].forEach(k => {
+                // EVERY record type that can own a file. A type missing from this list
+                // makes its files look orphaned — which is how documents got deleted.
+                ['expenses','salary','unemployment','miluim','selfEmployed','taxAdvances','blAdvances','forms','officialDocs','vatReports'].forEach(k => {
                     active(yd[k]).forEach(r => { if (r.driveId) live.add(r.driveId); });
                 });
                 for (const doc of yd.documents) {
@@ -6152,8 +6154,9 @@
         async function postUnlockSync() {
             try {
                 await tryAutoConnect();
-                // Clear out files left behind by earlier replacements, once, quietly.
-                await cleanupSupersededFiles(true);
+                // NOTE: cleanupSupersededFiles() is NOT run automatically. It deleted
+                // files belonging to record types it did not know about (officialDocs),
+                // and an automatic, irreversible delete is not worth the risk.
             } catch (e) {
                 console.error('postUnlockSync error:', e);
             }
@@ -7139,9 +7142,12 @@
             await ensureValidToken();
             if (!googleAccessToken) return;
             try {
+                // Move to the Drive trash — never a permanent delete, so any mistake
+                // (ours or the user's) stays recoverable for 30 days.
                 await fetch('https://www.googleapis.com/drive/v3/files/' + driveId, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': 'Bearer ' + googleAccessToken }
+                    method: 'PATCH',
+                    headers: { 'Authorization': 'Bearer ' + googleAccessToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ trashed: true })
                 });
             } catch (e) { console.error('Drive delete error:', e); }
         }
@@ -9497,6 +9503,17 @@
             popupSuccess('נוסף לאיסוף', '"' + values.description + '" יופיע כל חודש עד שתשלים אותו');
         }
 
+        // The checklist line an expense is linked to, if it still exists.
+        function recurringLineOf(e) {
+            if (!e || !e.recurringKey) return null;
+            const idx = String(e.recurringKey).lastIndexOf(':');
+            if (idx < 0) return null;
+            const monthKey = e.recurringKey.slice(0, idx);
+            const itemId = e.recurringKey.slice(idx + 1);
+            const rec = getRecurring();
+            return active(rec.months[monthKey] || []).find(i => String(i.id) === String(itemId)) || null;
+        }
+
         // Detach an expense from its recurring-checklist row (the expense stays in the table;
         // the checklist row goes back to unpaid).
         async function unlinkExpenseRecurring(id) {
@@ -9792,36 +9809,45 @@
             el.innerHTML = html;
         }
 
-        // Dashboard strip. Deliberately driven ONLY by a reminder the user set
-        // ("לטיפול עד") — validity dates stay inside the documents page.
+        // Dashboard strip: an action due, or a certificate whose validity runs out —
+        // both surface a month ahead, and stay until handled or renewed.
         function renderDocReminders() {
             const el = document.getElementById('docReminders');
             if (!el) return;
             const today = localTodayISO();
+            const daysTo = iso => Math.round((new Date(iso) - new Date(today)) / 86400000);
             const due = [];
             Object.entries(data.yearData || {}).forEach(([y, yd]) => {
                 if (!yd) return;
                 active(yd.officialDocs).forEach(d => {
-                    if (d.actionDue && !d.handled) due.push(d);
+                    if (d.actionDue && !d.handled && daysTo(d.actionDue) <= 30) {
+                        due.push({ doc: d, when: d.actionDue, kind: 'action' });
+                    } else if (d.validUntil && daysTo(d.validUntil) <= 30) {
+                        due.push({ doc: d, when: d.validUntil, kind: 'validity' });
+                    }
                 });
             });
             if (!due.length) { el.style.display = 'none'; return; }
-            due.sort((a, b) => String(a.actionDue).localeCompare(String(b.actionDue)));
-            const late = due.filter(d => d.actionDue < today).length;
+            due.sort((a, b) => String(a.when).localeCompare(String(b.when)));
+            const late = due.filter(x => x.when < today).length;
 
             let html = `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                 <span style="font-size:1.05rem;">⚠️</span>
                 <div style="flex:1;min-width:190px;">
-                    <strong style="color:var(--danger);">${due.length} ${due.length === 1 ? 'מסמך דורש טיפול' : 'מסמכים דורשים טיפול'}</strong>
+                    <strong style="color:var(--danger);">${due.length} ${due.length === 1 ? 'מסמך דורש תשומת לב' : 'מסמכים דורשים תשומת לב'}</strong>
                     ${late ? `<span style="font-size:0.8rem;color:var(--text-muted);margin-inline-start:8px;">${late} באיחור</span>` : ''}
                 </div>
                 <button class="btn btn-sm" onclick="showPage('docs')">פתח מסמכים</button>
             </div>
             <div style="margin-top:9px;border-top:1px solid var(--border);padding-top:7px;">`;
-            due.slice(0, 3).forEach(d => {
-                const isLate = d.actionDue < today;
+            due.slice(0, 3).forEach(x => {
+                const d = x.doc;
+                const isLate = x.when < today;
+                const label = x.kind === 'validity'
+                    ? (isLate ? 'פג תוקף · ' + formatDate(x.when) : 'תוקף עד ' + formatDate(x.when))
+                    : (isLate ? 'באיחור · ' + formatDate(x.when) : 'לטיפול עד ' + formatDate(x.when));
                 html += `<div class="row-click" onclick="openDocFile(${d.id})" style="display:flex;align-items:center;gap:9px;padding:5px 2px;">
-                    <span class="rec-badge ${isLate ? 'late' : 'soon'}">${isLate ? 'באיחור · ' : 'עד '}${formatDate(d.actionDue)}</span>
+                    <span class="rec-badge ${isLate ? 'late' : 'soon'}">${label}</span>
                     <span style="flex:1;min-width:0;">${d.description || d.docType || ''}</span>
                     <span style="font-size:0.8rem;color:var(--text-muted);">${d.category}</span>
                 </div>`;
@@ -10439,12 +10465,19 @@
                 html += `<button onclick="hideRowMenu();openRecordFile(${id})">👁️ פתח מסמך</button>`;
                 html += `<button onclick="hideRowMenu();editExpense(${id})">✏️ עריכה</button>`;
                 html += `<button onclick="hideRowMenu();quickChangeCategory('expense',${id})">🏷️ שינוי סיווג</button>`;
-                html += e.recurringKey
-                    ? `<button onclick="hideRowMenu();unlinkExpenseRecurring(${id})">🔁 נתק מהוצאה קבועה</button>`
-                    : `<button onclick="hideRowMenu();makeExpenseRecurring(${id})">🔁 הפוך להוצאה קבועה</button>`;
-                // Always offered — a supplier can be worth collecting from whether or not
-                // this particular expense is linked to something.
-                html += `<button onclick="hideRowMenu();makeExpenseCollect(${id})">📄 הוסף לרשימת האיסוף</button>`;
+                // Word the action for what this expense is actually linked to —
+                // a bill and a collection are not the same thing.
+                const line = recurringLineOf(e);
+                if (line) {
+                    html += isCollect(line)
+                        ? `<button onclick="hideRowMenu();unlinkExpenseRecurring(${id})">📄 נתק מרשימת האיסוף</button>`
+                        : `<button onclick="hideRowMenu();unlinkExpenseRecurring(${id})">🔁 נתק מהוצאה קבועה</button>`;
+                } else if (e.recurringKey) {
+                    html += `<button onclick="hideRowMenu();unlinkExpenseRecurring(${id})">🔗 נתק מהשורה החודשית</button>`;
+                } else {
+                    html += `<button onclick="hideRowMenu();makeExpenseRecurring(${id})">🔁 הפוך להוצאה קבועה</button>`;
+                    html += `<button onclick="hideRowMenu();makeExpenseCollect(${id})">📄 הוסף לרשימת האיסוף</button>`;
+                }
                 html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteItem('expenses',${id})">✕ מחיקה</button>`;
             } else if (kind === 'bill') {
                 const monthKey = extra.monthKey;
