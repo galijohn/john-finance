@@ -2980,10 +2980,6 @@
                     </select>
                     <div id="recKindHint" style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;"></div>
                 </div>
-                <div class="form-group" id="recDescGroup">
-                    <label>תיאור</label>
-                    <input type="text" class="form-control" id="recDesc" placeholder="לדוגמה: בזק">
-                </div>
                 <div class="form-group">
                     <label>קטגוריה</label>
                     <select class="form-control" id="recCategory" onchange="onCategorySelectChange(this)">
@@ -2996,6 +2992,11 @@
                         <option value="מקצועי">שירותים מקצועיים</option>
                         <option value="אחר">אחר</option>
                     </select>
+                </div>
+                <div class="form-group" id="recDescGroup">
+                    <label>שם הספק / החברה</label>
+                    <input type="text" class="form-control" id="recDesc" placeholder="לדוגמה: בזק">
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">זה מה שיופיע בשורה ברשימה הראשית</div>
                 </div>
                 <div class="form-group">
                     <label id="recAmountLabel">סכום משוער (₪)</label>
