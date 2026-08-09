@@ -8876,6 +8876,19 @@
         function dedupeRecurringMonths() {
             const rec = getRecurring();
             let removed = 0;
+
+            // The template itself accumulated duplicates (בזק ×3, שכ"ד ×3 …) from an
+            // earlier bug. Keep the first of each line so new months are born clean.
+            const seenT = [];
+            active(rec.template).forEach(t => {
+                if (seenT.some(x => sameRecurringLine(x, t))) {
+                    t._deleted = true;
+                    t._deletedAt = Date.now();
+                    removed++;
+                } else {
+                    seenT.push(t);
+                }
+            });
             Object.keys(rec.months || {}).forEach(k => {
                 const items = active(rec.months[k]);
                 const seen = [];
@@ -8918,7 +8931,23 @@
         // Done-ness of a checklist line: bills need their payment, collections accept
         // a matching expense too.
         function lineDone(monthKey, item) {
-            return isCollect(item) ? collectSatisfiedBy(monthKey, item) : findRecurringPayment(monthKey, item.id);
+            if (!isCollect(item)) return findRecurringPayment(monthKey, item.id);
+            // An explicit mark always wins over the automatic match, in both directions,
+            // so the state is yours to set whenever you want.
+            if (item.collected === false) return null;
+            const auto = collectSatisfiedBy(monthKey, item);
+            if (auto) return auto;
+            return item.collected === true ? { manual: true, date: item.collectedAt || null } : null;
+        }
+
+        function setCollected(monthKey, itemId, v) {
+            const rec = getRecurring();
+            const item = active(rec.months[monthKey] || []).find(i => String(i.id) === String(itemId));
+            if (!item) return;
+            item.collected = v;
+            item.collectedAt = v ? localTodayISO() : null;
+            saveData();
+            renderAll();
         }
 
         // A running category doesn't ask "paid?" — it accumulates the month's expenses
@@ -9032,7 +9061,7 @@
             const panel = document.getElementById('recurringPanel');
             const items = active(rec.months[expenseMonth] || []);
 
-            const bills = items.filter(i => isBill(i) || (isCollect(i) && !lineDone(expenseMonth, i)));
+            const bills = items.filter(isLineItem);
             const cats = items.filter(isCategory);
 
             const carry = [];
@@ -10340,7 +10369,7 @@
         // including anything still unpaid from earlier months.
         function billRowsHtml(monthKey) {
             const rec = getRecurring();
-            const items = active(rec.months[monthKey] || []).filter(i => isBill(i) || (isCollect(i) && !lineDone(monthKey, i)));
+            const items = active(rec.months[monthKey] || []).filter(isLineItem);
             const carry = [];
             Object.keys(rec.months).sort().forEach(k => {
                 if (k >= monthKey) return;
@@ -10374,18 +10403,21 @@
         }
 
         function billRowHtml(monthKey, item, isCarry) {
-            const payment = findRecurringPayment(monthKey, item.id);
+            const payment = lineDone(monthKey, item);
             const rk = realMonthKey();
             const today = new Date().getDate();
             const monthNum = parseInt(monthKey.split('-')[1]);
             const pct = item.recognition ?? 100;
             const collect = isCollect(item);
             const doneWord = collect ? 'נאסף' : 'שולם';
+            // A collected line is a status row only — the money itself is shown once,
+            // inside the expense's own category group.
+            const statusOnly = collect && !!payment;
             let status;
             if (payment) {
-                status = payment.driveLink
+                status = payment && payment.driveLink
                     ? `<span class="rec-paid-chip clickable" onclick="window.open('${payment.driveLink}','_blank')" title="${doneWord} ואורכב — לחץ לצפייה במסמך">✓ ${doneWord} ${formatDate(payment.date)}</span>`
-                    : `<span class="rec-paid-chip">✓ ${doneWord} ${formatDate(payment.date)}</span>`;
+                    : `<span class="rec-paid-chip">✓ ${doneWord}${payment.date ? ' ' + formatDate(payment.date) : ''}</span>`;
             } else if (collect) {
                 const label = isCarry ? 'לאסוף · ' + monthLabelFromKey(monthKey) : 'לאסוף';
                 status = `<button class="rec-collect-btn" onclick="payRecurring('${monthKey}','${item.id}')" title="קיבלת את החשבונית? השלם סכום, תאריך וצרף אותה">📄 ${label}</button>`;
@@ -10395,10 +10427,11 @@
                     : (item.dueDay ? 'לתשלום עד ' + String(item.dueDay).padStart(2, '0') + '/' + String(monthNum).padStart(2, '0') : 'לתשלום');
                 status = `<button class="rec-due-btn" onclick="payRecurring('${monthKey}','${item.id}')" title="שילמת? עדכן כמה שולם וצרף מסמך">${label}</button>`;
             }
-            const amount = payment ? payment.amount : item.amount;
-            const effPct = payment ? (payment.recognition ?? 100) : pct;
-            const menuExtra = `{monthKey:'${monthKey}',paymentId:${payment ? payment.id : 'null'}}`;
-            const rowClick = payment ? `openRecordFile(${payment.id})` : `payRecurring('${monthKey}','${item.id}')`;
+            const real = payment && payment.id ? payment : null;   // a manual mark has no record
+            const amount = real ? real.amount : item.amount;
+            const effPct = real ? (real.recognition ?? 100) : pct;
+            const menuExtra = `{monthKey:'${monthKey}',paymentId:${real ? real.id : 'null'}}`;
+            const rowClick = real ? `openRecordFile(${real.id})` : `payRecurring('${monthKey}','${item.id}')`;
             return `<tr class="row-click"${isCarry ? ' style="background:rgba(239,68,68,0.07);"' : ''}
                         onclick="${rowClick}"
                         oncontextmenu="showRowMenu(event,'bill','${item.id}',${menuExtra})"
@@ -10406,9 +10439,9 @@
                 <td style="white-space:nowrap;">${collect ? '' : '<span style="color:var(--text-muted);font-size:0.8rem;margin-inline-end:4px;">💳</span>'}${status}</td>
                 <td>${categoryLabel(item.category)}</td>
                 <td>${item.description}</td>
-                <td style="color:${payment || !collect ? 'var(--danger)' : 'var(--text-muted)'}">${!payment && collect ? '—' : formatCurrency(amount)}</td>
-                <td class="col-pct" style="text-align:center;${effPct < 100 ? 'color:var(--warning)' : ''}">${!payment && collect ? '—' : effPct + '%'}</td>
-                <td class="col-net" style="color:var(--success)">${!payment && collect ? '—' : formatCurrency(amount * (effPct / 100))}</td>
+                <td style="color:${collect ? 'var(--text-muted)' : 'var(--danger)'}">${collect ? '—' : formatCurrency(amount)}</td>
+                <td class="col-pct" style="text-align:center;${!collect && effPct < 100 ? 'color:var(--warning)' : ''}">${collect ? '—' : effPct + '%'}</td>
+                <td class="col-net" style="color:${collect ? 'var(--text-muted)' : 'var(--success)'}">${collect ? '—' : formatCurrency(amount * (effPct / 100))}</td>
             </tr>`;
         }
 
@@ -10487,6 +10520,12 @@
                     html += `<button onclick="hideRowMenu();editExpense(${payment.id})">✏️ ערוך תשלום</button>`;
                 } else {
                     html += `<button onclick="hideRowMenu();payRecurring('${monthKey}','${id}')">💳 סמן כשולם</button>`;
+                }
+                const recItem = active(getRecurring().months[monthKey] || []).find(i => String(i.id) === String(id));
+                if (recItem && isCollect(recItem)) {
+                    html += lineDone(monthKey, recItem)
+                        ? `<button onclick="hideRowMenu();setCollected('${monthKey}','${id}',false)">↩️ בטל איסוף</button>`
+                        : `<button onclick="hideRowMenu();setCollected('${monthKey}','${id}',true)">✓ סמן כנאסף</button>`;
                 }
                 html += `<button onclick="hideRowMenu();openRecurringEdit('${monthKey}','${id}')">🔁 ערוך הגדרה קבועה</button>`;
                 html += `<button onclick="hideRowMenu();quickChangeCategory('bill','${id}','${monthKey}')">🏷️ שינוי סיווג</button>`;
