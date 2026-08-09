@@ -8288,6 +8288,40 @@
             return active(rec.months[monthKey] || []).filter(i => isBill(i) && !findRecurringPayment(monthKey, i.id)).length;
         }
 
+        // Two checklist lines are "the same line" when they describe the same thing —
+        // used to avoid adding a second copy into a month that already has it.
+        function sameRecurringLine(a, b) {
+            return (a.kind || 'bill') === (b.kind || 'bill')
+                && (a.category || '') === (b.category || '')
+                && String(a.description || '').trim() === String(b.description || '').trim();
+        }
+
+        // Remove duplicate lines a previous "from this month forward" edit could create.
+        // The copy that already has a payment always wins, so nothing paid is ever lost.
+        function dedupeRecurringMonths() {
+            const rec = getRecurring();
+            let removed = 0;
+            Object.keys(rec.months || {}).forEach(k => {
+                const items = active(rec.months[k]);
+                const seen = [];
+                items.forEach(i => {
+                    const twin = seen.find(s => (i.templateId && s.templateId === i.templateId) || sameRecurringLine(s, i));
+                    if (!twin) { seen.push(i); return; }
+                    const twinPaid = !!findRecurringPayment(k, twin.id);
+                    const minePaid = !!findRecurringPayment(k, i.id);
+                    const loser = minePaid && !twinPaid ? twin : i;
+                    const winner = loser === i ? twin : i;
+                    if (loser === twin) seen[seen.indexOf(twin)] = i;
+                    if (!winner.templateId && loser.templateId) winner.templateId = loser.templateId;
+                    loser._deleted = true;
+                    loser._deletedAt = Date.now();
+                    removed++;
+                });
+            });
+            if (removed) { saveData(); console.log('[recurring] removed', removed, 'duplicate lines'); }
+            return removed;
+        }
+
         // A running category doesn't ask "paid?" — it accumulates the month's expenses
         // in that category and compares them to the expected monthly budget.
         function categoryRowStats(monthKey, item) {
@@ -8654,7 +8688,10 @@
                     const tid = genRecId();
                     rec.template.push({ id: tid, ...values });
                     Object.keys(rec.months).forEach(k => {
-                        if (k >= monthKey) rec.months[k].push({ id: genRecId(), templateId: tid, ...values });
+                        if (k < monthKey) return;
+                        const existing = active(rec.months[k]).find(i => sameRecurringLine(i, values));
+                        if (existing) { existing.templateId = tid; Object.assign(existing, values); }
+                        else rec.months[k].push({ id: genRecId(), templateId: tid, ...values });
                     });
                 } else {
                     if (!rec.months[monthKey]) rec.months[monthKey] = [];
@@ -8675,12 +8712,17 @@
                             const t = rec.template.find(t => t.id === item.templateId);
                             if (t) Object.assign(t, values);
                         } else {
-                            // Promote a month-only item into the permanent template from here on
+                            // Promote a month-only item into the permanent template from here on.
+                            // A later month may already carry the same line — adopt it instead of
+                            // adding a second copy.
                             const tid = genRecId();
                             item.templateId = tid;
                             rec.template.push({ id: tid, ...values });
                             Object.keys(rec.months).forEach(k => {
-                                if (k > ctx.monthKey) rec.months[k].push({ id: genRecId(), templateId: tid, ...values });
+                                if (k <= ctx.monthKey) return;
+                                const existing = active(rec.months[k]).find(i => sameRecurringLine(i, values));
+                                if (existing) { existing.templateId = tid; Object.assign(existing, values); }
+                                else rec.months[k].push({ id: genRecId(), templateId: tid, ...values });
                             });
                         }
                     }
@@ -8956,6 +8998,7 @@
             const yd = getYearData();
             const tbody = document.getElementById('expenseTable');
 
+            dedupeRecurringMonths();
             renderExpenseMonthBar();
             renderRecurringPanel();
 
