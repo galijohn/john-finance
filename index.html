@@ -9218,11 +9218,11 @@
                 : `<button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${monthKey}','${item.id}')" title="עריכה">✏️</button>
                    <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${monthKey}','${item.id}')" title="מחיקה">🗑️</button>`;
             return `<tr${isCarry ? ' style="background:rgba(239,68,68,0.07);"' : ''}>
-                <td style="color:var(--text-muted);font-size:0.8rem;">💳 קבוע</td>
+                <td style="white-space:nowrap;"><span style="color:var(--text-muted);font-size:0.8rem;margin-inline-end:4px;">💳</span>${status}</td>
                 <td>${categoryLabel(item.category)}</td>
                 <td>${item.description}</td>
                 <td style="color:var(--danger)">${formatCurrency(amount)}</td>
-                <td style="text-align:center;">${status}</td>
+                <td style="text-align:center;${effPct < 100 ? 'color:var(--warning)' : ''}">${effPct}%</td>
                 <td style="color:var(--success)">${formatCurrency(amount * (effPct / 100))}</td>
                 <td>${actions}</td>
             </tr>`;
