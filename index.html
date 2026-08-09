@@ -2429,6 +2429,20 @@
             </div>
 
             <div class="card" style="margin-top:20px;">
+                <h3 style="margin:0 0 15px;">🗂️ סידור הארכיון</h3>
+                <div style="color:var(--text-muted);font-size:0.88rem;margin-bottom:12px;line-height:1.6;">
+                    מסדר את כל המסמכים הקיימים במבנה שמופיע באפליקציה — שנה ← חודש ← קטגוריה,
+                    עם שם קובץ ברור (תאריך · תיאור · סכום). פועל גם ב־Google Drive וגם בתיקייה המקומית,
+                    ומשלים לתיקייה המקומית מסמכים שהועלו מהטלפון. הקבצים עצמם לא משתנים ולא נמחקים.
+                </div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn btn-primary" onclick="organizeArchive()" id="btnOrganize">🗂️ סדר את הארכיון</button>
+                    <button class="btn" onclick="syncLocalFromDrive()" id="btnSyncLocal">⬇️ השלם לתיקייה המקומית</button>
+                </div>
+                <div id="organizeStatus" style="margin-top:12px;font-size:0.88rem;color:var(--text-muted);"></div>
+            </div>
+
+            <div class="card" style="margin-top:20px;">
                 <h3 style="margin:0 0 15px;">💾 גיבוי ידני</h3>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
                     <button class="btn btn-primary" onclick="exportData()">📥 ייצא קובץ</button>
@@ -4453,13 +4467,71 @@
             return create.result.id;
         }
         
+        // ===== ARCHIVE ORGANIZATION =====
+        // Every attachment lands in  <year>/<MM-חודש>/<קטגוריה או סוג>/<DD-MM תיאור סכום₪.ext>
+        // — the same structure the app shows on screen — in BOTH Drive and the local folder.
+        const RECORD_TYPE_FOLDERS = {
+            salary: 'שכיר', unemployment: 'אבטלה', miluim: 'מילואים',
+            selfEmployed: 'חשבוניות-עצמאי', expense: 'הוצאות-מוכרות',
+            taxAdvance: 'מקדמות-מס', blAdvance: 'ביטוח-לאומי', form: 'טפסים'
+        };
+
+        function sanitizeSegment(s) {
+            return String(s || '').replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 60);
+        }
+
+        // meta: { date:'YYYY-MM-DD' | null, month: 1-12 | null, category, description, amount }
+        function archiveSubFolder(baseFolder, meta) {
+            meta = meta || {};
+            let m = null;
+            if (meta.date && String(meta.date).length >= 7) m = parseInt(String(meta.date).slice(5, 7));
+            else if (meta.month) m = parseInt(meta.month);
+            const monthSeg = m ? String(m).padStart(2, '0') + '-' + MONTHS[m] : 'ללא-תאריך';
+            // A category is a single segment; a baseFolder may already be a path ('טפסים/106')
+            // and its slashes must survive as real folder levels.
+            const catSeg = meta.category
+                ? (sanitizeSegment(meta.category) || baseFolder)
+                : String(baseFolder).split('/').filter(s => s).map(sanitizeSegment).join('/');
+            return monthSeg + '/' + catSeg;
+        }
+
+        function archiveFileName(originalName, meta) {
+            meta = meta || {};
+            const dot = originalName.lastIndexOf('.');
+            const ext = dot > 0 ? originalName.slice(dot) : '';
+            const parts = [];
+            if (meta.date && String(meta.date).length >= 10) {
+                parts.push(String(meta.date).slice(8, 10) + '-' + String(meta.date).slice(5, 7));
+            } else if (meta.month) {
+                parts.push(String(meta.month).padStart(2, '0'));
+            }
+            const desc = sanitizeSegment(meta.description);
+            if (desc) parts.push(desc);
+            const amt = Number(meta.amount);
+            if (amt) parts.push(Math.round(amt).toLocaleString('he-IL') + '₪');
+            if (!parts.length) return originalName;
+            return parts.join(' ') + ext;
+        }
+
+        function archiveYearOf(meta) {
+            if (meta && meta.date && String(meta.date).length >= 4) {
+                const y = parseInt(String(meta.date).slice(0, 4));
+                if (y > 1990 && y < 2200) return y;
+            }
+            return currentYear;
+        }
+
         // Upload file to BOTH local and Drive
-        async function uploadDocument(file, subFolder, recordType, recordId) {
+        async function uploadDocument(file, subFolder, recordType, recordId, meta) {
             const results = { local: null, drive: null };
+            const year = archiveYearOf(meta);
+            const targetFolder = meta ? archiveSubFolder(subFolder, meta) : subFolder;
+            const targetName = meta ? archiveFileName(file.name, meta) : file.name;
+            const outFile = (targetName !== file.name) ? new File([file], targetName, { type: file.type }) : file;
 
             // Save locally
             if (localFolderHandle) {
-                try { results.local = await saveFileLocally(file, subFolder); }
+                try { results.local = await saveFileLocally(outFile, targetFolder, year); }
                 catch (e) { console.error('[upload] local save failed:', e); }
             }
 
@@ -4486,7 +4558,7 @@
             // Upload to Drive
             if (googleAccessToken && driveFolderId) {
                 try {
-                    results.drive = await uploadFileToDrive(file, subFolder);
+                    results.drive = await uploadFileToDrive(outFile, targetFolder, year);
                 } catch (e) {
                     console.error('[upload] Drive upload failed:', e);
                     _lastUploadError = e.message || String(e);
@@ -4494,18 +4566,18 @@
             } else if (!_lastUploadError) {
                 _lastUploadError = 'לא מחובר ל־Google Drive';
             }
-            
+
             // Store reference in data
             if (results.local || results.drive) {
                 const yd = getYearData();
                 if (!yd.documents) yd.documents = [];
-                
+
                 yd.documents.push({
                     id: Date.now(),
-                    fileName: file.name,
-                    fileSize: file.size,
-                    fileType: file.type,
-                    subFolder: subFolder,
+                    fileName: outFile.name,
+                    fileSize: outFile.size,
+                    fileType: outFile.type,
+                    subFolder: targetFolder,
                     recordType: recordType,
                     recordId: recordId,
                     localPath: results.local,
@@ -4513,19 +4585,191 @@
                     driveLink: results.drive?.link,
                     uploadDate: new Date().toISOString()
                 });
-                
+
                 saveData();
             }
 
+            if (results.drive) results.drive.fileName = outFile.name;
             return results;
+        }
+
+        // ===== ARCHIVE REORGANIZATION =====
+        // Walks every record that has an attachment, works out where the file SHOULD live
+        // (year/month/category + descriptive name) and moves/renames it in Drive.
+        // Nothing is ever deleted — only relocated and renamed.
+        function collectArchiveItems() {
+            const items = [];
+            for (const [yearKey, yd] of Object.entries(data.yearData || {})) {
+                if (!yd) continue;
+                const year = parseInt(yearKey);
+                const push = (rec, baseFolder, meta) => {
+                    if (!rec || rec._deleted) return;
+                    if (!rec.driveId && !rec.driveLink) return;
+                    items.push({ rec, year, baseFolder, meta });
+                };
+                active(yd.salary).forEach(r => push(r, 'שכיר', { month: r.month, description: r.employer || 'תלוש', amount: r.gross }));
+                active(yd.unemployment).forEach(r => push(r, 'אבטלה', { month: r.month, description: 'אבטלה', amount: r.gross }));
+                active(yd.miluim).forEach(r => push(r, 'מילואים', { date: r.from, description: 'מילואים', amount: r.amount }));
+                active(yd.selfEmployed).forEach(r => push(r, 'חשבוניות-עצמאי', { month: r.month, description: r.description || 'הכנסה', amount: r.amount }));
+                active(yd.expenses).forEach(r => push(r, 'הוצאות-מוכרות', { date: r.date, category: r.category, description: r.description, amount: r.amount }));
+                active(yd.taxAdvances).forEach(r => push(r, 'מקדמות-מס', { month: r.month, description: 'מקדמת מס', amount: r.amount }));
+                active(yd.blAdvances).forEach(r => push(r, 'ביטוח-לאומי', { month: r.month, description: 'מקדמת ביטוח לאומי', amount: r.amount }));
+                active(yd.forms).forEach(r => push(r, 'טפסים/' + (r.formType || ''), { month: null, description: (r.formType || 'טופס') + (r.employer ? ' ' + r.employer : ''), amount: null }));
+            }
+            return items;
+        }
+
+        function orgStatus(msg) {
+            const el = document.getElementById('organizeStatus');
+            if (el) el.textContent = msg;
+        }
+
+        // Ensure a nested Drive folder path exists under the app root, return its id.
+        const _driveFolderCache = {};
+        async function ensureDrivePath(year, subFolder) {
+            const key = year + '/' + subFolder;
+            if (_driveFolderCache[key]) return _driveFolderCache[key];
+            let id = await findOrCreateDriveFolder(String(year), driveFolderId);
+            for (const seg of String(subFolder).split('/').filter(s => s)) {
+                id = await findOrCreateDriveFolder(seg, id);
+            }
+            _driveFolderCache[key] = id;
+            return id;
+        }
+
+        async function organizeArchive() {
+            const btn = document.getElementById('btnOrganize');
+            const items = collectArchiveItems();
+            if (items.length === 0) { await popupError('אין מה לסדר', 'לא נמצאו מסמכים מצורפים'); return; }
+
+            const ok = await showPopup({
+                type: 'info',
+                icon: '🗂️',
+                title: 'סידור הארכיון',
+                message: 'יסודרו ' + items.length + ' מסמכים למבנה שנה ← חודש ← קטגוריה, עם שמות קבצים ברורים.\n\nהקבצים לא נמחקים — רק מועברים ומקבלים שם. אפשר להמשיך לעבוד אחר כך כרגיל.',
+                okText: 'סדר עכשיו',
+                cancelText: 'ביטול'
+            });
+            if (!ok) return;
+
+            if (!googleAccessToken || !driveFolderId) {
+                const connected = await ensureValidToken();
+                if (!connected || !driveFolderId) {
+                    await popupError('לא מחובר ל־Drive', 'התחבר ל־Google Drive ונסה שוב');
+                    return;
+                }
+            }
+
+            btn.disabled = true;
+            let moved = 0, renamed = 0, skipped = 0, failed = 0;
+            for (let i = 0; i < items.length; i++) {
+                const { rec, year, baseFolder, meta } = items[i];
+                orgStatus('מסדר ' + (i + 1) + ' מתוך ' + items.length + '...');
+                try {
+                    if (!rec.driveId) { skipped++; continue; }
+                    const targetFolder = archiveSubFolder(baseFolder, meta);
+                    const targetName = archiveFileName(rec.fileName || 'קובץ', meta);
+                    const targetYear = archiveYearOf(meta) || year;
+
+                    const info = await gapi.client.drive.files.get({ fileId: rec.driveId, fields: 'id,name,parents' });
+                    const parentId = await ensureDrivePath(targetYear, targetFolder);
+                    const curParents = (info.result.parents || []);
+                    const needMove = !curParents.includes(parentId);
+                    const needRename = info.result.name !== targetName;
+                    if (!needMove && !needRename) { skipped++; continue; }
+
+                    const params = { fileId: rec.driveId, fields: 'id,name' };
+                    if (needMove) {
+                        params.addParents = parentId;
+                        if (curParents.length) params.removeParents = curParents.join(',');
+                    }
+                    await gapi.client.drive.files.update({ ...params, resource: needRename ? { name: targetName } : {} });
+
+                    rec.fileName = targetName;
+                    rec.archivePath = targetYear + '/' + targetFolder + '/' + targetName;
+                    if (needMove) moved++;
+                    if (needRename) renamed++;
+                } catch (e) {
+                    console.error('organize failed for', rec && rec.fileName, e);
+                    failed++;
+                }
+            }
+            saveData();
+            btn.disabled = false;
+            orgStatus('הסתיים: ' + moved + ' הועברו · ' + renamed + ' שמות עודכנו · ' + skipped + ' כבר מסודרים' + (failed ? ' · ' + failed + ' נכשלו' : ''));
+            renderAll();
+
+            let msg = 'הועברו למקום הנכון: ' + moved + '\nשמות שעודכנו: ' + renamed + '\nכבר היו מסודרים: ' + skipped;
+            if (failed) msg += '\nנכשלו: ' + failed;
+            if (localFolderHandle) msg += '\n\nעכשיו אפשר ללחוץ "השלם לתיקייה המקומית" כדי לסדר גם את המחשב.';
+            await popupSuccess('הארכיון סודר', msg);
+        }
+
+        // Download anything that exists in Drive but is missing from the local folder
+        // (e.g. receipts uploaded from the phone), placing it in the organized structure.
+        async function syncLocalFromDrive() {
+            if (!localFolderHandle) {
+                await popupError('אין תיקייה מקומית', 'בחר תיקייה מקומית קודם (הכפתור למעלה)');
+                return;
+            }
+            if (!googleAccessToken) {
+                const connected = await ensureValidToken();
+                if (!connected) { await popupError('לא מחובר ל־Drive', 'התחבר ל־Google Drive ונסה שוב'); return; }
+            }
+            const btn = document.getElementById('btnSyncLocal');
+            const items = collectArchiveItems().filter(it => it.rec.driveId);
+            if (!items.length) { await popupError('אין מסמכים', 'לא נמצאו מסמכים בענן'); return; }
+
+            btn.disabled = true;
+            let copied = 0, existed = 0, failed = 0;
+            for (let i = 0; i < items.length; i++) {
+                const { rec, year, baseFolder, meta } = items[i];
+                orgStatus('משלים ' + (i + 1) + ' מתוך ' + items.length + '...');
+                try {
+                    const targetFolder = archiveSubFolder(baseFolder, meta);
+                    const targetYear = archiveYearOf(meta) || year;
+                    const targetName = archiveFileName(rec.fileName || 'קובץ', meta);
+
+                    // Already on disk in the right place?
+                    let dir = await localFolderHandle.getDirectoryHandle('john-finance', { create: true });
+                    dir = await dir.getDirectoryHandle(String(targetYear), { create: true });
+                    for (const seg of targetFolder.split('/').filter(s => s)) {
+                        dir = await dir.getDirectoryHandle(seg, { create: true });
+                    }
+                    let present = false;
+                    try { await dir.getFileHandle(targetName); present = true; } catch (_) {}
+                    if (present) { existed++; continue; }
+
+                    const fetched = await fetchDriveFileAsBase64(rec.driveId);
+                    if (!fetched) { failed++; continue; }
+                    const raw = atob(fetched.data.split(',')[1]);
+                    const bytes = new Uint8Array(raw.length);
+                    for (let j = 0; j < raw.length; j++) bytes[j] = raw.charCodeAt(j);
+
+                    const fh = await dir.getFileHandle(targetName, { create: true });
+                    const w = await fh.createWritable();
+                    await w.write(bytes);
+                    await w.close();
+                    rec.localPath = localFolderHandle.name + '/john-finance/' + targetYear + '/' + targetFolder + '/' + targetName;
+                    copied++;
+                } catch (e) {
+                    console.error('local sync failed for', rec && rec.fileName, e);
+                    failed++;
+                }
+            }
+            saveData();
+            btn.disabled = false;
+            orgStatus('הושלם: ' + copied + ' הורדו · ' + existed + ' כבר קיימים' + (failed ? ' · ' + failed + ' נכשלו' : ''));
+            await popupSuccess('התיקייה המקומית עודכנה',
+                'הורדו למחשב: ' + copied + '\nכבר היו קיימים: ' + existed + (failed ? '\nנכשלו: ' + failed : ''));
         }
 
         // Uploads a file and REQUIRES it to land in Google Drive.
         // Returns the results on success. On failure, shows a styled popup
         // and returns null — callers MUST abort their save when this is null.
-        async function requireDriveUpload(file, subFolder, recordType, recordId) {
+        async function requireDriveUpload(file, subFolder, recordType, recordId, meta) {
             _lastUploadError = null;
-            const results = await uploadDocument(file, subFolder, recordType, recordId);
+            const results = await uploadDocument(file, subFolder, recordType, recordId, meta);
             const driveOk = !!(results && results.drive && results.drive.id);
             if (!driveOk) {
                 await popupError(
@@ -5634,7 +5878,9 @@
                 const file = fileInput.files[0];
                 document.getElementById('salaryFileStatus').textContent = '⏳ מעלה...';
 
-                const results = await requireDriveUpload(file, 'שכיר', 'salary', recordId);
+                const results = await requireDriveUpload(file, 'שכיר', 'salary', recordId, {
+                    month: itemData.month, description: itemData.employer || 'תלוש', amount: itemData.gross
+                });
                 if (!results) {
                     document.getElementById('salaryFileStatus').textContent = '❌ נכשל';
                     return; // ABORT — don't save row
@@ -5681,7 +5927,9 @@
                 const file = fileInput.files[0];
                 document.getElementById('unemploymentFileStatus').textContent = '⏳ מעלה...';
 
-                const results = await requireDriveUpload(file, 'אבטלה', 'unemployment', recordId);
+                const results = await requireDriveUpload(file, 'אבטלה', 'unemployment', recordId, {
+                    month: itemData.month, description: 'אבטלה', amount: itemData.gross
+                });
                 if (!results) {
                     document.getElementById('unemploymentFileStatus').textContent = '❌ נכשל';
                     return;
@@ -5738,7 +5986,9 @@
                 const file = fileInput.files[0];
                 document.getElementById('miluimFileStatus').textContent = '⏳ מעלה...';
 
-                const results = await requireDriveUpload(file, 'מילואים', 'miluim', recordId);
+                const results = await requireDriveUpload(file, 'מילואים', 'miluim', recordId, {
+                    date: itemData.from, description: 'מילואים', amount: itemData.amount
+                });
                 if (!results) {
                     document.getElementById('miluimFileStatus').textContent = '❌ נכשל';
                     return;
@@ -5783,7 +6033,9 @@
                 const file = fileInput.files[0];
                 document.getElementById('selfFileStatus').textContent = '⏳ מעלה...';
 
-                const results = await requireDriveUpload(file, 'חשבוניות-עצמאי', 'selfEmployed', recordId);
+                const results = await requireDriveUpload(file, 'חשבוניות-עצמאי', 'selfEmployed', recordId, {
+                    month: itemData.month, description: itemData.description || 'הכנסה', amount: itemData.amount
+                });
                 if (!results) {
                     document.getElementById('selfFileStatus').textContent = '❌ נכשל';
                     return;
@@ -5835,7 +6087,10 @@
                 const file = fileInput.files[0];
                 document.getElementById('expenseFileStatus').textContent = '⏳ מעלה...';
 
-                const results = await requireDriveUpload(file, 'הוצאות-מוכרות', 'expense', recordId);
+                const results = await requireDriveUpload(file, 'הוצאות-מוכרות', 'expense', recordId, {
+                    date: itemData.date, category: itemData.category,
+                    description: itemData.description, amount: itemData.amount
+                });
                 if (!results) {
                     document.getElementById('expenseFileStatus').textContent = '❌ נכשל';
                     return;
@@ -5879,7 +6134,9 @@
                 const file = fileInput.files[0];
                 document.getElementById('taxAdvanceFileStatus').textContent = '⏳ מעלה...';
 
-                const results = await requireDriveUpload(file, 'מקדמות-מס', 'taxAdvance', recordId);
+                const results = await requireDriveUpload(file, 'מקדמות-מס', 'taxAdvance', recordId, {
+                    month: itemData.month, description: 'מקדמת מס', amount: itemData.amount
+                });
                 if (!results) {
                     document.getElementById('taxAdvanceFileStatus').textContent = '❌ נכשל';
                     return;
@@ -5948,7 +6205,9 @@
                 const file = fileInput.files[0];
                 document.getElementById('blAdvanceFileStatus').textContent = '⏳ מעלה...';
 
-                const results = await requireDriveUpload(file, 'ביטוח-לאומי', 'blAdvance', recordId);
+                const results = await requireDriveUpload(file, 'ביטוח-לאומי', 'blAdvance', recordId, {
+                    month: itemData.month, description: 'מקדמת ביטוח לאומי', amount: itemData.amount
+                });
                 if (!results) {
                     document.getElementById('blAdvanceFileStatus').textContent = '❌ נכשל';
                     return;
