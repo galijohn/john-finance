@@ -4422,17 +4422,37 @@
             }
         }
         
+        // Opens the picker at the archive folder AND actually opens whatever is picked.
+        // (It used to discard the picker's result, so the dialog just closed.)
         async function openLocalFolder() {
             if (!localFolderHandle) { alert('⚠️ יש לבחור תיקייה קודם'); return; }
             try {
                 let jfHandle;
                 try { jfHandle = await localFolderHandle.getDirectoryHandle('john-finance'); } catch { jfHandle = localFolderHandle; }
-                // Open native Windows file dialog at the folder location
-                await window.showOpenFilePicker({ startIn: jfHandle, multiple: true });
+                const handles = await window.showOpenFilePicker({ startIn: jfHandle, multiple: true });
+                for (const h of (handles || [])) {
+                    const file = await h.getFile();
+                    await openFileInNewTab(file);
+                }
             } catch (e) {
-                // AbortError = user cancelled the dialog - that's fine
                 if (e.name !== 'AbortError') alert('❌ שגיאה: ' + e.message);
             }
+        }
+
+        // Show a local File in a new tab. Falls back to a link if the browser blocks
+        // the automatic window.open (it often does after an await).
+        async function openFileInNewTab(file) {
+            const url = URL.createObjectURL(file);
+            let win = null;
+            try { win = window.open(url, '_blank'); } catch (_) {}
+            if (!win) {
+                const a = document.createElement('a');
+                a.href = url; a.target = '_blank'; a.rel = 'noopener';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            }
+            setTimeout(() => URL.revokeObjectURL(url), 120000);
         }
 
         // Manual restore from local folder
