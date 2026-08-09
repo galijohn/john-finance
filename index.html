@@ -1443,6 +1443,10 @@
             <span class="icon">🧮</span>
             <span class="nav-text">חישוב מפורט</span>
         </div>
+        <div class="nav-item" onclick="showPage('docs')">
+            <span class="icon">🗂️</span>
+            <span class="nav-text">מסמכים</span>
+        </div>
         <div class="nav-item" onclick="showPage('settings')">
             <span class="icon">⚙️</span>
             <span class="nav-text">הגדרות</span>
@@ -2441,6 +2445,42 @@
         </div>
 
         <!-- Settings Page -->
+        <div id="page-docs" class="page">
+            <div class="page-header">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <h2>🗂️ מסמכים מרשויות</h2>
+                </div>
+                <button class="btn btn-primary" onclick="openDocModal()">+ הוסף מסמך</button>
+            </div>
+
+            <div class="info-box">
+                <strong>💡 מה נשמר כאן?</strong><br>
+                מסמכים רשמיים — שומות, אישורים, התכתבויות. מסמך שדורש טיפול או שיש לו תוקף יעלה לראש הרשימה עם תג צבעוני.
+            </div>
+
+            <div class="expense-controls">
+                <div class="expense-filters" id="docTabs"></div>
+                <div class="expense-actions">
+                    <button class="btn btn-sm" id="docYearBtn" onclick="toggleDocAllYears()">📅 שנת המס</button>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>סטטוס</th>
+                            <th>תאריך</th>
+                            <th>סוג</th>
+                            <th>תיאור</th>
+                            <th>קטגוריה</th>
+                        </tr>
+                    </thead>
+                    <tbody id="docsTable"></tbody>
+                </table>
+            </div>
+        </div>
+
         <div id="page-settings" class="page">
             <div class="page-header">
                 <div style="display:flex;align-items:center;gap:15px;">
@@ -3189,6 +3229,84 @@
                     <button class="btn" onclick="resolveRecurringScope('month')" style="width:100%;">רק החודש הזה</button>
                     <button class="btn" onclick="resolveRecurringScope(null)" style="width:100%;">ביטול</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="docModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="docModalTitle">🗂️ הוסף מסמך</h3>
+                <button class="btn-icon" onclick="closeModal('docModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>קטגוריה</label>
+                    <select class="form-control" id="docCategory" onchange="onDocCategoryChange(this)"></select>
+                </div>
+                <div class="form-group">
+                    <label>סוג המסמך</label>
+                    <input type="text" class="form-control" id="docType" list="docTypeSuggestions" placeholder="לדוגמה: אישור ניכוי מס במקור">
+                    <datalist id="docTypeSuggestions">
+                        <option value="שומה"></option>
+                        <option value="אישור ניכוי מס במקור"></option>
+                        <option value="אישור ניהול ספרים"></option>
+                        <option value="אישור עוסק מורשה"></option>
+                        <option value="דוח שנתי"></option>
+                        <option value="דרישת תשלום"></option>
+                        <option value="התכתבות"></option>
+                        <option value="טופס 106"></option>
+                    </datalist>
+                </div>
+                <div class="form-group">
+                    <label>תיאור</label>
+                    <input type="text" class="form-control" id="docDesc" placeholder="לדוגמה: הודעה על שומה 2025">
+                </div>
+                <div class="form-group">
+                    <label>תאריך המסמך</label>
+                    <input type="date" class="form-control" id="docDate">
+                </div>
+                <div class="form-group">
+                    <label>בתוקף עד (לאישורים — לא חובה)</label>
+                    <input type="date" class="form-control" id="docValidUntil">
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">תופיע התראה חודש לפני שהתוקף פג</div>
+                </div>
+                <div class="form-group">
+                    <label>לטיפול עד (לא חובה)</label>
+                    <input type="date" class="form-control" id="docActionDue">
+                </div>
+                <div class="form-group">
+                    <label>📄 צרף קובץ</label>
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <input type="file" id="docFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
+                        <button type="button" class="btn btn-sm" onclick="document.getElementById('docFileCamera').click()" style="white-space:nowrap;">📷 צלם</button>
+                        <input type="file" id="docFileCamera" accept="image/*" capture="environment" style="display:none;" onchange="document.getElementById('docFile').files=this.files;">
+                        <span id="docFileStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveDoc()">שמור</button>
+                <button class="btn" onclick="closeModal('docModal')">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="docCategoryModal">
+        <div class="modal" style="max-width:380px;">
+            <div class="modal-header">
+                <h3>➕ קטגוריית מסמכים חדשה</h3>
+                <button class="btn-icon" onclick="closeModal('docCategoryModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>שם הקטגוריה</label>
+                    <input type="text" class="form-control" id="newDocCategoryName" placeholder="לדוגמה: רשות המסים — מע״מ" onkeydown="if(event.key==='Enter')saveNewDocCategory()">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveNewDocCategory()">שמור</button>
+                <button class="btn" onclick="closeModal('docCategoryModal')">ביטול</button>
             </div>
         </div>
     </div>
@@ -4075,7 +4193,7 @@
             if (!localYd) return cloudYd;
             if (!cloudYd) return localYd;
             const merged = JSON.parse(JSON.stringify(localYd));
-            const arrays = ['salary', 'unemployment', 'miluim', 'selfEmployed', 'expenses', 'taxAdvances', 'blAdvances', 'vatReports', 'documents'];
+            const arrays = ['salary', 'unemployment', 'miluim', 'selfEmployed', 'expenses', 'taxAdvances', 'blAdvances', 'vatReports', 'documents', 'officialDocs'];
             arrays.forEach(key => {
                 merged[key] = mergeArrayById(localYd[key], cloudYd[key]);
             });
@@ -4121,6 +4239,8 @@
             // Merge user-defined expense categories (union)
             const allCats = new Set([...(localData.customCategories || []), ...(cloudData.customCategories || [])]);
             if (allCats.size) merged.customCategories = [...allCats];
+            const allDocCats = new Set([...(localData.docCategories || []), ...(cloudData.docCategories || [])]);
+            if (allDocCats.size) merged.docCategories = [...allDocCats];
             // Renamed category labels (local wins on conflict)
             const labels = { ...(cloudData.categoryLabels || {}), ...(localData.categoryLabels || {}) };
             if (Object.keys(labels).length) merged.categoryLabels = labels;
@@ -4926,6 +5046,7 @@
                 case 'selfEmployed': return { base: 'חשבוניות-עצמאי', meta: { month: r.month, description: r.description || 'הכנסה', amount: r.amount } };
                 case 'taxAdvances':  return { base: 'מקדמות-מס', meta: { month: r.month, description: 'מקדמת מס', amount: r.amount } };
                 case 'blAdvances':   return { base: 'ביטוח-לאומי', meta: { month: r.month, description: 'מקדמת ביטוח לאומי', amount: r.amount } };
+                case 'officialDocs': return { base: 'מסמכים', meta: { date: r.date, category: r.category, description: r.description || r.docType, amount: null } };
                 default: return null;
             }
         }
@@ -4993,6 +5114,7 @@
                 active(yd.expenses).forEach(r => push(r, 'הוצאות-מוכרות', { date: r.date, category: r.category, description: r.description, amount: r.amount }));
                 active(yd.taxAdvances).forEach(r => push(r, 'מקדמות-מס', { month: r.month, description: 'מקדמת מס', amount: r.amount }));
                 active(yd.blAdvances).forEach(r => push(r, 'ביטוח-לאומי', { month: r.month, description: 'מקדמת ביטוח לאומי', amount: r.amount }));
+                active(yd.officialDocs).forEach(r => push(r, 'מסמכים', { date: r.date, category: r.category, description: r.description || r.docType, amount: null }));
                 active(yd.forms).forEach(r => push(r, 'טפסים/' + (r.formType || ''), { month: null, description: (r.formType || 'טופס') + (r.employer ? ' ' + r.employer : ''), amount: null }));
             }
             return items;
@@ -5600,6 +5722,7 @@
                 miluim: [],
                 selfEmployed: [],
                 expenses: [],
+                officialDocs: [],
                 taxAdvances: [],
                 blAdvances: [],
                 vatReports: [],
@@ -8327,6 +8450,7 @@
             renderMiluimTable(totals.miluimDays);
             renderSelfEmployedTable();
             renderExpenseTable(totals.expenses);
+            renderDocs();
             renderTaxAdvanceTable();
             renderBLAdvanceTable();
             renderVatTable();
@@ -9365,6 +9489,299 @@
                 if (sel) { sel.value = name; sel.dataset.prev = name; }
                 _catSelectOrigin = null;
             }
+        }
+
+        // ===== OFFICIAL DOCUMENTS =====
+        // Documents from the authorities, filed per tax year like everything else.
+        // Certificates with a validity date stay visible across years while valid,
+        // because they matter now regardless of which year is selected.
+        const BASE_DOC_CATEGORIES = ['מס הכנסה', 'ביטוח לאומי', 'רואה חשבון', 'כללי'];
+
+        function docCategories() {
+            const set = new Set(BASE_DOC_CATEGORIES);
+            (data.docCategories || []).forEach(c => set.add(c));
+            Object.values(data.yearData || {}).forEach(yd => {
+                if (yd) active(yd.officialDocs).forEach(d => { if (d.category) set.add(d.category); });
+            });
+            return [...set];
+        }
+
+        let docTab = 'all';
+        let docAllYears = false;
+
+        function setDocTab(cat) { docTab = cat; renderDocs(); }
+        function toggleDocAllYears() {
+            docAllYears = !docAllYears;
+            document.getElementById('docYearBtn').textContent = docAllYears ? '📅 כל השנים' : '📅 שנת המס';
+            renderDocs();
+        }
+
+        function docsForView() {
+            const list = [];
+            const push = (d, year) => list.push({ d, year });
+            if (docAllYears) {
+                Object.entries(data.yearData || {}).forEach(([y, yd]) => {
+                    if (yd) active(yd.officialDocs).forEach(d => push(d, parseInt(y)));
+                });
+            } else {
+                active(getYearData().officialDocs).forEach(d => push(d, currentYear));
+                // certificates still in force belong on screen whatever year is selected
+                const today = localTodayISO();
+                Object.entries(data.yearData || {}).forEach(([y, yd]) => {
+                    if (!yd || parseInt(y) === currentYear) return;
+                    active(yd.officialDocs).forEach(d => {
+                        if (d.validUntil && d.validUntil >= today) push(d, parseInt(y));
+                    });
+                });
+            }
+            return docTab === 'all' ? list : list.filter(x => x.d.category === docTab);
+        }
+
+        function docStatus(d) {
+            const today = localTodayISO();
+            if (d.actionDue && !d.handled) {
+                if (d.actionDue < today) return { cls: 'late', text: 'באיחור · ' + formatDate(d.actionDue), rank: 0 };
+                return { cls: 'late', text: 'לטיפול עד ' + formatDate(d.actionDue), rank: 1 };
+            }
+            if (d.validUntil) {
+                const days = Math.round((new Date(d.validUntil) - new Date(today)) / 86400000);
+                if (days < 0) return { cls: 'late', text: 'פג תוקף', rank: 0 };
+                if (days <= 30) return { cls: 'soon', text: 'פג בעוד ' + days + ' ימים', rank: 2 };
+                return { cls: 'ok', text: 'בתוקף', rank: 4 };
+            }
+            if (d.actionDue && d.handled) return { cls: 'ok', text: 'טופל', rank: 4 };
+            return { cls: '', text: '—', rank: 5 };
+        }
+
+        function renderDocTabs() {
+            const el = document.getElementById('docTabs');
+            if (!el) return;
+            const all = docsForView.length;
+            const cats = docCategories();
+            const countOf = c => {
+                const saved = docTab; docTab = c;
+                const n = docsForView().length; docTab = saved; return n;
+            };
+            let html = `<button class="filter-btn ${docTab === 'all' ? 'active' : ''}" onclick="setDocTab('all')">הכל</button>`;
+            cats.forEach(c => {
+                html += `<button class="filter-btn ${docTab === c ? 'active' : ''}" onclick="setDocTab('${c}')">${c} ${countOf(c) || ''}</button>`;
+            });
+            html += `<button class="filter-btn" onclick="openNewDocCategory()" title="הוסף קטגוריה">➕</button>`;
+            el.innerHTML = html;
+        }
+
+        function renderDocs() {
+            const tbody = document.getElementById('docsTable');
+            if (!tbody) return;
+            renderDocTabs();
+            const rows = docsForView();
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">🗂️</div><p>אין מסמכים' + (docTab === 'all' ? '' : ' בקטגוריה זו') + '</p></td></tr>';
+                return;
+            }
+            rows.sort((a, b) => {
+                const sa = docStatus(a.d), sb = docStatus(b.d);
+                if (sa.rank !== sb.rank) return sa.rank - sb.rank;
+                return String(b.d.date || '').localeCompare(String(a.d.date || ''));
+            });
+            tbody.innerHTML = rows.map(({ d, year }) => {
+                const s = docStatus(d);
+                const chip = s.cls === 'late' ? `<span class="rec-due-btn" style="cursor:default;">${s.text}</span>`
+                    : s.cls === 'soon' ? `<span class="rec-badge soon">${s.text}</span>`
+                    : s.cls === 'ok' ? `<span class="rec-paid-chip">${s.text}</span>`
+                    : `<span style="color:var(--text-muted);">—</span>`;
+                return `<tr class="row-click" onclick="openDocFile(${d.id})"
+                            oncontextmenu="showDocMenu(event,${d.id})"
+                            ontouchstart="docTouchStart(event,${d.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
+                    <td style="white-space:nowrap;">${chip}</td>
+                    <td>${formatDate(d.date)}${year !== currentYear ? ' <span style="font-size:0.75rem;color:var(--text-muted);">(' + year + ')</span>' : ''}</td>
+                    <td>${d.docType || '-'}</td>
+                    <td>${d.description || '-'} ${d.fileName ? '📎' : ''}</td>
+                    <td>${d.category}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function docTouchStart(ev, id) {
+            clearTimeout(_pressTimer);
+            const t = ev.touches && ev.touches[0];
+            if (!t) return;
+            const fake = { clientX: t.clientX, clientY: t.clientY, preventDefault(){}, stopPropagation(){} };
+            _pressTimer = setTimeout(() => showDocMenu(fake, id), 550);
+        }
+
+        function findDoc(id) {
+            for (const [y, yd] of Object.entries(data.yearData || {})) {
+                if (!yd) continue;
+                const hit = active(yd.officialDocs).find(d => d.id === id);
+                if (hit) return { doc: hit, year: parseInt(y), yd };
+            }
+            return null;
+        }
+
+        async function openDocFile(id) {
+            const hit = findDoc(id);
+            if (!hit) return;
+            const d = hit.doc;
+            if (d.driveLink || d.driveId) {
+                window.open(d.driveLink || ('https://drive.google.com/file/d/' + d.driveId + '/view'), '_blank');
+                return;
+            }
+            const ok = await showPopup({
+                type: 'warning', title: 'לא אורכב קובץ',
+                message: 'ל"' + (d.description || d.docType || 'מסמך זה') + '" לא צורף קובץ.\n\nלצרף עכשיו?',
+                okText: 'צרף קובץ', cancelText: 'סגור'
+            });
+            if (ok) openDocModal(id);
+        }
+
+        function showDocMenu(ev, id) {
+            ev.preventDefault(); ev.stopPropagation();
+            const hit = findDoc(id);
+            if (!hit) return;
+            const d = hit.doc;
+            const m = document.getElementById('rowMenu');
+            let html = `<button onclick="hideRowMenu();openDocFile(${id})">👁️ פתח מסמך</button>`;
+            html += `<button onclick="hideRowMenu();openDocModal(${id})">✏️ עריכה</button>`;
+            if (d.actionDue) {
+                html += d.handled
+                    ? `<button onclick="hideRowMenu();setDocHandled(${id},false)">↩️ סמן כלא טופל</button>`
+                    : `<button onclick="hideRowMenu();setDocHandled(${id},true)">✓ סמן כטופל</button>`;
+            }
+            html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteDoc(${id})">✕ מחיקה</button>`;
+            m.innerHTML = html;
+            m.classList.add('open');
+            const r = m.getBoundingClientRect();
+            m.style.left = Math.max(6, Math.min(ev.clientX, window.innerWidth - r.width - 6)) + 'px';
+            m.style.top = Math.max(6, Math.min(ev.clientY, window.innerHeight - r.height - 6)) + 'px';
+        }
+
+        function setDocHandled(id, v) {
+            const hit = findDoc(id);
+            if (!hit) return;
+            hit.doc.handled = v;
+            saveData(); renderAll();
+        }
+
+        async function deleteDoc(id) {
+            const hit = findDoc(id);
+            if (!hit) return;
+            const ok = await popupConfirm('מחיקת מסמך', 'למחוק את "' + (hit.doc.description || hit.doc.docType) + '"?\n\nקובץ מצורף יימחק גם מ־Google Drive.', 'מחק', 'ביטול');
+            if (!ok) return;
+            if (hit.doc.driveId) deleteDriveFile(hit.doc.driveId).catch(e => console.warn('[drive] doc delete failed', e));
+            hit.doc._deleted = true;
+            hit.doc._deletedAt = Date.now();
+            saveData(); renderAll();
+        }
+
+        let _editingDocId = null;
+
+        function buildDocCategoryOptions(selected) {
+            const sel = document.getElementById('docCategory');
+            const cats = docCategories();
+            sel.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('')
+                + '<option value="__adddoccat__">➕ קטגוריה חדשה...</option>';
+            sel.value = selected && cats.includes(selected) ? selected : cats[0];
+            sel.dataset.prev = sel.value;
+        }
+
+        function onDocCategoryChange(sel) {
+            if (sel.value === '__adddoccat__') {
+                sel.value = sel.dataset.prev || docCategories()[0];
+                openNewDocCategory();
+            } else {
+                sel.dataset.prev = sel.value;
+            }
+        }
+
+        function openNewDocCategory() {
+            document.getElementById('newDocCategoryName').value = '';
+            openModal('docCategoryModal');
+            setTimeout(() => document.getElementById('newDocCategoryName').focus(), 100);
+        }
+
+        async function saveNewDocCategory() {
+            const name = document.getElementById('newDocCategoryName').value.trim();
+            if (!name) { await popupError('חסר שם', 'תן שם לקטגוריה'); return; }
+            if (!data.docCategories) data.docCategories = [];
+            if (!docCategories().includes(name)) data.docCategories.push(name);
+            saveData();
+            closeModal('docCategoryModal');
+            if (document.getElementById('docModal').classList.contains('active')) {
+                buildDocCategoryOptions(name);
+            }
+            renderAll();
+        }
+
+        function openDocModal(id) {
+            _editingDocId = id || null;
+            clearForm('docModal');
+            const hit = id ? findDoc(id) : null;
+            const d = hit ? hit.doc : null;
+            document.getElementById('docModalTitle').textContent = d ? '🗂️ עריכת מסמך' : '🗂️ הוסף מסמך';
+            buildDocCategoryOptions(d ? d.category : (docTab !== 'all' ? docTab : null));
+            document.getElementById('docType').value = d ? (d.docType || '') : '';
+            document.getElementById('docDesc').value = d ? (d.description || '') : '';
+            document.getElementById('docDate').value = d ? (d.date || '') : localTodayISO();
+            document.getElementById('docValidUntil').value = d ? (d.validUntil || '') : '';
+            document.getElementById('docActionDue').value = d ? (d.actionDue || '') : '';
+            document.getElementById('docFileStatus').textContent = d && d.fileName ? '📎 ' + d.fileName : '';
+            openModal('docModal');
+        }
+
+        async function saveDoc() {
+            const category = document.getElementById('docCategory').value;
+            const docType = document.getElementById('docType').value.trim();
+            const description = document.getElementById('docDesc').value.trim();
+            const date = document.getElementById('docDate').value;
+            if (!docType && !description) { await popupError('חסרים פרטים', 'מלא לפחות סוג מסמך או תיאור'); return; }
+
+            const hit = _editingDocId ? findDoc(_editingDocId) : null;
+            const recordId = hit ? hit.doc.id : Date.now();
+            const yearFor = date && date.length >= 4 ? parseInt(date.slice(0, 4)) : currentYear;
+            const meta = { date, category, description: description || docType, amount: null };
+
+            let uploaded = null;
+            const fileInput = document.getElementById('docFile');
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                document.getElementById('docFileStatus').textContent = '⏳ מעלה...';
+                uploaded = await requireDriveUpload(file, 'מסמכים', 'doc', recordId, meta);
+                if (!uploaded) { document.getElementById('docFileStatus').textContent = '❌ נכשל'; return; }
+                document.getElementById('docFileStatus').textContent = '✅ הועלה!';
+            }
+
+            const values = {
+                category, docType, description, date,
+                validUntil: document.getElementById('docValidUntil').value || null,
+                actionDue: document.getElementById('docActionDue').value || null
+            };
+
+            let target;
+            if (hit) {
+                Object.assign(hit.doc, values);
+                target = hit.doc;
+            } else {
+                if (!data.yearData[yearFor]) data.yearData[yearFor] = createEmptyYearData(yearFor);
+                const yd = data.yearData[yearFor];
+                if (!yd.officialDocs) yd.officialDocs = [];
+                target = { id: recordId, handled: false, ...values };
+                yd.officialDocs.push(target);
+                if (!data.years.includes(yearFor)) data.years.push(yearFor);
+            }
+            if (uploaded) {
+                const prevDrive = target.driveId, prevLocal = target.localPath;
+                target.fileName = uploaded.drive.fileName || undefined;
+                target.localPath = uploaded.local;
+                target.driveId = uploaded.drive.id;
+                target.driveLink = uploaded.drive.link || ('https://drive.google.com/file/d/' + uploaded.drive.id + '/view');
+                if (prevDrive && prevDrive !== target.driveId) removeSupersededFile(prevDrive, prevLocal, target.driveId);
+            }
+            _editingDocId = null;
+            saveData();
+            await autoRefile('officialDocs', target, yearFor);
+            closeModal('docModal');
+            renderAll();
         }
 
         // ===== SCOPED EXPORT (expenses): month / year-by-months / flat =====
