@@ -4261,6 +4261,13 @@
             if (allCats.size) merged.customCategories = [...allCats];
             const allDocCats = new Set([...(localData.docCategories || []), ...(cloudData.docCategories || [])]);
             if (allDocCats.size) merged.docCategories = [...allDocCats];
+            // The ordered list: this device's order wins, anything only the other side
+            // knows about is appended rather than lost.
+            if (Array.isArray(localData.docCategoryList) || Array.isArray(cloudData.docCategoryList)) {
+                const base = localData.docCategoryList || cloudData.docCategoryList || [];
+                const extra = (cloudData.docCategoryList || []).filter(c => !base.includes(c));
+                merged.docCategoryList = [...base, ...extra];
+            }
             // Renamed category labels (local wins on conflict)
             const labels = { ...(cloudData.categoryLabels || {}), ...(localData.categoryLabels || {}) };
             if (Object.keys(labels).length) merged.categoryLabels = labels;
@@ -9628,13 +9635,97 @@
         // because they matter now regardless of which year is selected.
         const BASE_DOC_CATEGORIES = ['מס הכנסה', 'ביטוח לאומי', 'רואה חשבון', 'כללי'];
 
+        // The ordered list the user sees. Built once from the defaults plus anything
+        // already in use, then it is theirs to rename, delete and reorder.
         function docCategories() {
-            const set = new Set(BASE_DOC_CATEGORIES);
-            (data.docCategories || []).forEach(c => set.add(c));
+            if (!Array.isArray(data.docCategoryList)) {
+                const set = new Set(BASE_DOC_CATEGORIES);
+                (data.docCategories || []).forEach(c => set.add(c));
+                Object.values(data.yearData || {}).forEach(yd => {
+                    if (yd) active(yd.officialDocs).forEach(d => { if (d.category) set.add(d.category); });
+                });
+                data.docCategoryList = [...set];
+            }
+            // anything in use but missing from the list gets appended, never lost
+            const list = data.docCategoryList;
             Object.values(data.yearData || {}).forEach(yd => {
-                if (yd) active(yd.officialDocs).forEach(d => { if (d.category) set.add(d.category); });
+                if (yd) active(yd.officialDocs).forEach(d => {
+                    if (d.category && !list.includes(d.category)) list.push(d.category);
+                });
             });
-            return [...set];
+            return list;
+        }
+
+        function docCategoryCount(cat) {
+            let n = 0;
+            Object.values(data.yearData || {}).forEach(yd => {
+                if (yd) active(yd.officialDocs).forEach(d => { if (d.category === cat) n++; });
+            });
+            return n;
+        }
+
+        function showDocTabMenu(ev, cat) {
+            ev.preventDefault(); ev.stopPropagation();
+            const list = docCategories();
+            const i = list.indexOf(cat);
+            const m = document.getElementById('rowMenu');
+            let html = `<button onclick="hideRowMenu();renameDocCategory('${cat}')">🏷️ שנה שם</button>`;
+            if (i > 0) html += `<button onclick="hideRowMenu();moveDocCategory('${cat}',-1)">→ הזז ימינה</button>`;
+            if (i < list.length - 1) html += `<button onclick="hideRowMenu();moveDocCategory('${cat}',1)">← הזז שמאלה</button>`;
+            html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteDocCategory('${cat}')">✕ מחק קטגוריה</button>`;
+            m.innerHTML = html;
+            m.classList.add('open');
+            const r = m.getBoundingClientRect();
+            m.style.left = Math.max(6, Math.min(ev.clientX, window.innerWidth - r.width - 6)) + 'px';
+            m.style.top = Math.max(6, Math.min(ev.clientY, window.innerHeight - r.height - 6)) + 'px';
+        }
+
+        function docTabTouchStart(ev, cat) {
+            clearTimeout(_pressTimer);
+            const t = ev.touches && ev.touches[0];
+            if (!t) return;
+            const fake = { clientX: t.clientX, clientY: t.clientY, preventDefault(){}, stopPropagation(){} };
+            _pressTimer = setTimeout(() => showDocTabMenu(fake, cat), 550);
+        }
+
+        function moveDocCategory(cat, dir) {
+            const list = docCategories();
+            const i = list.indexOf(cat);
+            const j = i + dir;
+            if (i < 0 || j < 0 || j >= list.length) return;
+            list.splice(j, 0, list.splice(i, 1)[0]);
+            saveData();
+            renderAll();
+        }
+
+        let _docCatRenameTarget = null;
+
+        function renameDocCategory(cat) {
+            _docCatRenameTarget = cat;
+            document.querySelector('#docCategoryModal .modal-header h3').textContent = '🏷️ שינוי שם קטגוריה';
+            document.getElementById('newDocCategoryName').value = cat;
+            openModal('docCategoryModal');
+            setTimeout(() => document.getElementById('newDocCategoryName').select(), 100);
+        }
+
+        async function deleteDocCategory(cat) {
+            const n = docCategoryCount(cat);
+            if (n > 0) {
+                await popupError('הקטגוריה בשימוש',
+                    'ב"' + cat + '" יש ' + n + (n === 1 ? ' מסמך' : ' מסמכים') + '.\n\nהעבר אותם לקטגוריה אחרת (עריכת המסמך) ואז אפשר יהיה למחוק.');
+                return;
+            }
+            const ok = await popupConfirm('מחיקת קטגוריה', 'למחוק את "' + cat + '"?', 'מחק', 'ביטול');
+            if (!ok) return;
+            const list = docCategories();
+            const i = list.indexOf(cat);
+            if (i > -1) list.splice(i, 1);
+            if (Array.isArray(data.docCategories)) {
+                data.docCategories = data.docCategories.filter(c => c !== cat);
+            }
+            if (docTab === cat) docTab = 'all';
+            saveData();
+            renderAll();
         }
 
         let docTab = 'all';
@@ -9695,7 +9786,7 @@
             };
             let html = `<button class="filter-btn ${docTab === 'all' ? 'active' : ''}" onclick="setDocTab('all')">הכל</button>`;
             cats.forEach(c => {
-                html += `<button class="filter-btn ${docTab === c ? 'active' : ''}" onclick="setDocTab('${c}')">${c} ${countOf(c) || ''}</button>`;
+                html += `<button class="filter-btn ${docTab === c ? 'active' : ''}" onclick="setDocTab('${c}')" oncontextmenu="showDocTabMenu(event,'${c}')" ontouchstart="docTabTouchStart(event,'${c}')" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()" title="לחיצה ימנית: שנה שם, סדר או מחק">${c} ${countOf(c) || ''}</button>`;
             });
             html += `<button class="filter-btn" onclick="openNewDocCategory()" title="הוסף קטגוריה">➕</button>`;
             el.innerHTML = html;
@@ -9868,6 +9959,8 @@
         }
 
         function openNewDocCategory() {
+            _docCatRenameTarget = null;
+            document.querySelector('#docCategoryModal .modal-header h3').textContent = '➕ קטגוריית מסמכים חדשה';
             document.getElementById('newDocCategoryName').value = '';
             openModal('docCategoryModal');
             setTimeout(() => document.getElementById('newDocCategoryName').focus(), 100);
@@ -9876,8 +9969,39 @@
         async function saveNewDocCategory() {
             const name = document.getElementById('newDocCategoryName').value.trim();
             if (!name) { await popupError('חסר שם', 'תן שם לקטגוריה'); return; }
+            const list = docCategories();
+
+            // Rename: carry every document over and refile its attachment.
+            if (_docCatRenameTarget) {
+                const old = _docCatRenameTarget;
+                _docCatRenameTarget = null;
+                document.querySelector('#docCategoryModal .modal-header h3').textContent = '➕ קטגוריית מסמכים חדשה';
+                if (name !== old) {
+                    const i = list.indexOf(old);
+                    if (list.includes(name)) { if (i > -1) list.splice(i, 1); }
+                    else if (i > -1) list[i] = name;
+                    const moved = [];
+                    Object.entries(data.yearData || {}).forEach(([y, yd]) => {
+                        if (!yd) return;
+                        active(yd.officialDocs).forEach(d => {
+                            if (d.category === old) { d.category = name; moved.push({ d, y: parseInt(y) }); }
+                        });
+                    });
+                    if (docTab === old) docTab = name;
+                    saveData();
+                    closeModal('docCategoryModal');
+                    renderAll();
+                    for (const m of moved) await autoRefile('officialDocs', m.d, m.y);
+                    if (moved.length) { try { await pruneEmptyDriveFolders(); } catch (_) {} }
+                    renderAll();
+                    return;
+                }
+                closeModal('docCategoryModal');
+                return;
+            }
+
             if (!data.docCategories) data.docCategories = [];
-            if (!docCategories().includes(name)) data.docCategories.push(name);
+            if (!list.includes(name)) { data.docCategories.push(name); list.push(name); }
             saveData();
             closeModal('docCategoryModal');
             if (document.getElementById('docModal').classList.contains('active')) {
