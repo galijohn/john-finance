@@ -9061,7 +9061,7 @@
             const panel = document.getElementById('recurringPanel');
             const items = active(rec.months[expenseMonth] || []);
 
-            const bills = items.filter(isLineItem);
+            const bills = items.filter(i => isBill(i) || !lineDone(expenseMonth, i));
             const cats = items.filter(isCategory);
 
             const carry = [];
@@ -10238,6 +10238,31 @@
             sel.value = expenseFilter;
         }
 
+        // Expenses that satisfy a collection line — marked in place, inside their own
+        // category. A collected line never becomes a row of its own.
+        let _collectedExpenseIds = new Set();
+
+        function buildCollectedExpenseIds(monthKey) {
+            _collectedExpenseIds = new Set();
+            if (!monthKey || monthKey === 'all') {
+                const rec = getRecurring();
+                Object.keys(rec.months || {}).forEach(k => {
+                    active(rec.months[k]).forEach(i => {
+                        if (!isCollect(i)) return;
+                        const hit = lineDone(k, i);
+                        if (hit && hit.id) _collectedExpenseIds.add(hit.id);
+                    });
+                });
+                return;
+            }
+            const rec = getRecurring();
+            active(rec.months[monthKey] || []).forEach(i => {
+                if (!isCollect(i)) return;
+                const hit = lineDone(monthKey, i);
+                if (hit && hit.id) _collectedExpenseIds.add(hit.id);
+            });
+        }
+
         let expenseFirstRender = true;
 
         function renderExpenseTable(total) {
@@ -10245,6 +10270,7 @@
             const tbody = document.getElementById('expenseTable');
 
             dedupeRecurringMonths();
+            buildCollectedExpenseIds(expenseMonth);
             renderExpenseMonthBar();
             renderRecurringPanel();
 
@@ -10369,7 +10395,7 @@
         // including anything still unpaid from earlier months.
         function billRowsHtml(monthKey) {
             const rec = getRecurring();
-            const items = active(rec.months[monthKey] || []).filter(isLineItem);
+            const items = active(rec.months[monthKey] || []).filter(i => isBill(i) || !lineDone(monthKey, i));
             const carry = [];
             Object.keys(rec.months).sort().forEach(k => {
                 if (k >= monthKey) return;
@@ -10631,7 +10657,7 @@
                         ontouchstart="rowTouchStart(event,'expense',${e.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td>${formatDate(e.date)}</td>
                 <td>${categoryLabel(e.category)}</td>
-                <td>${e.description || '-'} ${e.notes ? '<span data-tip="'+e.notes+'" style="cursor:help;">📎</span>' : ''}</td>
+                <td>${_collectedExpenseIds.has(e.id) ? '<span title="נאסף — מופיע ברשימת האיסוף" style="color:#a78bfa;margin-inline-end:4px;">📄✓</span>' : ''}${e.description || '-'} ${e.notes ? '<span data-tip="'+e.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
                 <td class="col-pct" style="text-align:center;${pct < 100 ? 'color:var(--warning)' : ''}">${pct}%</td>
                 <td class="col-net" style="color:var(--success)">${formatCurrency(recognized)}</td>
