@@ -4707,6 +4707,39 @@
             return id;
         }
 
+        // Remove folders left empty in Drive after a reorganize (e.g. the stray
+        // top-level month folders an earlier structure created). Folders are moved
+        // to the Drive trash — never hard-deleted — and only if they hold nothing.
+        async function pruneEmptyDriveFolders() {
+            if (!googleAccessToken || !driveFolderId) return 0;
+            let removed = 0;
+            async function visit(id, depth) {
+                if (depth > 5) return false;
+                const res = await gapi.client.drive.files.list({
+                    q: `'${id}' in parents and trashed=false`,
+                    fields: 'files(id,name,mimeType)', pageSize: 500
+                });
+                const children = res.result.files || [];
+                const folders = children.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
+                const files = children.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+                let liveChildren = files.length;
+                for (const f of folders) {
+                    const emptied = await visit(f.id, depth + 1);
+                    if (emptied) {
+                        try {
+                            await gapi.client.drive.files.update({ fileId: f.id, resource: { trashed: true } });
+                            removed++;
+                        } catch (e) { console.warn('could not trash folder', f.name, e); liveChildren++; }
+                    } else {
+                        liveChildren++;
+                    }
+                }
+                return liveChildren === 0;   // caller may trash me
+            }
+            try { await visit(driveFolderId, 0); } catch (e) { console.error('drive prune failed', e); }
+            return removed;
+        }
+
         // ===== LOCAL FOLDER REORGANIZATION =====
         // Physically moves files already on disk into the organized structure and
         // deletes the leftover empty folders. Files are copied first, removed only
@@ -4858,8 +4891,10 @@
                     failed++;
                 }
             }
-            // Now do the same on disk: move the real files into the structure and
-            // delete the folders they left empty.
+            // Clear out folders the move left empty (including stray ones from an
+            // earlier structure), then do the same on disk.
+            orgStatus('מנקה תיקיות ריקות ב־Drive...');
+            const drivePruned = await pruneEmptyDriveFolders();
             const local = await organizeLocalFolder(items);
 
             saveData();
@@ -4870,6 +4905,7 @@
 
             let msg = '📁 Google Drive\nהועברו: ' + moved + ' · שמות שעודכנו: ' + renamed + ' · כבר מסודרים: ' + skipped;
             if (failed) msg += ' · נכשלו: ' + failed;
+            msg += '\nתיקיות ריקות שנוקו: ' + drivePruned;
             if (localFolderHandle) {
                 msg += '\n\n💻 התיקייה במחשב\nהועברו: ' + local.moved + ' · כבר מסודרים: ' + local.skipped
                      + '\nתיקיות ישנות ריקות שנמחקו: ' + local.pruned;
