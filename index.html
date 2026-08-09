@@ -699,6 +699,24 @@
             border-color: var(--success);
         }
 
+        .rec-collect-btn {
+            background: rgba(139, 92, 246, 0.15);
+            color: #a78bfa;
+            border: 1px solid #8b5cf6;
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .rec-collect-btn:hover {
+            background: #8b5cf6;
+            color: white;
+        }
+
         .rec-section-label {
             font-size: 0.78rem;
             color: var(--text-muted);
@@ -3172,6 +3190,7 @@
                     <select class="form-control" id="recKind" onchange="onRecKindChange()">
                         <option value="bill">💳 חשבון קבוע — תשלום אחד בחודש (בזק, רו"ח)</option>
                         <option value="category">🔄 קטגוריה שוטפת — הרבה תשלומים (דלק, חניות)</option>
+                        <option value="collect">📄 חשבונית לאיסוף — ספק חוזר בלי סכום קבוע</option>
                     </select>
                     <div id="recKindHint" style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;"></div>
                 </div>
@@ -8806,8 +8825,14 @@
             return null;
         }
 
-        // Only bills have a paid/unpaid state; running categories never do.
+        // Three kinds of checklist line:
+        //   bill     — one payment a month, with a due date        → לתשלום / שולם
+        //   collect  — an invoice to obtain, no amount, no deadline → לאסוף / נאסף
+        //   category — a running budget, never "done"
         const isBill = i => (i.kind || 'bill') === 'bill';
+        const isCollect = i => (i.kind || 'bill') === 'collect';
+        const isCategory = i => (i.kind || 'bill') === 'category';
+        const isLineItem = i => !isCategory(i);   // rendered as its own table row
 
         // recurringKeys of every bill row across all months — payments carrying these
         // keys are displayed on the bill row itself, not again in a category group.
@@ -8815,14 +8840,14 @@
             const rec = getRecurring();
             const keys = new Set();
             Object.keys(rec.months || {}).forEach(k => {
-                active(rec.months[k]).forEach(i => { if (isBill(i)) keys.add(k + ':' + i.id); });
+                active(rec.months[k]).forEach(i => { if (isLineItem(i)) keys.add(k + ':' + i.id); });
             });
             return keys;
         }
 
         function unpaidRecurringCount(monthKey) {
             const rec = getRecurring();
-            return active(rec.months[monthKey] || []).filter(i => isBill(i) && !findRecurringPayment(monthKey, i.id)).length;
+            return active(rec.months[monthKey] || []).filter(i => isLineItem(i) && !findRecurringPayment(monthKey, i.id)).length;
         }
 
         // Two checklist lines are "the same line" when they describe the same thing —
@@ -8865,7 +8890,7 @@
             const rec = getRecurring();
             const billKeys = new Set();
             active(rec.months[monthKey] || []).forEach(i => {
-                if (isBill(i)) billKeys.add(monthKey + ':' + i.id);
+                if (isLineItem(i)) billKeys.add(monthKey + ':' + i.id);
             });
             const list = [];
             for (const yd of Object.values(data.yearData || {})) {
@@ -8941,17 +8966,23 @@
                 return;
             }
 
-            const billsAll = items.filter(isBill);
-            let waiting = billsAll.filter(i => !findRecurringPayment(expenseMonth, i.id)).length;
+            const openBillsN = items.filter(i => isBill(i) && !findRecurringPayment(expenseMonth, i.id)).length;
+            const openCollectsN = items.filter(i => isCollect(i) && !findRecurringPayment(expenseMonth, i.id)).length;
+            let carryN = 0;
             Object.keys(rec.months).forEach(k => {
                 if (k >= expenseMonth) return;
-                active(rec.months[k]).forEach(i => { if (isBill(i) && !findRecurringPayment(k, i.id)) waiting++; });
+                active(rec.months[k]).forEach(i => { if (isLineItem(i) && !findRecurringPayment(k, i.id)) carryN++; });
             });
+            const bits = [];
+            if (openBillsN) bits.push(openBillsN + (openBillsN === 1 ? ' חשבון ממתין לתשלום' : ' חשבונות ממתינים לתשלום'));
+            if (openCollectsN) bits.push(openCollectsN + (openCollectsN === 1 ? ' חשבונית לאיסוף' : ' חשבוניות לאיסוף'));
+            if (carryN) bits.push(carryN + ' מחודשים קודמים');
+            const waiting = openBillsN + openCollectsN + carryN;
             panel.innerHTML = `<div class="rec-head" style="margin-bottom:0;">
                 <div>
                     <strong>${monthLabelFromKey(expenseMonth)}</strong>
                     <span style="font-size:0.85rem;color:${waiting ? 'var(--danger)' : 'var(--success)'};margin-inline-start:8px;">
-                        ${waiting ? waiting + (waiting === 1 ? ' חשבון ממתין לתשלום' : ' חשבונות ממתינים לתשלום') : '✓ כל החשבונות שולמו'}
+                        ${waiting ? bits.join(' · ') : '✓ הכל טופל'}
                     </span>
                 </div>
                 <button class="btn btn-sm btn-primary" onclick="openRecurringAdd()">+ הוצאה קבועה</button>
@@ -8964,14 +8995,14 @@
             const panel = document.getElementById('recurringPanel');
             const items = active(rec.months[expenseMonth] || []);
 
-            const bills = items.filter(isBill);
-            const cats = items.filter(i => !isBill(i));
+            const bills = items.filter(isLineItem);
+            const cats = items.filter(isCategory);
 
             const carry = [];
             Object.keys(rec.months).sort().forEach(k => {
                 if (k >= expenseMonth) return;
                 active(rec.months[k]).forEach(i => {
-                    if (isBill(i) && !findRecurringPayment(k, i.id)) carry.push({ monthKey: k, item: i });
+                    if (isLineItem(i) && !findRecurringPayment(k, i.id)) carry.push({ monthKey: k, item: i });
                 });
             });
 
@@ -8988,9 +9019,12 @@
                 spent += st.spent;
             });
 
-            const summary = waiting > 0
-                ? waiting + (waiting === 1 ? ' חשבון ממתין' : ' חשבונות ממתינים')
-                : 'הכל שולם';
+            const openBills = bills.filter(i => isBill(i) && !findRecurringPayment(expenseMonth, i.id)).length;
+            const openCollects = bills.filter(i => isCollect(i) && !findRecurringPayment(expenseMonth, i.id)).length;
+            const parts = [];
+            if (openBills) parts.push(openBills + (openBills === 1 ? ' חשבון ממתין' : ' חשבונות ממתינים'));
+            if (openCollects) parts.push(openCollects + (openCollects === 1 ? ' חשבונית לאיסוף' : ' חשבוניות לאיסוף'));
+            const summary = parts.length ? parts.join(' · ') : 'הכל טופל';
 
             let html = `<div class="rec-head">
                 <div>
@@ -9132,27 +9166,38 @@
             if (!item) return;
             recurringPayContext = { monthKey: monthKey, itemId: itemId };
             editingId = null;
-            document.getElementById('expenseDate').value = localTodayISO();
+            const collect = isCollect(item);
+            buildCategoryOptions();
+            // Completing a line for an earlier month must land in THAT month, not today.
+            document.getElementById('expenseDate').value = monthKey === realMonthKey()
+                ? localTodayISO()
+                : monthKey + '-01';
             document.getElementById('expenseDesc').value = item.description;
             document.getElementById('expenseCategory').value = item.category;
-            document.getElementById('expenseAmount').value = item.amount;
+            document.getElementById('expenseAmount').value = collect ? '' : item.amount;
             document.getElementById('expenseRecognition').value = item.recognition ?? 100;
-            document.getElementById('expenseNotes').value = 'תשלום קבוע · ' + monthLabelFromKey(monthKey);
+            document.getElementById('expenseNotes').value = (collect ? 'חשבונית · ' : 'תשלום קבוע · ') + monthLabelFromKey(monthKey);
             openModal('expenseModal');
+            if (collect) setTimeout(() => document.getElementById('expenseAmount').focus(), 100);
         }
 
         function onRecKindChange() {
             const kind = document.getElementById('recKind').value;
             const isCat = kind === 'category';
+            const isCol = kind === 'collect';
             document.getElementById('recDescGroup').style.display = isCat ? 'none' : '';
-            document.getElementById('recDueDayGroup').style.display = isCat ? 'none' : '';
+            document.getElementById('recDueDayGroup').style.display = (isCat || isCol) ? 'none' : '';
+            // A collection line carries no amount — that is the whole point of it.
+            document.getElementById('recAmount').closest('.form-group').style.display = isCol ? 'none' : '';
             document.getElementById('recAmountLabel').textContent = isCat ? 'תקציב חודשי משוער (₪)' : 'סכום משוער (₪)';
             document.getElementById('recAmountHint').textContent = isCat
                 ? 'רק לצורך מעקב — כמה אתה מוציא בקטגוריה הזאת בחודש רגיל'
                 : 'אפשר לתקן את הסכום המדויק בכל תשלום';
             document.getElementById('recKindHint').textContent = isCat
                 ? 'כל ההוצאות שתרשום בקטגוריה הזאת ייספרו אוטומטית — בלי סימון "שולם"'
-                : 'תשלום אחד בחודש, עם תאריך יעד וקבלה אחת';
+                : isCol
+                    ? 'יופיע כל חודש כשורה ריקה להשלמה — בלי סכום ובלי תאריך יעד'
+                    : 'תשלום אחד בחודש, עם תאריך יעד וקבלה אחת';
         }
 
         function openRecurringAdd() {
@@ -9358,6 +9403,57 @@
             saveData();
             renderAll();
             popupSuccess('נוסף לקבועות', '"' + values.description + '" היא עכשיו הוצאה קבועה מ' + monthLabelFromKey(monthKey) + ' והלאה');
+        }
+
+        // Turn a supplier you already paid into a monthly "collect the invoice" line,
+        // from this expense's month forward. The expense itself counts as that month's.
+        async function makeExpenseCollect(id) {
+            const yd = getYearData();
+            const e = active(yd.expenses).find(x => x.id === id);
+            if (!e) return;
+            if (!e.date || e.date.length < 7) {
+                await popupError('אין תאריך', 'להוצאה אין תאריך — ערוך אותה והוסף תאריך קודם');
+                return;
+            }
+            const monthKey = e.date.slice(0, 7);
+            const ok = await showPopup({
+                type: 'info', icon: '📄',
+                title: 'הוסף לרשימת האיסוף',
+                message: '"' + (e.description || '') + '" יופיע מ' + monthLabelFromKey(monthKey) + ' והלאה כשורה להשלמה בכל חודש — בלי סכום ובלי תאריך יעד.',
+                okText: 'הוסף', cancelText: 'ביטול'
+            });
+            if (!ok) return;
+            const rec = getRecurring();
+            const values = {
+                kind: 'collect',
+                description: e.description || 'ספק',
+                category: e.category || 'אחר',
+                amount: 0,
+                recognition: e.recognition ?? 100,
+                dueDay: null
+            };
+            ensureRecurringMonths(monthKey);
+            let k = monthKey, guard = 0;
+            while (rec.startMonth && k < rec.startMonth && guard++ < 240) {
+                if (!rec.months[k]) rec.months[k] = [];
+                k = nextMonthKey(k);
+            }
+            if (!rec.startMonth || monthKey < rec.startMonth) rec.startMonth = monthKey;
+            const tid = genRecId();
+            rec.template.push({ id: tid, ...values });
+            let firstItemId = null;
+            Object.keys(rec.months).sort().forEach(mk => {
+                if (mk < monthKey) return;
+                const existing = active(rec.months[mk]).find(i => sameRecurringLine(i, values));
+                if (existing) { existing.templateId = tid; if (mk === monthKey) firstItemId = existing.id; return; }
+                const iid = genRecId();
+                rec.months[mk].push({ id: iid, templateId: tid, ...values });
+                if (mk === monthKey) firstItemId = iid;
+            });
+            if (firstItemId) e.recurringKey = monthKey + ':' + firstItemId;
+            saveData();
+            renderAll();
+            popupSuccess('נוסף לאיסוף', '"' + values.description + '" יופיע כל חודש עד שתשלים אותו');
         }
 
         // Detach an expense from its recurring-checklist row (the expense stays in the table;
@@ -9995,7 +10091,7 @@
                     active(rec.months[expenseMonth] || []).forEach(i => {
                         // A category line with no budget says nothing the group row
                         // doesn't already show — skip it.
-                        if (!isBill(i) && Number(i.amount) > 0) budgets[i.category] = i;
+                        if (isCategory(i) && Number(i.amount) > 0) budgets[i.category] = i;
                     });
                 }
 
@@ -10040,12 +10136,12 @@
         // including anything still unpaid from earlier months.
         function billRowsHtml(monthKey) {
             const rec = getRecurring();
-            const items = active(rec.months[monthKey] || []).filter(isBill);
+            const items = active(rec.months[monthKey] || []).filter(isLineItem);
             const carry = [];
             Object.keys(rec.months).sort().forEach(k => {
                 if (k >= monthKey) return;
                 active(rec.months[k]).forEach(i => {
-                    if (isBill(i) && !findRecurringPayment(k, i.id)) carry.push({ k, i });
+                    if (isLineItem(i) && !findRecurringPayment(k, i.id)) carry.push({ k, i });
                 });
             });
             if (!items.length && !carry.length) return '';
@@ -10079,11 +10175,16 @@
             const today = new Date().getDate();
             const monthNum = parseInt(monthKey.split('-')[1]);
             const pct = item.recognition ?? 100;
+            const collect = isCollect(item);
+            const doneWord = collect ? 'נאסף' : 'שולם';
             let status;
             if (payment) {
                 status = payment.driveLink
-                    ? `<span class="rec-paid-chip clickable" onclick="window.open('${payment.driveLink}','_blank')" title="שולם ואורכב — לחץ לצפייה בקבלה">✓ שולם ${formatDate(payment.date)}</span>`
-                    : `<span class="rec-paid-chip">✓ שולם ${formatDate(payment.date)}</span>`;
+                    ? `<span class="rec-paid-chip clickable" onclick="window.open('${payment.driveLink}','_blank')" title="${doneWord} ואורכב — לחץ לצפייה במסמך">✓ ${doneWord} ${formatDate(payment.date)}</span>`
+                    : `<span class="rec-paid-chip">✓ ${doneWord} ${formatDate(payment.date)}</span>`;
+            } else if (collect) {
+                const label = isCarry ? 'לאסוף · ' + monthLabelFromKey(monthKey) : 'לאסוף';
+                status = `<button class="rec-collect-btn" onclick="payRecurring('${monthKey}','${item.id}')" title="קיבלת את החשבונית? השלם סכום, תאריך וצרף אותה">📄 ${label}</button>`;
             } else {
                 const label = isCarry
                     ? 'לתשלום · ' + monthLabelFromKey(monthKey)
@@ -10098,12 +10199,12 @@
                         onclick="${rowClick}"
                         oncontextmenu="showRowMenu(event,'bill','${item.id}',${menuExtra})"
                         ontouchstart="rowTouchStart(event,'bill','${item.id}',${menuExtra})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
-                <td style="white-space:nowrap;"><span style="color:var(--text-muted);font-size:0.8rem;margin-inline-end:4px;">💳</span>${status}</td>
+                <td style="white-space:nowrap;">${collect ? '' : '<span style="color:var(--text-muted);font-size:0.8rem;margin-inline-end:4px;">💳</span>'}${status}</td>
                 <td>${categoryLabel(item.category)}</td>
                 <td>${item.description}</td>
-                <td style="color:var(--danger)">${formatCurrency(amount)}</td>
-                <td class="col-pct" style="text-align:center;${effPct < 100 ? 'color:var(--warning)' : ''}">${effPct}%</td>
-                <td class="col-net" style="color:var(--success)">${formatCurrency(amount * (effPct / 100))}</td>
+                <td style="color:${payment || !collect ? 'var(--danger)' : 'var(--text-muted)'}">${!payment && collect ? '—' : formatCurrency(amount)}</td>
+                <td class="col-pct" style="text-align:center;${effPct < 100 ? 'color:var(--warning)' : ''}">${!payment && collect ? '—' : effPct + '%'}</td>
+                <td class="col-net" style="color:var(--success)">${!payment && collect ? '—' : formatCurrency(amount * (effPct / 100))}</td>
             </tr>`;
         }
 
@@ -10162,7 +10263,8 @@
                 html += `<button onclick="hideRowMenu();quickChangeCategory('expense',${id})">🏷️ שינוי סיווג</button>`;
                 html += e.recurringKey
                     ? `<button onclick="hideRowMenu();unlinkExpenseRecurring(${id})">🔁 נתק מהוצאה קבועה</button>`
-                    : `<button onclick="hideRowMenu();makeExpenseRecurring(${id})">🔁 הפוך להוצאה קבועה</button>`;
+                    : `<button onclick="hideRowMenu();makeExpenseRecurring(${id})">🔁 הפוך להוצאה קבועה</button>
+                       <button onclick="hideRowMenu();makeExpenseCollect(${id})">📄 הוסף לרשימת האיסוף</button>`;
                 html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteItem('expenses',${id})">✕ מחיקה</button>`;
             } else if (kind === 'bill') {
                 const monthKey = extra.monthKey;
@@ -10244,7 +10346,7 @@
                 const item = active(rec.months[t.monthKey] || []).find(i => String(i.id) === String(t.id));
                 if (item) {
                     item.category = cat;
-                    if (!isBill(item)) item.description = cat;
+                    if (isCategory(item)) item.description = cat;
                     saveData();
                 }
             }
