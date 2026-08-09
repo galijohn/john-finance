@@ -1568,6 +1568,16 @@
             </div>
 
             <div id="dashboardResult">
+                <div id="assessmentBanner" style="display:none;margin-bottom:15px;padding:12px 15px;border-radius:10px;background:rgba(6,182,212,0.10);border:1px solid var(--cyan);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                        <div>
+                            <strong style="color:var(--cyan);">🧾 מוצגת שומה רשמית</strong>
+                            <span id="assessmentBannerYear" style="color:var(--text-muted);font-size:0.85rem;margin-inline-start:8px;"></span>
+                        </div>
+                        <button class="btn btn-sm" onclick="toggleAssessmentCompare()" id="assessmentCompareBtn">📊 השווה להערכה</button>
+                    </div>
+                    <div id="assessmentCompare" style="display:none;margin-top:12px;"></div>
+                </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
                     <div class="result-box" id="taxResultBox">
                         <div>🏛️ מס הכנסה</div>
@@ -2740,11 +2750,44 @@
             </div>
             <div class="modal-body">
                 <div class="info-box" style="margin-bottom:15px;">
-                    <strong>💡 מקור אמת רשמי:</strong> הזן את ההכנסה החייבת לפי שומת המס. היא תחליף את החישוב האוטומטי (הכנסות עצמאי פחות הוצאות מוכרות).
+                    <strong>💡 מקור אמת רשמי:</strong> מלא את השורות כפי שהן מופיעות בשומה. ברגע שמולאו — המערכת מציגה את מספרי השומה ומפסיקה להעריך לשנה הזו.
                 </div>
                 <div class="form-group">
-                    <label>הכנסה חייבת לפי השומה ₪</label>
-                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaGross" placeholder="מתוך השומה">
+                    <label>הכנסה מעסק לפי השומה ₪</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaGross" placeholder="חלק 3 — הכנסה מעסק">
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">מחליף את החישוב האוטומטי (הכנסות עצמאי פחות הוצאות)</div>
+                </div>
+
+                <div style="border-top:1px solid var(--border);margin:15px 0 12px;padding-top:12px;font-weight:bold;font-size:0.92rem;">
+                    חישוב המס לפי השומה
+                </div>
+                <div class="form-group">
+                    <label>סה"כ הכנסה חייבת ₪</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaTaxable" placeholder="חלק 2 — סה״כ הכנסות">
+                </div>
+                <div class="form-group">
+                    <label>מס ברוטו ₪</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaGrossTax" placeholder="חלק 4">
+                </div>
+                <div class="form-group">
+                    <label>סה"כ זיכויים ₪</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaCredits" placeholder="חלק 6 — כולל זיכויים שקליים">
+                </div>
+                <div class="form-group">
+                    <label>ניכויים במקור ותשלומים ע"ח ₪</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaWithheld" placeholder="חלק 9">
+                </div>
+                <div class="form-group">
+                    <label>הפרשי הצמדה וריבית ₪</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaInterest" placeholder="כולל ריבית צפויה">
+                </div>
+                <div class="form-group">
+                    <label>יתרת מס לתשלום / להחזר ₪</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaBalance" placeholder="שלילי = החזר">
+                </div>
+                <div class="form-group">
+                    <label>מועד תשלום אחרון</label>
+                    <input type="date" class="form-control" id="shomaDueDate">
                 </div>
                 <div class="form-group">
                     <label>📄 צרף PDF/תמונה של השומה</label>
@@ -7137,7 +7180,14 @@
                 selfEmployedSource = 'שומה';
             }
 
-            const taxableIncome = totalSalary + totalUnemployment + totalMiluim + selfEmployedNet;
+            let taxableIncome = totalSalary + totalUnemployment + totalMiluim + selfEmployedNet;
+
+            // A filled-in assessment is the official record: its own figures replace the
+            // estimate for this year. The estimate is kept alongside for comparison.
+            const assessment = (formShoma && formShoma.declared && isFinite(Number(formShoma.declared.grossTax)) && formShoma.declared.grossTax !== null)
+                ? formShoma.declared : null;
+            const estimatedTaxableIncome = taxableIncome;
+            if (assessment && assessment.taxable != null) taxableIncome = Number(assessment.taxable) || taxableIncome;
 
             return {
                 salary: totalSalary,
@@ -7150,6 +7200,8 @@
                 computedSelfEmployedNet,
                 selfEmployedSource,
                 taxableIncome,
+                assessment,
+                estimatedTaxableIncome,
                 taxFromSalary,
                 taxFromUnemployment,
                 taxFromMiluim,
@@ -7452,6 +7504,59 @@
         }
 
         // ========== SHOMA — modal-based CRUD ==========
+        // ===== ASSESSMENT vs ESTIMATE =====
+        let _assessmentCompareOpen = false;
+        function toggleAssessmentCompare() {
+            _assessmentCompareOpen = !_assessmentCompareOpen;
+            const el = document.getElementById('assessmentCompare');
+            if (el) el.style.display = _assessmentCompareOpen ? '' : 'none';
+            const btn = document.getElementById('assessmentCompareBtn');
+            if (btn) btn.textContent = _assessmentCompareOpen ? '📊 הסתר השוואה' : '📊 השווה להערכה';
+        }
+
+        function renderAssessmentBanner(A, est) {
+            const banner = document.getElementById('assessmentBanner');
+            if (!banner) return;
+            if (!A) { banner.style.display = 'none'; return; }
+            banner.style.display = '';
+            const yearLabel = document.getElementById('assessmentBannerYear');
+            if (yearLabel) {
+                yearLabel.textContent = 'שנת ' + currentYear + ' — המספרים שמוצגים הם של רשות המסים, לא הערכה'
+                    + (A.dueDate ? ' · לתשלום עד ' + formatDate(A.dueDate) : '');
+            }
+
+            const rows = [
+                ['הכנסה חייבת', est.taxableIncome, A.taxable],
+                ['מס ברוטו', est.grossTax, A.grossTax],
+                ['סה"כ זיכויים', est.credits, A.credits],
+                ['ניכויים במקור ותשלומים', est.withheld, A.withheld],
+                ['הפרשי הצמדה וריבית', 0, A.interest],
+                ['יתרה לתשלום', est.balance, A.balance]
+            ];
+            let html = `<table style="width:100%;font-size:0.85rem;">
+                <thead><tr>
+                    <th style="text-align:right;padding:6px 4px;color:var(--text-muted);">שורה</th>
+                    <th style="text-align:left;padding:6px 4px;color:var(--text-muted);">הערכת המערכת</th>
+                    <th style="text-align:left;padding:6px 4px;color:var(--cyan);">לפי השומה</th>
+                    <th style="text-align:left;padding:6px 4px;color:var(--text-muted);">פער</th>
+                </tr></thead><tbody>`;
+            rows.forEach(([label, e, a]) => {
+                if (a == null) return;
+                const ev = Number(e) || 0, av = Number(a) || 0;
+                const diff = av - ev;
+                const col = Math.abs(diff) < 1 ? 'var(--success)' : 'var(--warning)';
+                html += `<tr>
+                    <td style="padding:5px 4px;">${label}</td>
+                    <td style="padding:5px 4px;text-align:left;color:var(--text-muted);">${formatCurrency(ev)}</td>
+                    <td style="padding:5px 4px;text-align:left;">${formatCurrency(av)}</td>
+                    <td style="padding:5px 4px;text-align:left;color:${col};">${diff === 0 ? '—' : (diff > 0 ? '+' : '') + formatCurrency(diff)}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            const cmp = document.getElementById('assessmentCompare');
+            if (cmp) cmp.innerHTML = html;
+        }
+
         function openShomaModal() {
             _editingShoma = false;
             const yd = getYearData();
@@ -7459,6 +7564,13 @@
             if (form) _editingShoma = true;
             const d = (form && form.declared) || {};
             document.getElementById('shomaGross').value = d.gross ?? '';
+            document.getElementById('shomaTaxable').value = d.taxable ?? '';
+            document.getElementById('shomaGrossTax').value = d.grossTax ?? '';
+            document.getElementById('shomaCredits').value = d.credits ?? '';
+            document.getElementById('shomaWithheld').value = d.withheld ?? '';
+            document.getElementById('shomaInterest').value = d.interest ?? '';
+            document.getElementById('shomaBalance').value = d.balance ?? '';
+            document.getElementById('shomaDueDate').value = d.dueDate ?? '';
             document.getElementById('shomaFile').value = '';
             document.getElementById('shomaFileStatus').textContent = (form && form.fileName) ? '📎 ' + form.fileName : '';
             document.querySelector('#shomaModal .modal-header h3').textContent = _editingShoma ? '🧾 עריכת שומה' : '🧾 הוסף שומה';
@@ -7473,6 +7585,15 @@
                 return isNaN(n) ? null : n;
             };
             const gross = parseNum('shomaGross');
+            const assessed = {
+                taxable:  parseNum('shomaTaxable'),
+                grossTax: parseNum('shomaGrossTax'),
+                credits:  parseNum('shomaCredits'),
+                withheld: parseNum('shomaWithheld'),
+                interest: parseNum('shomaInterest'),
+                balance:  parseNum('shomaBalance'),
+                dueDate:  document.getElementById('shomaDueDate').value || null
+            };
 
             // Upload first — abort row save if Drive fails
             const fileInput = document.getElementById('shomaFile');
@@ -7508,7 +7629,7 @@
                 };
                 yd.forms.push(form);
             }
-            form.declared = { gross, tax: null, bl: null };
+            form.declared = { gross, tax: null, bl: null, ...assessed };
 
             if (file && uploadResult) {
                 form.fileName = file.name;
@@ -7941,8 +8062,14 @@
             const totals = calculateTotals();
             const credits = calculateCredits();
             const creditValue = credits * yd.settings.creditValue * 12;
-            const { gross: grossTax, details: taxDetails } = calculateIncomeTax(totals.taxableIncome);
-            const netTax = Math.max(0, grossTax - creditValue);
+            const { gross: estGrossTax, details: taxDetails } = calculateIncomeTax(totals.taxableIncome);
+            const estNetTax = Math.max(0, estGrossTax - creditValue);
+
+            // When an assessment exists for this year, ITS numbers are what we show.
+            const A = totals.assessment;
+            const grossTax = A && A.grossTax != null ? Number(A.grossTax) : estGrossTax;
+            const assessedCredits = A && A.credits != null ? Number(A.credits) : creditValue;
+            const netTax = A ? Math.max(0, grossTax - assessedCredits) : estNetTax;
             
             // Calculate BL on self-employed income only (for display)
             const blSelfEmployed = calculateBituachLeumi(totals.selfEmployedNet);
@@ -7973,10 +8100,24 @@
             document.getElementById('dashTotalBLPaid').textContent = formatCurrency(totals.totalBLPaid);
             
             // Result boxes - Tax and BL separately
-            const taxDiff = totals.totalTaxPaid - netTax;
+            // With an assessment, the balance is the one the tax authority set — including
+            // its linkage and interest, which we never compute ourselves.
+            const taxPaidShown = A && A.withheld != null ? Number(A.withheld) : totals.totalTaxPaid;
+            const taxDiff = A
+                ? (A.balance != null ? -Number(A.balance) : (taxPaidShown - netTax - Number(A.interest || 0)))
+                : (totals.totalTaxPaid - netTax);
             // BL diff: what was paid as advances for self-employed vs what's due on self-employed
             const blDiff = totals.blFromSelf - bl.total;
             
+            renderAssessmentBanner(A, {
+                taxableIncome: totals.estimatedTaxableIncome,
+                grossTax: estGrossTax,
+                credits: creditValue,
+                withheld: totals.totalTaxPaid,
+                netTax: estNetTax,
+                balance: estNetTax - totals.totalTaxPaid
+            });
+
             // Tax result box
             const taxResultBox = document.getElementById('taxResultBox');
             const taxResultAmount = document.getElementById('taxResultAmount');
