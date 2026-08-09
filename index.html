@@ -8207,6 +8207,8 @@
             sel.value = expenseMonth;
         }
 
+        // The expenses table itself is the single list. This strip only carries the
+        // month's headline and the button to define a new recurring item.
         function renderRecurringPanel() {
             const panel = document.getElementById('recurringPanel');
             if (expenseMonth === 'all') { panel.style.display = 'none'; return; }
@@ -8223,6 +8225,29 @@
                     <div style="color:var(--text-muted);font-size:0.85rem;">בנה פעם אחת את רשימת התשלומים הקבועים שלך — היא תיווצר אוטומטית בכל חודש, ותסמן ✔ עם קבלה על כל תשלום.</div>`;
                 return;
             }
+
+            const billsAll = items.filter(isBill);
+            let waiting = billsAll.filter(i => !findRecurringPayment(expenseMonth, i.id)).length;
+            Object.keys(rec.months).forEach(k => {
+                if (k >= expenseMonth) return;
+                active(rec.months[k]).forEach(i => { if (isBill(i) && !findRecurringPayment(k, i.id)) waiting++; });
+            });
+            panel.innerHTML = `<div class="rec-head" style="margin-bottom:0;">
+                <div>
+                    <strong>${monthLabelFromKey(expenseMonth)}</strong>
+                    <span style="font-size:0.85rem;color:${waiting ? 'var(--danger)' : 'var(--success)'};margin-inline-start:8px;">
+                        ${waiting ? waiting + (waiting === 1 ? ' חשבון ממתין לתשלום' : ' חשבונות ממתינים לתשלום') : '✓ כל החשבונות שולמו'}
+                    </span>
+                </div>
+                <button class="btn btn-sm btn-primary" onclick="openRecurringAdd()">+ הוצאה קבועה</button>
+            </div>`;
+            return;
+        }
+
+        function _legacyRecurringPanel() {
+            const rec = getRecurring();
+            const panel = document.getElementById('recurringPanel');
+            const items = active(rec.months[expenseMonth] || []);
 
             const bills = items.filter(isBill);
             const cats = items.filter(i => !isBill(i));
@@ -8637,6 +8662,13 @@
             ['משרד', 'הוצאות משרד'], ['שיווק', 'שיווק'], ['מקצועי', 'שירותים מקצועיים'], ['אחר', 'אחר']
         ];
 
+        // One display name per category, everywhere: table, filter, checklist, reports.
+        // Records keep storing the short value — nothing about the stored data changes.
+        function categoryLabel(v) {
+            const hit = BASE_CATEGORIES.find(c => c[0] === v);
+            return hit ? hit[1] : v;
+        }
+
         function allCategories() {
             const set = new Set(BASE_CATEGORIES.map(c => c[0]));
             (data.customCategories || []).forEach(c => set.add(c));
@@ -8652,7 +8684,7 @@
         function buildCategoryOptions() {
             const cats = allCategories();
             const sig = cats.join('|');
-            const labelOf = v => (BASE_CATEGORIES.find(c => c[0] === v) || [v, v])[1];
+            const labelOf = categoryLabel;
             ['expenseCategory', 'recCategory'].forEach(sid => {
                 const sel = document.getElementById(sid);
                 if (!sel || sel.dataset.catsig === sig) return;
@@ -8769,7 +8801,7 @@
             const categories = [...new Set(allItems.map(e => e.category))];
             if (expenseFilter !== 'all' && !categories.includes(expenseFilter)) expenseFilter = 'all';
             sel.innerHTML = '<option value="all">הכל</option>' + categories.map(c =>
-                `<option value="${c}" ${expenseFilter === c ? 'selected' : ''}>${c}</option>`
+                `<option value="${c}" ${expenseFilter === c ? 'selected' : ''}>${categoryLabel(c)}</option>`
             ).join('');
             sel.value = expenseFilter;
         }
@@ -8834,15 +8866,43 @@
                 });
 
                 let html = '';
+
+                // Bills for this month live in the same list, above the categories —
+                // each with its own paid/unpaid state. No separate panel.
+                if (expenseMonth !== 'all' && expenseFilter === 'all') {
+                    html += billRowsHtml(expenseMonth);
+                }
+
+                // Budgets defined for running categories, so a group header can show them
+                const budgets = {};
+                if (expenseMonth !== 'all') {
+                    const rec = getRecurring();
+                    active(rec.months[expenseMonth] || []).forEach(i => {
+                        if (!isBill(i)) budgets[i.category] = i;
+                    });
+                }
+
                 for (const [cat, items] of Object.entries(groups)) {
-                    const catTotal = items.reduce((s, e) => s + e.amount, 0);
                     const catRecognized = items.reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+                    const catGross = items.reduce((s, e) => s + (Number(e.amount) || 0), 0);
                     const isCollapsed = collapsedCategories[cat];
-                    html += `<tr class="category-group-header" onclick="toggleCategoryCollapse('${cat}')">
-                        <td colspan="4">${isCollapsed ? '▶' : '▼'} ${cat} (${items.length})</td>
-                        <td colspan="1" style="text-align:center;">—</td>
+                    const b = budgets[cat];
+                    let budgetCell = '<td colspan="1" style="text-align:center;">—</td>';
+                    if (b && b.amount) {
+                        const pct = Math.min(100, Math.round(catGross / b.amount * 100));
+                        const over = catGross > b.amount;
+                        budgetCell = `<td style="text-align:center;">
+                            <div style="display:flex;align-items:center;gap:6px;justify-content:center;">
+                                <div class="rec-bar${over ? ' over' : ''}" style="width:70px;"><div style="width:${pct}%"></div></div>
+                                <span style="font-size:0.75rem;color:${over ? 'var(--warning)' : 'var(--text-muted)'};">${formatCurrency(catGross)} / ${formatCurrency(b.amount)}</span>
+                            </div>
+                        </td>`;
+                    }
+                    html += `<tr class="category-group-header">
+                        <td colspan="4" onclick="toggleCategoryCollapse('${cat}')" style="cursor:pointer;">${isCollapsed ? '▶' : '▼'} ${categoryLabel(cat)} (${items.length})</td>
+                        ${budgetCell}
                         <td style="color:var(--danger)">${formatCurrency(catRecognized)}</td>
-                        <td></td>
+                        <td>${expenseMonth !== 'all' ? `<button class="btn btn-icon btn-sm" onclick="addExpenseToCategory('${cat}')" title="הוסף חשבונית לקטגוריה">＋</button>` : ''}</td>
                     </tr>`;
                     if (!isCollapsed) {
                         html += items.map(e => renderExpenseRow(e)).join('');
@@ -8854,13 +8914,80 @@
             }
         }
 
+        // Bills (single-payment recurring items) rendered as rows of the main table,
+        // including anything still unpaid from earlier months.
+        function billRowsHtml(monthKey) {
+            const rec = getRecurring();
+            const items = active(rec.months[monthKey] || []).filter(isBill);
+            const carry = [];
+            Object.keys(rec.months).sort().forEach(k => {
+                if (k >= monthKey) return;
+                active(rec.months[k]).forEach(i => {
+                    if (isBill(i) && !findRecurringPayment(k, i.id)) carry.push({ k, i });
+                });
+            });
+            if (!items.length && !carry.length) return '';
+
+            const rows = carry.map(c => billRowHtml(c.k, c.i, true))
+                .concat([...items].sort((a, b) => (a.dueDay || 99) - (b.dueDay || 99)).map(i => billRowHtml(monthKey, i, false)));
+            return rows.join('');
+        }
+
+        function billRowHtml(monthKey, item, isCarry) {
+            const payment = findRecurringPayment(monthKey, item.id);
+            const rk = realMonthKey();
+            const today = new Date().getDate();
+            const monthNum = parseInt(monthKey.split('-')[1]);
+            const pct = item.recognition ?? 100;
+            let status;
+            if (payment) {
+                status = payment.driveLink
+                    ? `<span class="rec-paid-chip clickable" onclick="window.open('${payment.driveLink}','_blank')" title="שולם ואורכב — לחץ לצפייה בקבלה">✓ שולם ${formatDate(payment.date)}</span>`
+                    : `<span class="rec-paid-chip">✓ שולם ${formatDate(payment.date)}</span>`;
+            } else {
+                const label = isCarry
+                    ? 'לתשלום · ' + monthLabelFromKey(monthKey)
+                    : (item.dueDay ? 'לתשלום עד ' + String(item.dueDay).padStart(2, '0') + '/' + String(monthNum).padStart(2, '0') : 'לתשלום');
+                status = `<button class="rec-due-btn" onclick="payRecurring('${monthKey}','${item.id}')" title="שילמת? עדכן כמה שולם וצרף מסמך">${label}</button>`;
+            }
+            const amount = payment ? payment.amount : item.amount;
+            return `<tr${isCarry ? ' style="background:rgba(239,68,68,0.07);"' : ''}>
+                <td style="color:var(--text-muted);font-size:0.8rem;">💳 קבוע</td>
+                <td>${item.description}</td>
+                <td>${categoryLabel(item.category)}</td>
+                <td style="color:var(--danger)">${formatCurrency(amount)}</td>
+                <td style="text-align:center;">${status}</td>
+                <td style="color:var(--success)">${formatCurrency(amount * (pct / 100))}</td>
+                <td>
+                    <button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${monthKey}','${item.id}')" title="עריכה">✏️</button>
+                    <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${monthKey}','${item.id}')" title="מחיקה">🗑️</button>
+                </td>
+            </tr>`;
+        }
+
+        // "+" on a category group header — add an invoice straight into that category.
+        function addExpenseToCategory(cat) {
+            recurringPayContext = null;
+            editingId = null;
+            const rk = realMonthKey();
+            document.getElementById('expenseDate').value = expenseMonth === rk ? localTodayISO() : expenseMonth + '-01';
+            document.getElementById('expenseDesc').value = '';
+            buildCategoryOptions();
+            document.getElementById('expenseCategory').value = cat;
+            document.getElementById('expenseAmount').value = '';
+            document.getElementById('expenseRecognition').value = 100;
+            document.getElementById('expenseNotes').value = '';
+            openModal('expenseModal');
+            setTimeout(() => document.getElementById('expenseDesc').focus(), 100);
+        }
+
         function renderExpenseRow(e) {
             const pct = e.recognition ?? 100;
             const recognized = e.amount * (pct / 100);
             return `<tr>
                 <td>${formatDate(e.date)}</td>
                 <td>${e.description || '-'} ${e.notes ? '<span data-tip="'+e.notes+'" style="cursor:help;">📎</span>' : ''}</td>
-                <td>${e.category}</td>
+                <td>${categoryLabel(e.category)}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
                 <td style="text-align:center;${pct < 100 ? 'color:var(--warning)' : ''}">${pct}%</td>
                 <td style="color:var(--success)">${formatCurrency(recognized)}</td>
@@ -9192,7 +9319,7 @@
                     headers = ['תאריך', 'תיאור', 'קטגוריה', 'סכום', '% הכרה', 'סכום מוכר', 'הערות'];
                     rows = active(yd.expenses).map(e => {
                         const pct = e.recognition ?? 100;
-                        return [formatDate(e.date), e.description || '', e.category, e.amount, pct + '%', e.amount * (pct / 100), e.notes || ''];
+                        return [formatDate(e.date), e.description || '', categoryLabel(e.category), e.amount, pct + '%', e.amount * (pct / 100), e.notes || ''];
                     });
                     break;
                 case 'vat':
@@ -9400,7 +9527,7 @@
                 const grandTotal = scoped.reduce((s, e) => s + e.amount, 0);
                 const grandRecognized = scoped.reduce((s, e) => s + recOf(e), 0);
                 const HDR6 = ['תאריך', 'תיאור', 'קטגוריה', 'סכום', '% הכרה', 'מוכר'];
-                const row6 = e => { const pct = e.recognition ?? 100; return [formatDate(e.date), e.description || '', e.category || '', e.amount, pct + '%', recOf(e)]; };
+                const row6 = e => { const pct = e.recognition ?? 100; return [formatDate(e.date), e.description || '', categoryLabel(e.category) || '', e.amount, pct + '%', recOf(e)]; };
 
                 if (mode === 'flat') {
                     addHdr(HDR6);
@@ -9425,10 +9552,10 @@
                     const letters = ['א','ב','ג','ד','ה','ו','ז','ח','ט','י'];
                     catOrder.forEach((cat, idx) => {
                         const items = groups[cat].sort(byDate);
-                        addSection((letters[idx] || '') + '. ' + cat, S);
+                        addSection((letters[idx] || '') + '. ' + categoryLabel(cat), S);
                         addHdr(['תאריך', 'תיאור', 'סכום', '% הכרה', 'מוכר']);
                         items.forEach((e, i) => { const pct = e.recognition ?? 100; addDR([formatDate(e.date), e.description || '', e.amount, pct + '%', recOf(e)], i); });
-                        addSub(['סה"כ ' + cat + ' (' + items.length + ')', '', items.reduce((s, e) => s + e.amount, 0), '', items.reduce((s, e) => s + recOf(e), 0)]);
+                        addSub(['סה"כ ' + categoryLabel(cat) + ' (' + items.length + ')', '', items.reduce((s, e) => s + e.amount, 0), '', items.reduce((s, e) => s + recOf(e), 0)]);
                     });
                     addGrand(['סה"כ הוצאות מוכרות', '', grandTotal, '', grandRecognized]);
                 }
@@ -9778,7 +9905,7 @@
                 const tableOpen6 = '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>קטגוריה</th><th>סכום</th><th>% הכרה</th><th>מוכר</th></tr></thead><tbody>';
                 const rowHtml6 = e => {
                     const pct = e.recognition ?? 100;
-                    return '<tr><td>' + formatDate(e.date) + '</td><td>' + (e.description || '-') + '</td><td>' + (e.category || '') + '</td>' +
+                    return '<tr><td>' + formatDate(e.date) + '</td><td>' + (e.description || '-') + '</td><td>' + (categoryLabel(e.category) || '') + '</td>' +
                         '<td style="text-align:left;direction:ltr;">' + fmtNum(e.amount) + '</td>' +
                         '<td style="text-align:left;direction:ltr;' + (pct < 100 ? 'color:#d97706;' : '') + '">' + pct + '%</td>' +
                         '<td style="text-align:left;direction:ltr;">' + fmtNum(recOf(e)) + '</td></tr>';
@@ -9809,7 +9936,7 @@
                     const letters = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י'];
                     catOrder.forEach((cat, idx) => {
                         const items = groups[cat].sort(byDate);
-                        bodyContent += h3((letters[idx] || '') + '. ' + cat);
+                        bodyContent += h3((letters[idx] || '') + '. ' + categoryLabel(cat));
                         bodyContent += '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>סכום</th><th>% הכרה</th><th>מוכר</th></tr></thead><tbody>';
                         items.forEach(e => {
                             const pct = e.recognition ?? 100;
@@ -9818,7 +9945,7 @@
                             bodyContent += '<td style="text-align:left;direction:ltr;' + (pct < 100 ? 'color:#d97706;' : '') + '">' + pct + '%</td>';
                             bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(recOf(e)) + '</td></tr>';
                         });
-                        bodyContent += '</tbody></table>' + subTotal('סה"כ ' + cat + ' (' + items.length + ' פריטים)', items.reduce((s, e) => s + recOf(e), 0));
+                        bodyContent += '</tbody></table>' + subTotal('סה"כ ' + categoryLabel(cat) + ' (' + items.length + ' פריטים)', items.reduce((s, e) => s + recOf(e), 0));
                     });
                 }
 
