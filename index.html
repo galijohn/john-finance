@@ -1577,6 +1577,7 @@
                         <button class="btn btn-sm" onclick="toggleAssessmentCompare()" id="assessmentCompareBtn">📊 השווה להערכה</button>
                     </div>
                     <div id="assessmentPayLine" style="display:none;margin-top:8px;font-size:0.87rem;color:var(--text-muted);"></div>
+                    <div id="advancesAnalysis" style="display:none;margin-top:12px;"></div>
                     <div id="assessmentCompare" style="display:none;margin-top:12px;"></div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
@@ -2820,6 +2821,21 @@
                 <div class="form-group">
                     <label>ובלבד שישולם עד לתאריך</label>
                     <input type="date" class="form-control" id="shomaDueDate">
+                </div>
+
+                <div style="border-top:1px solid var(--border);margin:15px 0 10px;padding-top:12px;">
+                    <strong style="font-size:0.92rem;">פרטים נוספים (חלק 9)</strong>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">
+                        לפיהם נקבעות המקדמות לשנה הבאה
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>בסיס למקדמה</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaAdvanceBase">
+                </div>
+                <div class="form-group">
+                    <label>מחזור למקדמות</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaAdvanceTurnover">
                 </div>
                 <div class="form-group">
                     <label>📄 צרף PDF/תמונה של השומה</label>
@@ -7546,6 +7562,59 @@
             if (btn) btn.textContent = _assessmentCompareOpen ? '📊 הסתר השוואה' : '📊 השווה להערכה';
         }
 
+        // Year-end reconciliation of the advances: what was paid during the year against
+        // what the assessment says was actually due, and what that means for next year.
+        function renderAdvancesAnalysis(A, pay) {
+            const el = document.getElementById('advancesAnalysis');
+            if (!el) return;
+            const yd = getYearData();
+            const advances = active(yd.taxAdvances);
+            const paidAdvances = advances.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+            if (!A && paidAdvances === 0) { el.style.display = 'none'; return; }
+
+            const withheld = A && A.withheld != null ? Number(A.withheld) : 0;
+            const dueTax = A && A.taxAfterCredits != null ? Number(A.taxAfterCredits) : null;
+            if (dueTax == null) { el.style.display = 'none'; return; }
+
+            const countedInAssessment = Number(A.payments || 0);
+            const afterAssessment = pay ? pay.paidAfterAssessment : Math.max(0, paidAdvances - countedInAssessment);
+            const totalCredited = withheld + countedInAssessment + afterAssessment;
+            const gap = totalCredited - dueTax - Number(A.linkage || 0) - Number(A.expectedInterest || 0) - Number(A.penalties || 0);
+
+            const rows = [
+                ['ניכויים במקור (חלק 9)', withheld],
+                ['מקדמות שנספרו בשומה', countedInAssessment],
+                ['מקדמות ששולמו אחרי השומה', afterAssessment],
+                ['סה"כ זקוף לזכותך', totalCredited],
+                ['מס לאחר זיכויים', -dueTax],
+                ['הצמדה, ריבית וקנסות', -(Number(A.linkage || 0) + Number(A.expectedInterest || 0) + Number(A.penalties || 0))]
+            ];
+
+            let html = `<div style="font-weight:bold;font-size:0.88rem;margin-bottom:6px;">📐 ניתוח מקדמות לסוף השנה</div>
+                <table style="width:100%;font-size:0.85rem;">`;
+            rows.forEach(([label, v]) => {
+                if (!v) return;
+                html += `<tr>
+                    <td style="padding:4px 4px;color:var(--text-muted);">${label}</td>
+                    <td style="padding:4px 4px;text-align:left;color:${v < 0 ? 'var(--danger)' : 'var(--success)'};">${(v < 0 ? '-' : '') + formatCurrency(Math.abs(v))}</td>
+                </tr>`;
+            });
+            html += `<tr style="border-top:1px solid var(--border);">
+                    <td style="padding:6px 4px;font-weight:bold;">${gap >= 0 ? 'עודף — מגיע לך החזר' : 'חוסר — נותר לתשלום'}</td>
+                    <td style="padding:6px 4px;text-align:left;font-weight:bold;color:${gap >= 0 ? 'var(--success)' : 'var(--danger)'};">${formatCurrency(Math.abs(gap))}</td>
+                </tr></table>`;
+
+            if (A.advanceBase != null || A.advanceTurnover != null) {
+                const advPct = (A.advanceBase && A.advanceTurnover)
+                    ? ' (' + (Number(A.advanceBase) / Number(A.advanceTurnover) * 100).toFixed(1) + '% מהמחזור)' : '';
+                html += `<div style="margin-top:8px;font-size:0.83rem;color:var(--text-muted);">
+                    לשנה הבאה — בסיס למקדמה ${formatCurrency(Number(A.advanceBase || 0))}${advPct}${A.advanceTurnover != null ? ' · מחזור למקדמות ' + formatCurrency(Number(A.advanceTurnover)) : ''}
+                </div>`;
+            }
+            el.innerHTML = html;
+            el.style.display = '';
+        }
+
         function renderAssessmentBanner(A, est, pay) {
             const banner = document.getElementById('assessmentBanner');
             if (!banner) return;
@@ -7569,6 +7638,8 @@
                     payLine.style.display = 'none';
                 }
             }
+
+            renderAdvancesAnalysis(A, pay);
 
             // Same lines, same order, same wording as the assessment itself.
             const rows = [
@@ -7631,6 +7702,8 @@
             document.getElementById('shomaPenalties').value = d.penalties ?? '';
             document.getElementById('shomaBalance').value = d.balance ?? '';
             document.getElementById('shomaDueDate').value = d.dueDate ?? '';
+            document.getElementById('shomaAdvanceBase').value = d.advanceBase ?? '';
+            document.getElementById('shomaAdvanceTurnover').value = d.advanceTurnover ?? '';
             document.getElementById('shomaFile').value = '';
             document.getElementById('shomaFileStatus').textContent = (form && form.fileName) ? '📎 ' + form.fileName : '';
             document.querySelector('#shomaModal .modal-header h3').textContent = _editingShoma ? '🧾 עריכת שומה' : '🧾 הוסף שומה';
@@ -7661,7 +7734,9 @@
                 expectedInterest: parseNum('shomaExpectedInterest'),
                 penalties:       parseNum('shomaPenalties'),
                 balance:         parseNum('shomaBalance'),
-                dueDate:         document.getElementById('shomaDueDate').value || null
+                dueDate:         document.getElementById('shomaDueDate').value || null,
+                advanceBase:     parseNum('shomaAdvanceBase'),
+                advanceTurnover: parseNum('shomaAdvanceTurnover')
             };
 
             // Upload first — abort row save if Drive fails
