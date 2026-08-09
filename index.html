@@ -3945,6 +3945,9 @@
             // Merge user-defined expense categories (union)
             const allCats = new Set([...(localData.customCategories || []), ...(cloudData.customCategories || [])]);
             if (allCats.size) merged.customCategories = [...allCats];
+            // Renamed category labels (local wins on conflict)
+            const labels = { ...(cloudData.categoryLabels || {}), ...(localData.categoryLabels || {}) };
+            if (Object.keys(labels).length) merged.categoryLabels = labels;
             // Keep PIN from whichever has it
             if (!merged.pin && cloudData.pin) merged.pin = cloudData.pin;
             // Keep favorites from local
@@ -4559,7 +4562,8 @@
             const monthSeg = m ? String(m).padStart(2, '0') + '-' + MONTHS[m] : 'ללא-תאריך';
             // baseFolder may already be a path ('טפסים/106') — its slashes stay real levels.
             const sectionSeg = String(baseFolder).split('/').filter(s => s).map(sanitizeSegment).join('/');
-            const catSeg = meta.category ? sanitizeSegment(meta.category) : '';
+            // Folder follows the name shown on screen, so Drive and the app stay 1:1.
+            const catSeg = meta.category ? sanitizeSegment(categoryLabel(meta.category)) : '';
             return sectionSeg + '/' + monthSeg + (catSeg ? '/' + catSeg : '');
         }
 
@@ -8858,6 +8862,8 @@
         // One display name per category, everywhere: table, filter, checklist, reports.
         // Records keep storing the short value — nothing about the stored data changes.
         function categoryLabel(v) {
+            const custom = data.categoryLabels && data.categoryLabels[v];
+            if (custom) return custom;
             const hit = BASE_CATEGORIES.find(c => c[0] === v);
             return hit ? hit[1] : v;
         }
@@ -8893,6 +8899,8 @@
         function onCategorySelectChange(sel) {
             if (sel.value === '__addcat__') {
                 _catSelectOrigin = sel.id;
+                _catRenameTarget = null;
+                document.querySelector('#categoryModal .modal-header h3').textContent = '➕ קטגוריה חדשה';
                 sel.value = sel.dataset.prev || allCategories()[0];
                 document.getElementById('newCategoryName').value = '';
                 openModal('categoryModal');
@@ -8902,9 +8910,50 @@
             }
         }
 
+        let _catRenameTarget = null;
+
+        // Renaming only changes the NAME the app shows. The stored value on each record
+        // never changes, so no total can shift — but every document filed under the old
+        // name is moved to the new one, in Drive and on disk.
+        function renameCategory(cat) {
+            _catRenameTarget = cat;
+            _catSelectOrigin = null;
+            document.querySelector('#categoryModal .modal-header h3').textContent = '✏️ שינוי שם קטגוריה';
+            document.getElementById('newCategoryName').value = categoryLabel(cat);
+            openModal('categoryModal');
+            setTimeout(() => document.getElementById('newCategoryName').select(), 100);
+        }
+
         async function saveNewCategory() {
             const name = document.getElementById('newCategoryName').value.trim();
             if (!name) { await popupError('חסר שם', 'תן שם לקטגוריה'); return; }
+
+            if (_catRenameTarget) {
+                const cat = _catRenameTarget;
+                _catRenameTarget = null;
+                if (!data.categoryLabels) data.categoryLabels = {};
+                data.categoryLabels[cat] = name;
+                saveData();
+                closeModal('categoryModal');
+                buildCategoryOptions();
+                renderAll();
+                // Move every document that was filed under the old name
+                const affected = [];
+                for (const [yearKey, yd] of Object.entries(data.yearData || {})) {
+                    if (!yd) continue;
+                    active(yd.expenses).forEach(r => {
+                        if (r.category === cat && (r.driveId || r.localPath)) affected.push({ r, y: parseInt(yearKey) });
+                    });
+                }
+                if (affected.length) {
+                    for (const a of affected) await autoRefile('expenses', a.r, a.y);
+                    try { await pruneEmptyDriveFolders(); } catch (_) {}
+                    try { await pruneEmptyLocalDirs(); } catch (_) {}
+                    renderAll();
+                }
+                return;
+            }
+
             if (!data.customCategories) data.customCategories = [];
             if (!allCategories().includes(name)) data.customCategories.push(name);
             saveData();
@@ -9106,6 +9155,7 @@
                         <td style="color:var(--danger)">${formatCurrency(catRecognized)}</td>
                         <td>${expenseMonth === 'all' ? '' : `
                             <button class="btn btn-icon btn-sm" onclick="addExpenseToCategory('${cat}')" title="הוסף חשבונית לקטגוריה">＋</button>
+                            <button class="btn btn-icon btn-sm" onclick="renameCategory('${cat}')" title="שנה שם קטגוריה">🏷️</button>
                             ${b
                                 ? `<button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${expenseMonth}','${b.id}')" title="שנה תקציב חודשי">✏️</button>
                                    <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${expenseMonth}','${b.id}')" title="הסר תקציב">🗑️</button>`
