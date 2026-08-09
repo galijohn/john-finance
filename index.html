@@ -9390,7 +9390,12 @@
             document.getElementById('expAnnualRow').style.display = expenseMonth === 'all' ? 'none' : '';
             document.getElementById('totalExpensesAnnual').textContent = formatCurrency(annualRecognized);
 
+            // A month can have no recorded expenses and still have bills waiting —
+            // show those instead of an empty table.
+            const billsHtmlEarly = (expenseGrouped && expenseMonth !== 'all' && expenseFilter === 'all')
+                ? billRowsHtml(expenseMonth) : '';
             if (expenseItems.length === 0) {
+                if (billsHtmlEarly) { tbody.innerHTML = billsHtmlEarly; return; }
                 const msg = expenseMonth === 'all' ? 'לחץ + להוסיף' : 'אין הוצאות ב' + monthLabelFromKey(expenseMonth);
                 tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">🧾</div><p>' + msg + '</p></td></tr>';
                 return;
@@ -9425,16 +9430,16 @@
 
                 // Bills for this month live in the same list, above the categories —
                 // each with its own paid/unpaid state. No separate panel.
-                if (expenseMonth !== 'all' && expenseFilter === 'all') {
-                    html += billRowsHtml(expenseMonth);
-                }
+                html += billsHtmlEarly;
 
                 // Budgets defined for running categories, so a group header can show them
                 const budgets = {};
                 if (expenseMonth !== 'all') {
                     const rec = getRecurring();
                     active(rec.months[expenseMonth] || []).forEach(i => {
-                        if (!isBill(i)) budgets[i.category] = i;
+                        // A category line with no budget says nothing the group row
+                        // doesn't already show — skip it.
+                        if (!isBill(i) && Number(i.amount) > 0) budgets[i.category] = i;
                     });
                 }
 
