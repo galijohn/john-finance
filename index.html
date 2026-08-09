@@ -2758,35 +2758,66 @@
                     <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">מחליף את החישוב האוטומטי (הכנסות עצמאי פחות הוצאות)</div>
                 </div>
 
-                <div style="border-top:1px solid var(--border);margin:15px 0 12px;padding-top:12px;font-weight:bold;font-size:0.92rem;">
-                    חישוב המס לפי השומה
+                <div style="border-top:1px solid var(--border);margin:15px 0 10px;padding-top:12px;">
+                    <strong style="font-size:0.92rem;">חישוב יתרת המס</strong>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">
+                        השורות בסדר ובשמות שבהם הן מופיעות בשומה — העתק כלשונן. שורה ריקה בשומה — השאר ריקה.
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label>סה"כ הכנסה חייבת ₪</label>
-                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaTaxable" placeholder="חלק 2 — סה״כ הכנסות">
+                    <label>סה"כ הכנסות כמפורט בחלקים 2,3 להלן</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaIncomeTotal">
                 </div>
                 <div class="form-group">
-                    <label>מס ברוטו ₪</label>
-                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaGrossTax" placeholder="חלק 4">
+                    <label>סה"כ הניכויים כמפורט בחלק 5 להלן</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaDeductions">
                 </div>
                 <div class="form-group">
-                    <label>סה"כ זיכויים ₪</label>
-                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaCredits" placeholder="חלק 6 — כולל זיכויים שקליים">
+                    <label>הכנסה חייבת</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaTaxable">
                 </div>
                 <div class="form-group">
-                    <label>ניכויים במקור ותשלומים ע"ח ₪</label>
-                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaWithheld" placeholder="חלק 9">
+                    <label>המס ברוטו כמפורט בחלק 4 להלן</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaGrossTax">
                 </div>
                 <div class="form-group">
-                    <label>הפרשי הצמדה וריבית ₪</label>
-                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaInterest" placeholder="כולל ריבית צפויה">
+                    <label>סה"כ זיכויים כמפורט בחלק 6 להלן</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaCredits">
                 </div>
                 <div class="form-group">
-                    <label>יתרת מס לתשלום / להחזר ₪</label>
-                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaBalance" placeholder="שלילי = החזר">
+                    <label>מס לאחר זיכויים</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaTaxAfterCredits">
                 </div>
                 <div class="form-group">
-                    <label>מועד תשלום אחרון</label>
+                    <label>ניכויים במקור כמפורט בחלק 9</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaWithheld">
+                </div>
+                <div class="form-group">
+                    <label>תשלומים ע"ח המס כמפורט בחלק 9</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaPayments">
+                </div>
+                <div class="form-group">
+                    <label>הצמדה וריבית</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaLinkage">
+                </div>
+                <div class="form-group">
+                    <label>יתרת המס</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaTaxBalance">
+                </div>
+                <div class="form-group">
+                    <label>ריבית צפויה</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaExpectedInterest">
+                </div>
+                <div class="form-group">
+                    <label>סך קנסות/ריבית מחלק 10</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaPenalties">
+                </div>
+                <div class="form-group">
+                    <label>יתרת המס לתשלום</label>
+                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="shomaBalance" placeholder="שלילי = להחזר">
+                </div>
+                <div class="form-group">
+                    <label>ובלבד שישולם עד לתאריך</label>
                     <input type="date" class="form-control" id="shomaDueDate">
                 </div>
                 <div class="form-group">
@@ -7525,13 +7556,21 @@
                     + (A.dueDate ? ' · לתשלום עד ' + formatDate(A.dueDate) : '');
             }
 
+            // Same lines, same order, same wording as the assessment itself.
             const rows = [
+                ['סה"כ הכנסות כמפורט בחלקים 2,3', est.taxableIncome, A.incomeTotal],
+                ['סה"כ הניכויים כמפורט בחלק 5', null, A.deductions],
                 ['הכנסה חייבת', est.taxableIncome, A.taxable],
-                ['מס ברוטו', est.grossTax, A.grossTax],
-                ['סה"כ זיכויים', est.credits, A.credits],
-                ['ניכויים במקור ותשלומים', est.withheld, A.withheld],
-                ['הפרשי הצמדה וריבית', 0, A.interest],
-                ['יתרה לתשלום', est.balance, A.balance]
+                ['המס ברוטו כמפורט בחלק 4', est.grossTax, A.grossTax],
+                ['סה"כ זיכויים כמפורט בחלק 6', est.credits, A.credits],
+                ['מס לאחר זיכויים', est.netTax, A.taxAfterCredits],
+                ['ניכויים במקור כמפורט בחלק 9', est.withheld, A.withheld],
+                ['תשלומים ע"ח המס כמפורט בחלק 9', null, A.payments],
+                ['הצמדה וריבית', 0, A.linkage],
+                ['יתרת המס', null, A.taxBalance],
+                ['ריבית צפויה', 0, A.expectedInterest],
+                ['סך קנסות/ריבית מחלק 10', null, A.penalties],
+                ['יתרת המס לתשלום', est.balance, A.balance]
             ];
             let html = `<table style="width:100%;font-size:0.85rem;">
                 <thead><tr>
@@ -7564,11 +7603,18 @@
             if (form) _editingShoma = true;
             const d = (form && form.declared) || {};
             document.getElementById('shomaGross').value = d.gross ?? '';
+            document.getElementById('shomaIncomeTotal').value = d.incomeTotal ?? '';
+            document.getElementById('shomaDeductions').value = d.deductions ?? '';
             document.getElementById('shomaTaxable').value = d.taxable ?? '';
             document.getElementById('shomaGrossTax').value = d.grossTax ?? '';
             document.getElementById('shomaCredits').value = d.credits ?? '';
+            document.getElementById('shomaTaxAfterCredits').value = d.taxAfterCredits ?? '';
             document.getElementById('shomaWithheld').value = d.withheld ?? '';
-            document.getElementById('shomaInterest').value = d.interest ?? '';
+            document.getElementById('shomaPayments').value = d.payments ?? '';
+            document.getElementById('shomaLinkage').value = d.linkage ?? '';
+            document.getElementById('shomaTaxBalance').value = d.taxBalance ?? '';
+            document.getElementById('shomaExpectedInterest').value = d.expectedInterest ?? '';
+            document.getElementById('shomaPenalties').value = d.penalties ?? '';
             document.getElementById('shomaBalance').value = d.balance ?? '';
             document.getElementById('shomaDueDate').value = d.dueDate ?? '';
             document.getElementById('shomaFile').value = '';
@@ -7585,14 +7631,23 @@
                 return isNaN(n) ? null : n;
             };
             const gross = parseNum('shomaGross');
+            // Field-for-field with the assessment's own lines — no invented names,
+            // no merged rows.
             const assessed = {
-                taxable:  parseNum('shomaTaxable'),
-                grossTax: parseNum('shomaGrossTax'),
-                credits:  parseNum('shomaCredits'),
-                withheld: parseNum('shomaWithheld'),
-                interest: parseNum('shomaInterest'),
-                balance:  parseNum('shomaBalance'),
-                dueDate:  document.getElementById('shomaDueDate').value || null
+                incomeTotal:     parseNum('shomaIncomeTotal'),
+                deductions:      parseNum('shomaDeductions'),
+                taxable:         parseNum('shomaTaxable'),
+                grossTax:        parseNum('shomaGrossTax'),
+                credits:         parseNum('shomaCredits'),
+                taxAfterCredits: parseNum('shomaTaxAfterCredits'),
+                withheld:        parseNum('shomaWithheld'),
+                payments:        parseNum('shomaPayments'),
+                linkage:         parseNum('shomaLinkage'),
+                taxBalance:      parseNum('shomaTaxBalance'),
+                expectedInterest: parseNum('shomaExpectedInterest'),
+                penalties:       parseNum('shomaPenalties'),
+                balance:         parseNum('shomaBalance'),
+                dueDate:         document.getElementById('shomaDueDate').value || null
             };
 
             // Upload first — abort row save if Drive fails
@@ -8069,7 +8124,9 @@
             const A = totals.assessment;
             const grossTax = A && A.grossTax != null ? Number(A.grossTax) : estGrossTax;
             const assessedCredits = A && A.credits != null ? Number(A.credits) : creditValue;
-            const netTax = A ? Math.max(0, grossTax - assessedCredits) : estNetTax;
+            const netTax = A
+                ? (A.taxAfterCredits != null ? Number(A.taxAfterCredits) : Math.max(0, grossTax - assessedCredits))
+                : estNetTax;
             
             // Calculate BL on self-employed income only (for display)
             const blSelfEmployed = calculateBituachLeumi(totals.selfEmployedNet);
@@ -8102,9 +8159,11 @@
             // Result boxes - Tax and BL separately
             // With an assessment, the balance is the one the tax authority set — including
             // its linkage and interest, which we never compute ourselves.
-            const taxPaidShown = A && A.withheld != null ? Number(A.withheld) : totals.totalTaxPaid;
+            const assessedPaid = A ? (Number(A.withheld || 0) + Number(A.payments || 0)) : 0;
             const taxDiff = A
-                ? (A.balance != null ? -Number(A.balance) : (taxPaidShown - netTax - Number(A.interest || 0)))
+                ? (A.balance != null
+                    ? -Number(A.balance)
+                    : assessedPaid - netTax - Number(A.linkage || 0) - Number(A.expectedInterest || 0) - Number(A.penalties || 0))
                 : (totals.totalTaxPaid - netTax);
             // BL diff: what was paid as advances for self-employed vs what's due on self-employed
             const blDiff = totals.blFromSelf - bl.total;
@@ -9413,6 +9472,9 @@
             }
         }
 
+        let _carryOpen = false;
+        function toggleCarryOpen() { _carryOpen = !_carryOpen; renderAll(); }
+
         // Bills (single-payment recurring items) rendered as rows of the main table,
         // including anything still unpaid from earlier months.
         function billRowsHtml(monthKey) {
@@ -9427,9 +9489,27 @@
             });
             if (!items.length && !carry.length) return '';
 
-            const rows = carry.map(c => billRowHtml(c.k, c.i, true))
-                .concat([...items].sort((a, b) => (a.dueDay || 99) - (b.dueDay || 99)).map(i => billRowHtml(monthKey, i, false)));
-            return rows.join('');
+            // Unpaid bills from earlier months are summarised in ONE line — listing them
+            // all turns the month into dozens of duplicate rows.
+            let html = '';
+            if (carry.length) {
+                const months = [...new Set(carry.map(c => c.k))].sort();
+                const total = carry.reduce((s, c) => s + (Number(c.i.amount) || 0), 0);
+                html += `<tr class="row-click" style="background:rgba(239,68,68,0.12);" onclick="toggleCarryOpen()">
+                    <td colspan="4" style="color:var(--danger);font-weight:600;">
+                        ${_carryOpen ? '▼' : '▶'} ⚠️ ${carry.length} חשבונות לא שולמו מחודשים קודמים
+                        <span style="font-weight:400;font-size:0.8rem;color:var(--text-muted);margin-inline-start:6px;">
+                            ${monthLabelFromKey(months[0])}${months.length > 1 ? ' – ' + monthLabelFromKey(months[months.length - 1]) : ''}
+                        </span>
+                    </td>
+                    <td class="col-pct"></td>
+                    <td class="col-net" style="color:var(--danger)">${formatCurrency(total)}</td>
+                </tr>`;
+                if (_carryOpen) html += carry.map(c => billRowHtml(c.k, c.i, true)).join('');
+            }
+            html += [...items].sort((a, b) => (a.dueDay || 99) - (b.dueDay || 99))
+                .map(i => billRowHtml(monthKey, i, false)).join('');
+            return html;
         }
 
         function billRowHtml(monthKey, item, isCarry) {
