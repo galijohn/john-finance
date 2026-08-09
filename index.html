@@ -10319,7 +10319,11 @@
             // show those instead of an empty table.
             const billsHtmlEarly = (expenseGrouped && expenseMonth !== 'all' && expenseFilter === 'all')
                 ? billRowsHtml(expenseMonth) : '';
-            if (expenseItems.length === 0) {
+            // A month can have no recorded expenses yet still have invoices to collect —
+            // those must show too, so don't shortcut to the empty state when they exist.
+            const hasPendingCollects = expenseGrouped && expenseMonth !== 'all' && expenseFilter === 'all' &&
+                active(getRecurring().months[expenseMonth] || []).some(i => isCollect(i) && !lineDone(expenseMonth, i));
+            if (expenseItems.length === 0 && !hasPendingCollects) {
                 if (billsHtmlEarly) { tbody.innerHTML = billsHtmlEarly; return; }
                 const msg = expenseMonth === 'all' ? 'לחץ + להוסיף' : 'אין הוצאות ב' + monthLabelFromKey(expenseMonth);
                 tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">🧾</div><p>' + msg + '</p></td></tr>';
@@ -10579,23 +10583,38 @@
             } else if (kind === 'bill') {
                 const monthKey = extra.monthKey;
                 const payment = extra.paymentId ? active(getYearData().expenses).find(x => x.id === extra.paymentId) : null;
-                if (payment) {
-                    html += `<button onclick="hideRowMenu();openRecordFile(${payment.id})">👁️ פתח מסמך</button>`;
-                    html += `<button onclick="hideRowMenu();editExpense(${payment.id})">✏️ ערוך תשלום</button>`;
-                } else {
-                    html += `<button onclick="hideRowMenu();payRecurring('${monthKey}','${id}')">💳 סמן כשולם</button>`;
-                }
                 const recItem = active(getRecurring().months[monthKey] || []).find(i => String(i.id) === String(id));
-                if (recItem && isCollect(recItem)) {
-                    html += lineDone(monthKey, recItem)
+                const collectLine = recItem && isCollect(recItem);
+                if (collectLine) {
+                    // A collection line: word everything as collection, and always allow undo.
+                    const done = lineDone(monthKey, recItem);
+                    if (payment) {
+                        html += `<button onclick="hideRowMenu();openRecordFile(${payment.id})">👁️ פתח מסמך</button>`;
+                        html += `<button onclick="hideRowMenu();editExpense(${payment.id})">✏️ ערוך חשבונית</button>`;
+                    } else {
+                        html += `<button onclick="hideRowMenu();payRecurring('${monthKey}','${id}')">📄 השלם חשבונית</button>`;
+                    }
+                    html += done
                         ? `<button onclick="hideRowMenu();setCollected('${monthKey}','${id}',false)">↩️ בטל איסוף</button>`
                         : `<button onclick="hideRowMenu();setCollected('${monthKey}','${id}',true)">✓ סמן כנאסף</button>`;
+                    html += `<button onclick="hideRowMenu();openRecurringEdit('${monthKey}','${id}')">✏️ ערוך פריט איסוף</button>`;
+                    html += `<button onclick="hideRowMenu();quickChangeCategory('bill','${id}','${monthKey}')">🏷️ שינוי סיווג</button>`;
+                    html += `<div class="sep"></div>`;
+                    if (payment) html += `<button class="danger" onclick="hideRowMenu();deleteItem('expenses',${payment.id})">✕ מחק חשבונית</button>`;
+                    html += `<button class="danger" onclick="hideRowMenu();deleteRecurring('${monthKey}','${id}')">✕ הסר מרשימת האיסוף</button>`;
+                } else {
+                    if (payment) {
+                        html += `<button onclick="hideRowMenu();openRecordFile(${payment.id})">👁️ פתח מסמך</button>`;
+                        html += `<button onclick="hideRowMenu();editExpense(${payment.id})">✏️ ערוך תשלום</button>`;
+                    } else {
+                        html += `<button onclick="hideRowMenu();payRecurring('${monthKey}','${id}')">💳 סמן כשולם</button>`;
+                    }
+                    html += `<button onclick="hideRowMenu();openRecurringEdit('${monthKey}','${id}')">🔁 ערוך הגדרה קבועה</button>`;
+                    html += `<button onclick="hideRowMenu();quickChangeCategory('bill','${id}','${monthKey}')">🏷️ שינוי סיווג</button>`;
+                    html += `<div class="sep"></div>`;
+                    if (payment) html += `<button class="danger" onclick="hideRowMenu();deleteItem('expenses',${payment.id})">✕ מחק תשלום</button>`;
+                    html += `<button class="danger" onclick="hideRowMenu();deleteRecurring('${monthKey}','${id}')">✕ מחק שורה קבועה</button>`;
                 }
-                html += `<button onclick="hideRowMenu();openRecurringEdit('${monthKey}','${id}')">🔁 ערוך הגדרה קבועה</button>`;
-                html += `<button onclick="hideRowMenu();quickChangeCategory('bill','${id}','${monthKey}')">🏷️ שינוי סיווג</button>`;
-                html += `<div class="sep"></div>`;
-                if (payment) html += `<button class="danger" onclick="hideRowMenu();deleteItem('expenses',${payment.id})">✕ מחק תשלום</button>`;
-                html += `<button class="danger" onclick="hideRowMenu();deleteRecurring('${monthKey}','${id}')">✕ מחק שורה קבועה</button>`;
             } else if (kind === 'category') {
                 const cat = id;
                 html += `<button onclick="hideRowMenu();addExpenseToCategory('${cat}')">＋ הוסף חשבונית</button>`;
