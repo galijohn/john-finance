@@ -1576,6 +1576,7 @@
                         </div>
                         <button class="btn btn-sm" onclick="toggleAssessmentCompare()" id="assessmentCompareBtn">📊 השווה להערכה</button>
                     </div>
+                    <div id="assessmentPayLine" style="display:none;margin-top:8px;font-size:0.87rem;color:var(--text-muted);"></div>
                     <div id="assessmentCompare" style="display:none;margin-top:12px;"></div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
@@ -7545,7 +7546,7 @@
             if (btn) btn.textContent = _assessmentCompareOpen ? '📊 הסתר השוואה' : '📊 השווה להערכה';
         }
 
-        function renderAssessmentBanner(A, est) {
+        function renderAssessmentBanner(A, est, pay) {
             const banner = document.getElementById('assessmentBanner');
             if (!banner) return;
             if (!A) { banner.style.display = 'none'; return; }
@@ -7554,6 +7555,19 @@
             if (yearLabel) {
                 yearLabel.textContent = 'שנת ' + currentYear + ' — המספרים שמוצגים הם של רשות המסים, לא הערכה'
                     + (A.dueDate ? ' · לתשלום עד ' + formatDate(A.dueDate) : '');
+            }
+            // Show explicitly how a payment made after the assessment changes what is left.
+            const payLine = document.getElementById('assessmentPayLine');
+            if (payLine) {
+                if (pay && pay.paidAfterAssessment > 0) {
+                    payLine.style.display = '';
+                    payLine.innerHTML = 'יתרה לפי השומה ' + formatCurrency(pay.assessedBalance)
+                        + ' · שולם על חשבון ומעבר לשומה <span style="color:var(--success)">'
+                        + formatCurrency(pay.paidAfterAssessment) + '</span> → נותר לתשלום <strong>'
+                        + formatCurrency(Math.max(0, pay.assessedBalance - pay.paidAfterAssessment)) + '</strong>';
+                } else {
+                    payLine.style.display = 'none';
+                }
             }
 
             // Same lines, same order, same wording as the assessment itself.
@@ -8160,10 +8174,17 @@
             // With an assessment, the balance is the one the tax authority set — including
             // its linkage and interest, which we never compute ourselves.
             const assessedPaid = A ? (Number(A.withheld || 0) + Number(A.payments || 0)) : 0;
-            const taxDiff = A
+            // Advances recorded in the app that the assessment's "תשלומים ע"ח המס" line
+            // does not already account for still reduce what is left to pay.
+            const appAdvances = active(yd.taxAdvances).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+            const paidAfterAssessment = A ? Math.max(0, appAdvances - Number(A.payments || 0)) : 0;
+            const assessedBalance = A
                 ? (A.balance != null
-                    ? -Number(A.balance)
-                    : assessedPaid - netTax - Number(A.linkage || 0) - Number(A.expectedInterest || 0) - Number(A.penalties || 0))
+                    ? Number(A.balance)
+                    : netTax + Number(A.linkage || 0) + Number(A.expectedInterest || 0) + Number(A.penalties || 0) - assessedPaid)
+                : 0;
+            const taxDiff = A
+                ? -(assessedBalance - paidAfterAssessment)
                 : (totals.totalTaxPaid - netTax);
             // BL diff: what was paid as advances for self-employed vs what's due on self-employed
             const blDiff = totals.blFromSelf - bl.total;
@@ -8175,7 +8196,7 @@
                 withheld: totals.totalTaxPaid,
                 netTax: estNetTax,
                 balance: estNetTax - totals.totalTaxPaid
-            });
+            }, { assessedBalance, paidAfterAssessment });
 
             // Tax result box
             const taxResultBox = document.getElementById('taxResultBox');
