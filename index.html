@@ -699,6 +699,64 @@
             border-color: var(--success);
         }
 
+        .rec-section-label {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 5px;
+            margin: 16px 0 2px;
+        }
+
+        .rec-cat-row {
+            padding: 9px 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .rec-cat-row:last-child {
+            border-bottom: none;
+        }
+
+        .rec-cat-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .rec-bar {
+            height: 5px;
+            background: var(--bg-input);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .rec-bar > div {
+            height: 100%;
+            background: var(--success);
+        }
+
+        .rec-bar.over > div {
+            background: var(--warning);
+        }
+
+        .rec-cat-toggle {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .rec-invoice {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 5px 8px 5px 22px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .rec-invoice + .rec-invoice {
+            border-top: 1px dashed var(--border);
+        }
+
         .btn-sm {
             padding: 5px 12px;
             font-size: 0.82rem;
@@ -2915,6 +2973,14 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
+                    <label>סוג</label>
+                    <select class="form-control" id="recKind" onchange="onRecKindChange()">
+                        <option value="bill">💳 חשבון קבוע — תשלום אחד בחודש (בזק, רו"ח)</option>
+                        <option value="category">🔄 קטגוריה שוטפת — הרבה תשלומים (דלק, חניות)</option>
+                    </select>
+                    <div id="recKindHint" style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;"></div>
+                </div>
+                <div class="form-group" id="recDescGroup">
                     <label>תיאור</label>
                     <input type="text" class="form-control" id="recDesc" placeholder="לדוגמה: בזק">
                 </div>
@@ -2932,18 +2998,18 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>סכום משוער (₪)</label>
+                    <label id="recAmountLabel">סכום משוער (₪)</label>
                     <input type="number" class="form-control" id="recAmount">
-                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">אפשר לתקן את הסכום המדויק בכל תשלום</div>
+                    <div id="recAmountHint" style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">אפשר לתקן את הסכום המדויק בכל תשלום</div>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="recRecognitionGroup">
                     <label>% הכרה</label>
                     <div style="display:flex;align-items:center;gap:10px;">
                         <input type="number" class="form-control" id="recRecognition" min="0" max="100" value="100" style="width:100px;">
                         <span style="color:var(--text-muted);font-size:0.85rem;">% מהסכום מוכר כהוצאה</span>
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="recDueDayGroup">
                     <label>יום תשלום בחודש (לא חובה)</label>
                     <input type="number" class="form-control" id="recDueDay" min="1" max="31" placeholder="למשל 15" style="width:100px;">
                 </div>
@@ -4513,11 +4579,14 @@
             return parts.join(' ') + ext;
         }
 
-        function archiveYearOf(meta) {
+        // The record's own year wins; only fall back to the viewed year for brand-new uploads.
+        function archiveYearOf(meta, fallbackYear) {
             if (meta && meta.date && String(meta.date).length >= 4) {
                 const y = parseInt(String(meta.date).slice(0, 4));
                 if (y > 1990 && y < 2200) return y;
             }
+            const fb = parseInt(fallbackYear);
+            if (fb > 1990 && fb < 2200) return fb;
             return currentYear;
         }
 
@@ -4637,6 +4706,100 @@
             return id;
         }
 
+        // ===== LOCAL FOLDER REORGANIZATION =====
+        // Physically moves files already on disk into the organized structure and
+        // deletes the leftover empty folders. Files are copied first, removed only
+        // after the copy succeeded.
+        async function localDirFromSegments(segs, create) {
+            let dir = localFolderHandle;
+            for (const seg of segs) dir = await dir.getDirectoryHandle(seg, { create: !!create });
+            return dir;
+        }
+
+        async function moveLocalFile(oldLocalPath, targetYear, targetFolder, targetName) {
+            if (!localFolderHandle || !oldLocalPath) return null;
+            const parts = String(oldLocalPath).split('/').filter(Boolean);
+            if (parts.length < 2) return null;
+            const relSegs = parts.slice(1);           // drop the root handle's own name
+            const oldName = relSegs.pop();
+            const newRel = ['john-finance', String(targetYear)].concat(targetFolder.split('/').filter(Boolean));
+
+            // Already where it belongs?
+            if (relSegs.join('/') === newRel.join('/') && oldName === targetName) return oldLocalPath;
+
+            let srcDir, fileHandle;
+            try {
+                srcDir = await localDirFromSegments(relSegs, false);
+                fileHandle = await srcDir.getFileHandle(oldName);
+            } catch (_) {
+                return null;                          // not on disk (e.g. uploaded from phone)
+            }
+            const file = await fileHandle.getFile();
+            const buf = await file.arrayBuffer();
+
+            const dstDir = await localDirFromSegments(newRel, true);
+            const fh = await dstDir.getFileHandle(targetName, { create: true });
+            const w = await fh.createWritable();
+            await w.write(buf);
+            await w.close();
+
+            try { await srcDir.removeEntry(oldName); } catch (e) { console.warn('could not remove old local file', oldName, e); }
+            return localFolderHandle.name + '/' + newRel.join('/') + '/' + targetName;
+        }
+
+        // Delete folders left empty after the move (e.g. the old flat 'הוצאות-מוכרות').
+        async function pruneEmptyLocalDirs() {
+            if (!localFolderHandle) return 0;
+            let removed = 0;
+            async function prune(dir, parent, name, depth) {
+                if (depth > 6) return;
+                const children = [];
+                for await (const [n, h] of dir.entries()) children.push([n, h]);
+                for (const [n, h] of children) {
+                    if (h.kind === 'directory') await prune(h, dir, n, depth + 1);
+                }
+                let count = 0;
+                for await (const _ of dir.keys()) { count++; break; }
+                if (count === 0 && parent && name && name !== 'john-finance') {
+                    try { await parent.removeEntry(name); removed++; } catch (_) {}
+                }
+            }
+            try {
+                const root = await localFolderHandle.getDirectoryHandle('john-finance');
+                await prune(root, null, null, 0);
+            } catch (_) {}
+            return removed;
+        }
+
+        async function organizeLocalFolder(items) {
+            if (!localFolderHandle) return { moved: 0, skipped: 0, missing: 0, pruned: 0 };
+            try {
+                const perm = await localFolderHandle.requestPermission({ mode: 'readwrite' });
+                if (perm !== 'granted') return { moved: 0, skipped: 0, missing: 0, pruned: 0, denied: true };
+            } catch (_) {}
+
+            let moved = 0, skipped = 0, missing = 0;
+            for (let i = 0; i < items.length; i++) {
+                const { rec, year, baseFolder, meta } = items[i];
+                orgStatus('מסדר את המחשב — ' + (i + 1) + ' מתוך ' + items.length + '...');
+                try {
+                    const targetFolder = archiveSubFolder(baseFolder, meta);
+                    const targetYear = archiveYearOf(meta, year);
+                    const targetName = archiveFileName(rec.fileName || 'קובץ', meta);
+                    const before = rec.localPath;
+                    const newPath = await moveLocalFile(before, targetYear, targetFolder, targetName);
+                    if (!newPath) { missing++; continue; }
+                    rec.localPath = newPath;
+                    if (newPath === before) skipped++; else moved++;
+                } catch (e) {
+                    console.error('local organize failed', e);
+                    missing++;
+                }
+            }
+            const pruned = await pruneEmptyLocalDirs();
+            return { moved, skipped, missing, pruned };
+        }
+
         async function organizeArchive() {
             const btn = document.getElementById('btnOrganize');
             const items = collectArchiveItems();
@@ -4646,7 +4809,7 @@
                 type: 'info',
                 icon: '🗂️',
                 title: 'סידור הארכיון',
-                message: 'יסודרו ' + items.length + ' מסמכים למבנה שנה ← חודש ← קטגוריה, עם שמות קבצים ברורים.\n\nהקבצים לא נמחקים — רק מועברים ומקבלים שם. אפשר להמשיך לעבוד אחר כך כרגיל.',
+                message: 'יסודרו ' + items.length + ' מסמכים למבנה שנה ← חודש ← קטגוריה, עם שמות קבצים ברורים —\nגם ב־Google Drive וגם בתיקייה שבמחשב.\n\nהקבצים לא נמחקים — רק מועברים ומקבלים שם. אפשר להמשיך לעבוד אחר כך כרגיל.',
                 okText: 'סדר עכשיו',
                 cancelText: 'ביטול'
             });
@@ -4669,7 +4832,7 @@
                     if (!rec.driveId) { skipped++; continue; }
                     const targetFolder = archiveSubFolder(baseFolder, meta);
                     const targetName = archiveFileName(rec.fileName || 'קובץ', meta);
-                    const targetYear = archiveYearOf(meta) || year;
+                    const targetYear = archiveYearOf(meta, year);
 
                     const info = await gapi.client.drive.files.get({ fileId: rec.driveId, fields: 'id,name,parents' });
                     const parentId = await ensureDrivePath(targetYear, targetFolder);
@@ -4694,14 +4857,26 @@
                     failed++;
                 }
             }
+            // Now do the same on disk: move the real files into the structure and
+            // delete the folders they left empty.
+            const local = await organizeLocalFolder(items);
+
             saveData();
             btn.disabled = false;
-            orgStatus('הסתיים: ' + moved + ' הועברו · ' + renamed + ' שמות עודכנו · ' + skipped + ' כבר מסודרים' + (failed ? ' · ' + failed + ' נכשלו' : ''));
+            orgStatus('הסתיים — Drive: ' + moved + ' הועברו · ' + renamed + ' שמות עודכנו'
+                + (localFolderHandle ? ' | מחשב: ' + local.moved + ' הועברו · ' + local.pruned + ' תיקיות ריקות נמחקו' : ''));
             renderAll();
 
-            let msg = 'הועברו למקום הנכון: ' + moved + '\nשמות שעודכנו: ' + renamed + '\nכבר היו מסודרים: ' + skipped;
-            if (failed) msg += '\nנכשלו: ' + failed;
-            if (localFolderHandle) msg += '\n\nעכשיו אפשר ללחוץ "השלם לתיקייה המקומית" כדי לסדר גם את המחשב.';
+            let msg = '📁 Google Drive\nהועברו: ' + moved + ' · שמות שעודכנו: ' + renamed + ' · כבר מסודרים: ' + skipped;
+            if (failed) msg += ' · נכשלו: ' + failed;
+            if (localFolderHandle) {
+                msg += '\n\n💻 התיקייה במחשב\nהועברו: ' + local.moved + ' · כבר מסודרים: ' + local.skipped
+                     + '\nתיקיות ישנות ריקות שנמחקו: ' + local.pruned;
+                if (local.missing) msg += '\nלא נמצאו על הדיסק: ' + local.missing + ' — לחץ "השלם לתיקייה המקומית" להורדה מהענן';
+                if (local.denied) msg = msg + '\n\n⚠️ לא ניתנה הרשאת כתיבה לתיקייה';
+            } else {
+                msg += '\n\n💻 לא מחוברת תיקייה מקומית — חבר אותה כדי לסדר גם את המחשב';
+            }
             await popupSuccess('הארכיון סודר', msg);
         }
 
@@ -4727,7 +4902,7 @@
                 orgStatus('משלים ' + (i + 1) + ' מתוך ' + items.length + '...');
                 try {
                     const targetFolder = archiveSubFolder(baseFolder, meta);
-                    const targetYear = archiveYearOf(meta) || year;
+                    const targetYear = archiveYearOf(meta, year);
                     const targetName = archiveFileName(rec.fileName || 'קובץ', meta);
 
                     // Already on disk in the right place?
@@ -7901,6 +8076,7 @@
                     rec.months[k] = active(rec.template).map(t => ({
                         id: genRecId(),
                         templateId: t.id,
+                        kind: t.kind || 'bill',
                         description: t.description,
                         category: t.category,
                         amount: t.amount,
@@ -7923,9 +8099,34 @@
             return null;
         }
 
+        // Only bills have a paid/unpaid state; running categories never do.
+        const isBill = i => (i.kind || 'bill') === 'bill';
+
         function unpaidRecurringCount(monthKey) {
             const rec = getRecurring();
-            return active(rec.months[monthKey] || []).filter(i => !findRecurringPayment(monthKey, i.id)).length;
+            return active(rec.months[monthKey] || []).filter(i => isBill(i) && !findRecurringPayment(monthKey, i.id)).length;
+        }
+
+        // A running category doesn't ask "paid?" — it accumulates the month's expenses
+        // in that category and compares them to the expected monthly budget.
+        function categoryRowStats(monthKey, item) {
+            const rec = getRecurring();
+            const billKeys = new Set();
+            active(rec.months[monthKey] || []).forEach(i => {
+                if (isBill(i)) billKeys.add(monthKey + ':' + i.id);
+            });
+            const list = [];
+            for (const yd of Object.values(data.yearData || {})) {
+                active(yd && yd.expenses).forEach(e => {
+                    if ((e.date || '').startsWith(monthKey) && e.category === item.category && !billKeys.has(e.recurringKey)) {
+                        list.push(e);
+                    }
+                });
+            }
+            list.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+            const spent = list.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+            const budget = Number(item.amount) || 0;
+            return { list, spent, budget, pct: budget ? Math.round(spent / budget * 100) : 0 };
         }
 
         function setExpenseMonth(v) {
@@ -7986,32 +8187,124 @@
                 return;
             }
 
+            const bills = items.filter(isBill);
+            const cats = items.filter(i => !isBill(i));
+
             const carry = [];
             Object.keys(rec.months).sort().forEach(k => {
                 if (k >= expenseMonth) return;
                 active(rec.months[k]).forEach(i => {
-                    if (!findRecurringPayment(k, i.id)) carry.push({ monthKey: k, item: i });
+                    if (isBill(i) && !findRecurringPayment(k, i.id)) carry.push({ monthKey: k, item: i });
                 });
             });
 
-            const paidCount = items.filter(i => findRecurringPayment(expenseMonth, i.id)).length;
-            const pct = items.length ? Math.round(paidCount / items.length * 100) : 0;
-            const sorted = [...items].sort((a, b) => (a.dueDay || 99) - (b.dueDay || 99));
+            const waiting = carry.length + bills.filter(i => !findRecurringPayment(expenseMonth, i.id)).length;
+            let planned = 0, spent = 0;
+            bills.forEach(i => {
+                planned += Number(i.amount) || 0;
+                const p = findRecurringPayment(expenseMonth, i.id);
+                if (p) spent += Number(p.amount) || 0;
+            });
+            cats.forEach(i => {
+                const st = categoryRowStats(expenseMonth, i);
+                planned += st.budget;
+                spent += st.spent;
+            });
+
+            const summary = waiting > 0
+                ? waiting + (waiting === 1 ? ' חשבון ממתין' : ' חשבונות ממתינים')
+                : 'הכל שולם';
 
             let html = `<div class="rec-head">
-                <strong>🔁 הוצאות קבועות — ${monthLabelFromKey(expenseMonth)}</strong>
-                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                    <span style="font-size:0.8rem;color:var(--text-muted);">שולמו ${paidCount} מתוך ${items.length}</span>
-                    <div class="rec-progress"><div style="width:${pct}%"></div></div>
-                    <button class="btn btn-sm btn-primary" onclick="openRecurringAdd()">+ הוצאה קבועה</button>
+                <div>
+                    <strong>${monthLabelFromKey(expenseMonth)}</strong>
+                    <div style="font-size:0.82rem;color:var(--text-muted);margin-top:3px;">
+                        ${summary} · הוצאת ${formatCurrency(spent)} מתוך ${formatCurrency(planned)} שתכננת
+                    </div>
                 </div>
+                <button class="btn btn-sm btn-primary" onclick="openRecurringAdd()">+ הוצאה קבועה</button>
             </div>`;
-            carry.forEach(c => { html += recurringRowHtml(c.monthKey, c.item, true); });
-            sorted.forEach(i => { html += recurringRowHtml(expenseMonth, i, false); });
+
+            if (bills.length || carry.length) {
+                html += `<div class="rec-section-label">חשבונות קבועים — שולם או לא</div>`;
+                carry.forEach(c => { html += recurringRowHtml(c.monthKey, c.item, true); });
+                [...bills].sort((a, b) => (a.dueDay || 99) - (b.dueDay || 99))
+                    .forEach(i => { html += recurringRowHtml(expenseMonth, i, false); });
+            }
+
+            if (cats.length) {
+                html += `<div class="rec-section-label">קטגוריות שוטפות — כמה הוצאתי</div>`;
+                cats.forEach(i => { html += categoryRowHtml(expenseMonth, i); });
+            }
+
             if (items.length === 0) {
                 html += `<div style="color:var(--text-muted);font-size:0.85rem;padding:6px 8px;">אין הוצאות קבועות בחודש הזה.</div>`;
             }
             panel.innerHTML = html;
+        }
+
+        let expandedRecCategories = {};
+
+        function toggleRecCategory(key) {
+            expandedRecCategories[key] = !expandedRecCategories[key];
+            renderAll();
+        }
+
+        function categoryRowHtml(monthKey, item) {
+            const st = categoryRowStats(monthKey, item);
+            const key = monthKey + ':' + item.id;
+            const open = !!expandedRecCategories[key];
+            const over = st.budget && st.spent > st.budget;
+            const width = st.budget ? Math.min(100, st.pct) : (st.spent ? 100 : 0);
+            const countLabel = st.list.length + (st.list.length === 1 ? ' חשבונית' : ' חשבוניות');
+
+            let html = `<div class="rec-cat-row">
+                <div class="rec-cat-head">
+                    <div style="flex:1;min-width:0;" class="rec-cat-toggle" onclick="toggleRecCategory('${key}')">
+                        <span style="color:var(--text-muted);font-size:0.8rem;">${open ? '▼' : '▶'}</span>
+                        <span class="rec-name">${item.description}</span>
+                        <span class="rec-sub" style="margin-inline-start:8px;">${countLabel}</span>
+                    </div>
+                    <span class="rec-amount" style="${over ? 'color:var(--warning);' : ''}">${formatCurrency(st.spent)}${st.budget ? ` <span style="color:var(--text-muted);font-size:0.78rem;">מתוך ~${formatCurrency(st.budget)}</span>` : ''}</span>
+                    <button class="btn btn-sm" onclick="addToCategory('${monthKey}','${item.id}')" title="הוסף חשבונית לקטגוריה">+ הוסף</button>
+                    <button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${monthKey}','${item.id}')" title="עריכה">✏️</button>
+                    <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${monthKey}','${item.id}')" title="מחיקה">🗑️</button>
+                </div>
+                <div class="rec-bar${over ? ' over' : ''}"><div style="width:${width}%"></div></div>`;
+
+            if (open) {
+                html += st.list.length
+                    ? st.list.map(e => `<div class="rec-invoice">
+                        <span style="min-width:60px;">${formatDate(e.date)}</span>
+                        <span style="flex:1;min-width:0;">${e.description || '-'}</span>
+                        <span>${formatCurrency(e.amount)}</span>
+                        ${e.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${e.driveLink}','_blank')" title="צפה בקבלה">👁️</button>` : ''}
+                        <button class="btn btn-icon btn-sm" onclick="editExpense(${e.id})" title="עריכה">✏️</button>
+                    </div>`).join('')
+                    : `<div class="rec-invoice">אין חשבוניות בחודש הזה</div>`;
+            }
+            return html + '</div>';
+        }
+
+        // Add a new invoice straight into a running category (a plain expense record).
+        function addToCategory(monthKey, itemId) {
+            const rec = getRecurring();
+            const item = active(rec.months[monthKey] || []).find(i => String(i.id) === String(itemId));
+            if (!item) return;
+            recurringPayContext = null;
+            editingId = null;
+            const rk = realMonthKey();
+            document.getElementById('expenseDate').value = monthKey === rk
+                ? localTodayISO()
+                : monthKey + '-01';
+            document.getElementById('expenseDesc').value = '';
+            buildCategoryOptions();
+            document.getElementById('expenseCategory').value = item.category;
+            document.getElementById('expenseAmount').value = '';
+            document.getElementById('expenseRecognition').value = item.recognition ?? 100;
+            document.getElementById('expenseNotes').value = '';
+            openModal('expenseModal');
+            setTimeout(() => document.getElementById('expenseDesc').focus(), 100);
         }
 
         function recurringRowHtml(monthKey, item, isCarry) {
@@ -8071,11 +8364,28 @@
             openModal('expenseModal');
         }
 
+        function onRecKindChange() {
+            const kind = document.getElementById('recKind').value;
+            const isCat = kind === 'category';
+            document.getElementById('recDescGroup').style.display = isCat ? 'none' : '';
+            document.getElementById('recDueDayGroup').style.display = isCat ? 'none' : '';
+            document.getElementById('recAmountLabel').textContent = isCat ? 'תקציב חודשי משוער (₪)' : 'סכום משוער (₪)';
+            document.getElementById('recAmountHint').textContent = isCat
+                ? 'רק לצורך מעקב — כמה אתה מוציא בקטגוריה הזאת בחודש רגיל'
+                : 'אפשר לתקן את הסכום המדויק בכל תשלום';
+            document.getElementById('recKindHint').textContent = isCat
+                ? 'כל ההוצאות שתרשום בקטגוריה הזאת ייספרו אוטומטית — בלי סימון "שולם"'
+                : 'תשלום אחד בחודש, עם תאריך יעד וקבלה אחת';
+        }
+
         function openRecurringAdd() {
             editingRecurring = null;
             clearForm('recurringModal');
             document.getElementById('recurringModalTitle').textContent = '🔁 הוספת הוצאה קבועה';
+            document.getElementById('recKind').value = 'bill';
             document.getElementById('recRecognition').value = 100;
+            buildCategoryOptions();
+            onRecKindChange();
             openModal('recurringModal');
         }
 
@@ -8085,11 +8395,14 @@
             if (!item) return;
             editingRecurring = { monthKey: monthKey, itemId: itemId };
             document.getElementById('recurringModalTitle').textContent = '🔁 עריכת הוצאה קבועה';
+            buildCategoryOptions();
+            document.getElementById('recKind').value = item.kind || 'bill';
             document.getElementById('recDesc').value = item.description;
             document.getElementById('recCategory').value = item.category;
             document.getElementById('recAmount').value = item.amount;
             document.getElementById('recRecognition').value = item.recognition ?? 100;
             document.getElementById('recDueDay').value = item.dueDay || '';
+            onRecKindChange();
             openModal('recurringModal');
         }
 
@@ -8109,14 +8422,18 @@
         }
 
         async function saveRecurringItem() {
-            const desc = document.getElementById('recDesc').value.trim();
+            const kind = document.getElementById('recKind').value;
+            const category = document.getElementById('recCategory').value;
+            // A running category is identified by its category — the label follows it.
+            const desc = kind === 'category' ? category : document.getElementById('recDesc').value.trim();
             if (!desc) { await popupError('חסר תיאור', 'תן שם להוצאה הקבועה'); return; }
             const values = {
+                kind: kind,
                 description: desc,
-                category: document.getElementById('recCategory').value,
+                category: category,
                 amount: parseFloat(document.getElementById('recAmount').value) || 0,
                 recognition: Math.min(100, Math.max(0, parseFloat(document.getElementById('recRecognition').value) || 100)),
-                dueDay: parseInt(document.getElementById('recDueDay').value) || null
+                dueDay: kind === 'category' ? null : (parseInt(document.getElementById('recDueDay').value) || null)
             };
             const ctx = editingRecurring;
             const monthKey = ctx ? ctx.monthKey : (expenseMonth !== 'all' ? expenseMonth : realMonthKey());
