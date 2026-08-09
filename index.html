@@ -9440,6 +9440,16 @@
                 return;
             }
             const monthKey = e.date.slice(0, 7);
+            const recNow = getRecurring();
+            const already = active(recNow.months[monthKey] || []).find(i =>
+                (i.category || '') === (e.category || '') &&
+                String(i.description || '').trim() === String(e.description || '').trim());
+            if (already) {
+                await popupError('כבר ברשימה',
+                    '"' + (e.description || '') + '" כבר מופיע ברשימה החודשית כ' +
+                    (isCollect(already) ? 'חשבונית לאיסוף' : isBill(already) ? 'חשבון קבוע' : 'קטגוריה שוטפת') + '.');
+                return;
+            }
             const ok = await showPopup({
                 type: 'info', icon: '📄',
                 title: 'הוסף לרשימת האיסוף',
@@ -9944,7 +9954,18 @@
             saveData();
             await autoRefile('officialDocs', target, yearFor);
             closeModal('docModal');
+            // A document dated in another year belongs to that year — say so and switch
+            // the view, instead of letting it vanish from the screen.
+            if (yearFor !== currentYear && !docAllYears) {
+                docAllYears = true;
+                const btn = document.getElementById('docYearBtn');
+                if (btn) btn.textContent = '📅 כל השנים';
+            }
             renderAll();
+            if (yearFor !== currentYear) {
+                await popupSuccess('נשמר תחת שנת ' + yearFor,
+                    'המסמך מתוארך ' + formatDate(date) + ', ולכן הוא שייך לשנת המס ' + yearFor + '.\n\nהתצוגה עברה ל"כל השנים" כדי שתראה אותו.');
+            }
         }
 
         // ===== SCOPED EXPORT (expenses): month / year-by-months / flat =====
@@ -10287,8 +10308,10 @@
                 html += `<button onclick="hideRowMenu();quickChangeCategory('expense',${id})">🏷️ שינוי סיווג</button>`;
                 html += e.recurringKey
                     ? `<button onclick="hideRowMenu();unlinkExpenseRecurring(${id})">🔁 נתק מהוצאה קבועה</button>`
-                    : `<button onclick="hideRowMenu();makeExpenseRecurring(${id})">🔁 הפוך להוצאה קבועה</button>
-                       <button onclick="hideRowMenu();makeExpenseCollect(${id})">📄 הוסף לרשימת האיסוף</button>`;
+                    : `<button onclick="hideRowMenu();makeExpenseRecurring(${id})">🔁 הפוך להוצאה קבועה</button>`;
+                // Always offered — a supplier can be worth collecting from whether or not
+                // this particular expense is linked to something.
+                html += `<button onclick="hideRowMenu();makeExpenseCollect(${id})">📄 הוסף לרשימת האיסוף</button>`;
                 html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteItem('expenses',${id})">✕ מחיקה</button>`;
             } else if (kind === 'bill') {
                 const monthKey = extra.monthKey;
