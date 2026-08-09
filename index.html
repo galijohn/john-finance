@@ -9532,6 +9532,20 @@
             popupSuccess('נוסף לאיסוף', '"' + values.description + '" יופיע כל חודש עד שתשלים אותו');
         }
 
+        // The collection line this expense satisfies, if any — so it can be undone
+        // straight from the expense's own row.
+        function collectLineForExpense(e) {
+            if (!e || !e.date || e.date.length < 7) return null;
+            const monthKey = e.date.slice(0, 7);
+            const rec = getRecurring();
+            const item = active(rec.months[monthKey] || []).find(i => {
+                if (!isCollect(i)) return false;
+                const hit = lineDone(monthKey, i);
+                return hit && hit.id === e.id;
+            });
+            return item ? { monthKey, item } : null;
+        }
+
         // The checklist line an expense is linked to, if it still exists.
         function recurringLineOf(e) {
             if (!e || !e.recurringKey) return null;
@@ -10553,6 +10567,12 @@
                     html += `<button onclick="hideRowMenu();unlinkExpenseRecurring(${id})">🔗 נתק מהשורה החודשית</button>`;
                 } else {
                     html += `<button onclick="hideRowMenu();makeExpenseRecurring(${id})">🔁 הפוך להוצאה קבועה</button>`;
+                }
+                // If this expense is what marks a collection as done, let it be undone here.
+                const cl = collectLineForExpense(e);
+                if (cl) {
+                    html += `<button onclick="hideRowMenu();setCollected('${cl.monthKey}','${cl.item.id}',false)">↩️ בטל איסוף</button>`;
+                } else if (!line && !e.recurringKey) {
                     html += `<button onclick="hideRowMenu();makeExpenseCollect(${id})">📄 הוסף לרשימת האיסוף</button>`;
                 }
                 html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteItem('expenses',${id})">✕ מחיקה</button>`;
