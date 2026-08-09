@@ -8840,14 +8840,14 @@
             const rec = getRecurring();
             const keys = new Set();
             Object.keys(rec.months || {}).forEach(k => {
-                active(rec.months[k]).forEach(i => { if (isLineItem(i)) keys.add(k + ':' + i.id); });
+                active(rec.months[k]).forEach(i => { if (isBill(i)) keys.add(k + ':' + i.id); });
             });
             return keys;
         }
 
         function unpaidRecurringCount(monthKey) {
             const rec = getRecurring();
-            return active(rec.months[monthKey] || []).filter(i => isLineItem(i) && !findRecurringPayment(monthKey, i.id)).length;
+            return active(rec.months[monthKey] || []).filter(i => isLineItem(i) && !lineDone(monthKey, i)).length;
         }
 
         // Two checklist lines are "the same line" when they describe the same thing —
@@ -8884,13 +8884,37 @@
             return removed;
         }
 
+        // A collection line is satisfied by an explicit link OR simply by an expense
+        // for that supplier already existing in the month — no point asking for an
+        // invoice that is already recorded.
+        function collectSatisfiedBy(monthKey, item) {
+            const linked = findRecurringPayment(monthKey, item.id);
+            if (linked) return linked;
+            const name = String(item.description || '').trim();
+            if (!name) return null;
+            for (const yd of Object.values(data.yearData || {})) {
+                const hit = active(yd && yd.expenses).find(e =>
+                    (e.date || '').startsWith(monthKey) &&
+                    e.category === item.category &&
+                    String(e.description || '').trim() === name);
+                if (hit) return hit;
+            }
+            return null;
+        }
+
+        // Done-ness of a checklist line: bills need their payment, collections accept
+        // a matching expense too.
+        function lineDone(monthKey, item) {
+            return isCollect(item) ? collectSatisfiedBy(monthKey, item) : findRecurringPayment(monthKey, item.id);
+        }
+
         // A running category doesn't ask "paid?" — it accumulates the month's expenses
         // in that category and compares them to the expected monthly budget.
         function categoryRowStats(monthKey, item) {
             const rec = getRecurring();
             const billKeys = new Set();
             active(rec.months[monthKey] || []).forEach(i => {
-                if (isLineItem(i)) billKeys.add(monthKey + ':' + i.id);
+                if (isBill(i)) billKeys.add(monthKey + ':' + i.id);
             });
             const list = [];
             for (const yd of Object.values(data.yearData || {})) {
@@ -8967,11 +8991,11 @@
             }
 
             const openBillsN = items.filter(i => isBill(i) && !findRecurringPayment(expenseMonth, i.id)).length;
-            const openCollectsN = items.filter(i => isCollect(i) && !findRecurringPayment(expenseMonth, i.id)).length;
+            const openCollectsN = items.filter(i => isCollect(i) && !lineDone(expenseMonth, i)).length;
             let carryN = 0;
             Object.keys(rec.months).forEach(k => {
                 if (k >= expenseMonth) return;
-                active(rec.months[k]).forEach(i => { if (isLineItem(i) && !findRecurringPayment(k, i.id)) carryN++; });
+                active(rec.months[k]).forEach(i => { if (isLineItem(i) && !lineDone(k, i)) carryN++; });
             });
             const bits = [];
             if (openBillsN) bits.push(openBillsN + (openBillsN === 1 ? ' חשבון ממתין לתשלום' : ' חשבונות ממתינים לתשלום'));
@@ -8995,14 +9019,14 @@
             const panel = document.getElementById('recurringPanel');
             const items = active(rec.months[expenseMonth] || []);
 
-            const bills = items.filter(isLineItem);
+            const bills = items.filter(i => isBill(i) || (isCollect(i) && !lineDone(expenseMonth, i)));
             const cats = items.filter(isCategory);
 
             const carry = [];
             Object.keys(rec.months).sort().forEach(k => {
                 if (k >= expenseMonth) return;
                 active(rec.months[k]).forEach(i => {
-                    if (isLineItem(i) && !findRecurringPayment(k, i.id)) carry.push({ monthKey: k, item: i });
+                    if (isLineItem(i) && !lineDone(k, i)) carry.push({ monthKey: k, item: i });
                 });
             });
 
@@ -9020,7 +9044,7 @@
             });
 
             const openBills = bills.filter(i => isBill(i) && !findRecurringPayment(expenseMonth, i.id)).length;
-            const openCollects = bills.filter(i => isCollect(i) && !findRecurringPayment(expenseMonth, i.id)).length;
+            const openCollects = bills.filter(i => isCollect(i) && !lineDone(expenseMonth, i)).length;
             const parts = [];
             if (openBills) parts.push(openBills + (openBills === 1 ? ' חשבון ממתין' : ' חשבונות ממתינים'));
             if (openCollects) parts.push(openCollects + (openCollects === 1 ? ' חשבונית לאיסוף' : ' חשבוניות לאיסוף'));
@@ -10136,12 +10160,12 @@
         // including anything still unpaid from earlier months.
         function billRowsHtml(monthKey) {
             const rec = getRecurring();
-            const items = active(rec.months[monthKey] || []).filter(isLineItem);
+            const items = active(rec.months[monthKey] || []).filter(i => isBill(i) || (isCollect(i) && !lineDone(monthKey, i)));
             const carry = [];
             Object.keys(rec.months).sort().forEach(k => {
                 if (k >= monthKey) return;
                 active(rec.months[k]).forEach(i => {
-                    if (isLineItem(i) && !findRecurringPayment(k, i.id)) carry.push({ k, i });
+                    if (isLineItem(i) && !lineDone(k, i)) carry.push({ k, i });
                 });
             });
             if (!items.length && !carry.length) return '';
