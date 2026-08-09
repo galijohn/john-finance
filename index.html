@@ -1572,6 +1572,7 @@
             </div>
 
             <div id="dashboardResult">
+                <div id="docReminders" style="display:none;margin-bottom:15px;padding:12px 15px;border-radius:10px;background:rgba(239,68,68,0.10);border:1px solid var(--danger);"></div>
                 <div id="assessmentBanner" style="display:none;margin-bottom:15px;padding:12px 15px;border-radius:10px;background:rgba(6,182,212,0.10);border:1px solid var(--cyan);">
                     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
                         <div>
@@ -9570,7 +9571,49 @@
             el.innerHTML = html;
         }
 
+        // Dashboard strip. Deliberately driven ONLY by a reminder the user set
+        // ("לטיפול עד") — validity dates stay inside the documents page.
+        function renderDocReminders() {
+            const el = document.getElementById('docReminders');
+            if (!el) return;
+            const today = localTodayISO();
+            const due = [];
+            Object.entries(data.yearData || {}).forEach(([y, yd]) => {
+                if (!yd) return;
+                active(yd.officialDocs).forEach(d => {
+                    if (d.actionDue && !d.handled) due.push(d);
+                });
+            });
+            if (!due.length) { el.style.display = 'none'; return; }
+            due.sort((a, b) => String(a.actionDue).localeCompare(String(b.actionDue)));
+            const late = due.filter(d => d.actionDue < today).length;
+
+            let html = `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <span style="font-size:1.05rem;">⚠️</span>
+                <div style="flex:1;min-width:190px;">
+                    <strong style="color:var(--danger);">${due.length} ${due.length === 1 ? 'מסמך דורש טיפול' : 'מסמכים דורשים טיפול'}</strong>
+                    ${late ? `<span style="font-size:0.8rem;color:var(--text-muted);margin-inline-start:8px;">${late} באיחור</span>` : ''}
+                </div>
+                <button class="btn btn-sm" onclick="showPage('docs')">פתח מסמכים</button>
+            </div>
+            <div style="margin-top:9px;border-top:1px solid var(--border);padding-top:7px;">`;
+            due.slice(0, 3).forEach(d => {
+                const isLate = d.actionDue < today;
+                html += `<div class="row-click" onclick="openDocFile(${d.id})" style="display:flex;align-items:center;gap:9px;padding:5px 2px;">
+                    <span class="rec-badge ${isLate ? 'late' : 'soon'}">${isLate ? 'באיחור · ' : 'עד '}${formatDate(d.actionDue)}</span>
+                    <span style="flex:1;min-width:0;">${d.description || d.docType || ''}</span>
+                    <span style="font-size:0.8rem;color:var(--text-muted);">${d.category}</span>
+                </div>`;
+            });
+            if (due.length > 3) {
+                html += `<div style="font-size:0.8rem;color:var(--text-muted);padding:4px 2px;">ועוד ${due.length - 3}...</div>`;
+            }
+            el.innerHTML = html + '</div>';
+            el.style.display = '';
+        }
+
         function renderDocs() {
+            renderDocReminders();
             const tbody = document.getElementById('docsTable');
             if (!tbody) return;
             renderDocTabs();
