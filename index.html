@@ -9152,7 +9152,7 @@
                     html += `<tr class="category-group-header">
                         <td colspan="4" onclick="toggleCategoryCollapse('${cat}')" style="cursor:pointer;">${isCollapsed ? '▶' : '▼'} ${categoryLabel(cat)} (${items.length})</td>
                         ${budgetCell}
-                        <td style="color:var(--danger)">${formatCurrency(catRecognized)}</td>
+                        <td style="color:var(--warning)">${formatCurrency(catRecognized)}</td>
                         <td>${expenseMonth === 'all' ? '' : `
                             <button class="btn btn-icon btn-sm" onclick="addExpenseToCategory('${cat}')" title="הוסף חשבונית לקטגוריה">＋</button>
                             <button class="btn btn-icon btn-sm" onclick="renameCategory('${cat}')" title="שנה שם קטגוריה">🏷️</button>
