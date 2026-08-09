@@ -2481,6 +2481,7 @@
             <div class="expense-controls">
                 <div class="expense-filters" id="docTabs"></div>
                 <div class="expense-actions">
+                    <button class="btn btn-sm" onclick="openDocCategoryManager()">🗂️ ניהול קטגוריות</button>
                     <button class="btn btn-sm" id="docYearBtn" onclick="toggleDocAllYears()">📅 שנת המס</button>
                 </div>
             </div>
@@ -3309,6 +3310,22 @@
             <div class="modal-footer">
                 <button class="btn btn-primary" onclick="saveDoc()">שמור</button>
                 <button class="btn" onclick="closeModal('docModal')">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="docCategoryManagerModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>🗂️ ניהול קטגוריות מסמכים</h3>
+                <button class="btn-icon" onclick="closeModal('docCategoryManagerModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="docCategoryManagerList"></div>
+                <button class="btn btn-sm btn-primary" onclick="openNewDocCategory()" style="margin-top:12px;">+ קטגוריה חדשה</button>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('docCategoryManagerModal')">סגור</button>
             </div>
         </div>
     </div>
@@ -9808,12 +9825,15 @@
                 });
             } else {
                 active(getYearData().officialDocs).forEach(d => push(d, currentYear));
-                // certificates still in force belong on screen whatever year is selected
+                // A certificate from an EARLIER year that is still in force carries forward
+                // into later views — but a document from a LATER year never appears in an
+                // earlier year's view.
                 const today = localTodayISO();
                 Object.entries(data.yearData || {}).forEach(([y, yd]) => {
-                    if (!yd || parseInt(y) === currentYear) return;
+                    const yr = parseInt(y);
+                    if (!yd || yr >= currentYear) return;
                     active(yd.officialDocs).forEach(d => {
-                        if (d.validUntil && d.validUntil >= today) push(d, parseInt(y));
+                        if (d.validUntil && d.validUntil >= today) push(d, yr);
                     });
                 });
             }
@@ -10028,6 +10048,28 @@
             }
         }
 
+        // A plain, always-visible manager — no hidden right-click needed.
+        function openDocCategoryManager() {
+            renderDocCategoryManager();
+            openModal('docCategoryManagerModal');
+        }
+
+        function renderDocCategoryManager() {
+            const el = document.getElementById('docCategoryManagerList');
+            if (!el) return;
+            const list = docCategories();
+            el.innerHTML = list.map((c, i) => {
+                const n = docCategoryCount(c);
+                return `<div style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--border);">
+                    <span style="flex:1;">${c} <span style="color:var(--text-muted);font-size:0.8rem;">${n ? '(' + n + ')' : ''}</span></span>
+                    <button class="btn btn-icon btn-sm" ${i === 0 ? 'disabled style="opacity:0.3;"' : ''} onclick="moveDocCategory('${c}',-1);renderDocCategoryManager();" title="הזז ימינה">→</button>
+                    <button class="btn btn-icon btn-sm" ${i === list.length - 1 ? 'disabled style="opacity:0.3;"' : ''} onclick="moveDocCategory('${c}',1);renderDocCategoryManager();" title="הזז שמאלה">←</button>
+                    <button class="btn btn-icon btn-sm" onclick="renameDocCategory('${c}')" title="שנה שם">🏷️</button>
+                    <button class="btn btn-icon btn-sm" onclick="deleteDocCategory('${c}').then(renderDocCategoryManager)" title="מחק" ${n ? 'style="opacity:0.4;"' : ''}>🗑️</button>
+                </div>`;
+            }).join('') || '<div style="color:var(--text-muted);padding:8px;">אין קטגוריות</div>';
+        }
+
         function openNewDocCategory() {
             _docCatRenameTarget = null;
             document.querySelector('#docCategoryModal .modal-header h3').textContent = '➕ קטגוריית מסמכים חדשה';
@@ -10064,9 +10106,11 @@
                     for (const m of moved) await autoRefile('officialDocs', m.d, m.y);
                     if (moved.length) { try { await pruneEmptyDriveFolders(); } catch (_) {} }
                     renderAll();
+                    if (document.getElementById('docCategoryManagerModal').classList.contains('active')) renderDocCategoryManager();
                     return;
                 }
                 closeModal('docCategoryModal');
+                if (document.getElementById('docCategoryManagerModal').classList.contains('active')) renderDocCategoryManager();
                 return;
             }
 
@@ -10077,6 +10121,7 @@
             if (document.getElementById('docModal').classList.contains('active')) {
                 buildDocCategoryOptions(name);
             }
+            if (document.getElementById('docCategoryManagerModal').classList.contains('active')) renderDocCategoryManager();
             renderAll();
         }
 
