@@ -4664,6 +4664,65 @@
             return results;
         }
 
+        // ===== AUTOMATIC RE-FILING =====
+        // Whenever a record changes (category, supplier, date, amount) its attachment
+        // is moved and renamed immediately — in Drive and on disk — so the archive
+        // always matches what the app shows. No button, no manual step.
+        function metaForRecord(type, r) {
+            switch (type) {
+                case 'expenses':     return { base: 'הוצאות-מוכרות', meta: { date: r.date, category: r.category, description: r.description, amount: r.amount } };
+                case 'salary':       return { base: 'שכיר', meta: { month: r.month || r.fromMonth, description: r.employer || 'תלוש', amount: r.gross } };
+                case 'unemployment': return { base: 'אבטלה', meta: { month: r.month, description: 'אבטלה', amount: r.gross } };
+                case 'miluim':       return { base: 'מילואים', meta: { date: r.from, description: 'מילואים', amount: r.amount } };
+                case 'selfEmployed': return { base: 'חשבוניות-עצמאי', meta: { month: r.month, description: r.description || 'הכנסה', amount: r.amount } };
+                case 'taxAdvances':  return { base: 'מקדמות-מס', meta: { month: r.month, description: 'מקדמת מס', amount: r.amount } };
+                case 'blAdvances':   return { base: 'ביטוח-לאומי', meta: { month: r.month, description: 'מקדמת ביטוח לאומי', amount: r.amount } };
+                default: return null;
+            }
+        }
+
+        async function autoRefile(type, rec, year) {
+            try {
+                if (!rec || (!rec.driveId && !rec.localPath)) return;
+                const map = metaForRecord(type, rec);
+                if (!map) return;
+                const targetFolder = archiveSubFolder(map.base, map.meta);
+                const targetYear = archiveYearOf(map.meta, year || currentYear);
+                const targetName = archiveFileName(rec.fileName || 'קובץ', map.meta);
+                const targetPath = targetYear + '/' + targetFolder + '/' + targetName;
+                if (rec.archivePath === targetPath) return;   // already where it belongs
+
+                if (rec.driveId) {
+                    const ok = await ensureValidToken();
+                    if (ok && driveFolderId) {
+                        const info = await gapi.client.drive.files.get({ fileId: rec.driveId, fields: 'id,name,parents' });
+                        const parentId = await ensureDrivePath(targetYear, targetFolder);
+                        const curParents = info.result.parents || [];
+                        const params = { fileId: rec.driveId, fields: 'id,name' };
+                        if (!curParents.includes(parentId)) {
+                            params.addParents = parentId;
+                            if (curParents.length) params.removeParents = curParents.join(',');
+                        }
+                        await gapi.client.drive.files.update({
+                            ...params,
+                            resource: info.result.name !== targetName ? { name: targetName } : {}
+                        });
+                    }
+                }
+
+                if (localFolderHandle && rec.localPath) {
+                    const moved = await moveLocalFile(rec.localPath, targetYear, targetFolder, targetName);
+                    if (moved) rec.localPath = moved;
+                }
+
+                rec.fileName = targetName;
+                rec.archivePath = targetPath;
+                saveData();
+            } catch (e) {
+                console.warn('[autoRefile] failed for', type, e);
+            }
+        }
+
         // ===== ARCHIVE REORGANIZATION =====
         // Walks every record that has an attachment, works out where the file SHOULD live
         // (year/month/category + descriptive name) and moves/renames it in Drive.
@@ -6116,6 +6175,7 @@
             }
             
             saveData();
+            autoRefile('salary', yd.salary.find(x => x.id === recordId), currentYear);
             closeModal('salaryModal');
             clearForm('salaryModal');
             renderAll();
@@ -6165,6 +6225,7 @@
             }
             
             saveData();
+            autoRefile('unemployment', yd.unemployment.find(x => x.id === recordId), currentYear);
             closeModal('unemploymentModal');
             clearForm('unemploymentModal');
             renderAll();
@@ -6224,6 +6285,7 @@
             }
             
             saveData();
+            autoRefile('miluim', yd.miluim.find(x => x.id === recordId), currentYear);
             closeModal('miluimModal');
             clearForm('miluimModal');
             renderAll();
@@ -6271,6 +6333,7 @@
             }
             
             saveData();
+            autoRefile('selfEmployed', yd.selfEmployed.find(x => x.id === recordId), currentYear);
             closeModal('selfEmployedModal');
             clearForm('selfEmployedModal');
             renderAll();
@@ -6326,6 +6389,7 @@
             }
             
             saveData();
+            autoRefile('expenses', yd.expenses.find(x => x.id === recordId), currentYear);
             closeModal('expenseModal');
             clearForm('expenseModal');
             renderAll();
@@ -6373,6 +6437,7 @@
             
             yd.taxAdvances.sort((a, b) => a.month - b.month);
             saveData();
+            autoRefile('taxAdvances', yd.taxAdvances.find(x => x.id === recordId), currentYear);
             closeModal('taxAdvanceModal');
             clearForm('taxAdvanceModal');
             renderAll();
@@ -6444,6 +6509,7 @@
             
             yd.blAdvances.sort((a, b) => a.month - b.month);
             saveData();
+            autoRefile('blAdvances', yd.blAdvances.find(x => x.id === recordId), currentYear);
             closeModal('blAdvanceModal');
             clearForm('blAdvanceModal');
             renderAll();
@@ -8140,6 +8206,17 @@
         // Only bills have a paid/unpaid state; running categories never do.
         const isBill = i => (i.kind || 'bill') === 'bill';
 
+        // recurringKeys of every bill row across all months — payments carrying these
+        // keys are displayed on the bill row itself, not again in a category group.
+        function allBillPaymentKeys() {
+            const rec = getRecurring();
+            const keys = new Set();
+            Object.keys(rec.months || {}).forEach(k => {
+                active(rec.months[k]).forEach(i => { if (isBill(i)) keys.add(k + ':' + i.id); });
+            });
+            return keys;
+        }
+
         function unpaidRecurringCount(monthKey) {
             const rec = getRecurring();
             return active(rec.months[monthKey] || []).filter(i => isBill(i) && !findRecurringPayment(monthKey, i.id)).length;
@@ -8852,6 +8929,14 @@
             // Filter
             let filtered = expenseFilter === 'all' ? [...expenseItems] : expenseItems.filter(e => e.category === expenseFilter);
 
+            // A payment already shown as a bill row must not appear again inside its
+            // category group — same record, two places.
+            const showingBills = expenseGrouped && expenseMonth !== 'all' && expenseFilter === 'all';
+            if (showingBills) {
+                const billKeys = allBillPaymentKeys();
+                filtered = filtered.filter(e => !e.recurringKey || !billKeys.has(e.recurringKey));
+            }
+
             // Sort by date
             filtered.sort((a, b) => {
                 const da = a.date || '', db = b.date || '';
@@ -8952,17 +9037,21 @@
                 status = `<button class="rec-due-btn" onclick="payRecurring('${monthKey}','${item.id}')" title="שילמת? עדכן כמה שולם וצרף מסמך">${label}</button>`;
             }
             const amount = payment ? payment.amount : item.amount;
+            const effPct = payment ? (payment.recognition ?? 100) : pct;
+            const actions = payment
+                ? `${payment.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${payment.driveLink}','_blank')" title="צפה בקבלה">👁️</button>` : ''}
+                   <button class="btn btn-icon btn-sm" onclick="editExpense(${payment.id})" title="ערוך את התשלום">✏️</button>
+                   <button class="btn btn-icon btn-sm" onclick="deleteItem('expenses',${payment.id})" title="מחק את התשלום">🗑️</button>`
+                : `<button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${monthKey}','${item.id}')" title="עריכה">✏️</button>
+                   <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${monthKey}','${item.id}')" title="מחיקה">🗑️</button>`;
             return `<tr${isCarry ? ' style="background:rgba(239,68,68,0.07);"' : ''}>
                 <td style="color:var(--text-muted);font-size:0.8rem;">💳 קבוע</td>
                 <td>${item.description}</td>
                 <td>${categoryLabel(item.category)}</td>
                 <td style="color:var(--danger)">${formatCurrency(amount)}</td>
                 <td style="text-align:center;">${status}</td>
-                <td style="color:var(--success)">${formatCurrency(amount * (pct / 100))}</td>
-                <td>
-                    <button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${monthKey}','${item.id}')" title="עריכה">✏️</button>
-                    <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${monthKey}','${item.id}')" title="מחיקה">🗑️</button>
-                </td>
+                <td style="color:var(--success)">${formatCurrency(amount * (effPct / 100))}</td>
+                <td>${actions}</td>
             </tr>`;
         }
 
