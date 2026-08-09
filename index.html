@@ -9097,7 +9097,13 @@
                         <td colspan="4" onclick="toggleCategoryCollapse('${cat}')" style="cursor:pointer;">${isCollapsed ? '▶' : '▼'} ${categoryLabel(cat)} (${items.length})</td>
                         ${budgetCell}
                         <td style="color:var(--danger)">${formatCurrency(catRecognized)}</td>
-                        <td>${expenseMonth !== 'all' ? `<button class="btn btn-icon btn-sm" onclick="addExpenseToCategory('${cat}')" title="הוסף חשבונית לקטגוריה">＋</button>` : ''}</td>
+                        <td>${expenseMonth === 'all' ? '' : `
+                            <button class="btn btn-icon btn-sm" onclick="addExpenseToCategory('${cat}')" title="הוסף חשבונית לקטגוריה">＋</button>
+                            ${b
+                                ? `<button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${expenseMonth}','${b.id}')" title="שנה תקציב חודשי">✏️</button>
+                                   <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${expenseMonth}','${b.id}')" title="הסר תקציב">🗑️</button>`
+                                : `<button class="btn btn-icon btn-sm" onclick="setCategoryBudget('${cat}')" title="הגדר תקציב חודשי" style="opacity:0.45;">🎯</button>`}
+                        `}</td>
                     </tr>`;
                     if (!isCollapsed) {
                         html += items.map(e => renderExpenseRow(e)).join('');
@@ -9163,6 +9169,20 @@
                 <td style="color:var(--success)">${formatCurrency(amount * (effPct / 100))}</td>
                 <td>${actions}</td>
             </tr>`;
+        }
+
+        // Give a category a monthly budget straight from its row in the table.
+        function setCategoryBudget(cat) {
+            editingRecurring = null;
+            clearForm('recurringModal');
+            document.getElementById('recurringModalTitle').textContent = '🎯 תקציב חודשי — ' + categoryLabel(cat);
+            document.getElementById('recKind').value = 'category';
+            buildCategoryOptions();
+            document.getElementById('recCategory').value = cat;
+            document.getElementById('recRecognition').value = 100;
+            onRecKindChange();
+            openModal('recurringModal');
+            setTimeout(() => document.getElementById('recAmount').focus(), 100);
         }
 
         // "+" on a category group header — add an invoice straight into that category.
