@@ -10058,6 +10058,15 @@
             if (hit) {
                 Object.assign(hit.doc, values);
                 target = hit.doc;
+                // The document's year follows its date — editing the date moves it.
+                if (hit.year !== yearFor) {
+                    hit.yd.officialDocs = hit.yd.officialDocs.filter(x => x !== hit.doc);
+                    if (!data.yearData[yearFor]) data.yearData[yearFor] = createEmptyYearData(yearFor);
+                    const dest = data.yearData[yearFor];
+                    if (!dest.officialDocs) dest.officialDocs = [];
+                    dest.officialDocs.push(hit.doc);
+                    if (!data.years.includes(yearFor)) data.years.push(yearFor);
+                }
             } else {
                 if (!data.yearData[yearFor]) data.yearData[yearFor] = createEmptyYearData(yearFor);
                 const yd = data.yearData[yearFor];
