@@ -4664,6 +4664,55 @@
             return results;
         }
 
+        // ===== REPLACED-FILE CLEANUP =====
+        // Uploading a new file over a record used to leave the previous one behind in
+        // Drive and on disk. Now the old copy is removed the moment it is replaced.
+        async function removeSupersededFile(oldDriveId, oldLocalPath, newDriveId) {
+            if (oldDriveId && oldDriveId !== newDriveId) {
+                try { await deleteDriveFile(oldDriveId); } catch (e) { console.warn('[cleanup] drive delete failed', e); }
+                const yd = getYearData();
+                (yd.documents || []).forEach(doc => {
+                    if (doc.driveId === oldDriveId) { doc._deleted = true; doc._deletedAt = Date.now(); }
+                });
+            }
+            if (oldLocalPath && localFolderHandle) {
+                try {
+                    const parts = String(oldLocalPath).split('/').filter(Boolean);
+                    const name = parts.pop();
+                    const dir = await localDirFromSegments(parts.slice(1), false);
+                    await dir.removeEntry(name);
+                } catch (e) { /* not on disk — nothing to clean */ }
+            }
+        }
+
+        // Sweep files that were replaced before the cleanup above existed: entries in
+        // yd.documents whose Drive file is no longer referenced by any record.
+        async function cleanupSupersededFiles(silent) {
+            const ok = await ensureValidToken();
+            if (!ok) return 0;
+            let removed = 0;
+            for (const [yearKey, yd] of Object.entries(data.yearData || {})) {
+                if (!yd || !yd.documents) continue;
+                const live = new Set();
+                ['expenses','salary','unemployment','miluim','selfEmployed','taxAdvances','blAdvances','forms'].forEach(k => {
+                    active(yd[k]).forEach(r => { if (r.driveId) live.add(r.driveId); });
+                });
+                for (const doc of yd.documents) {
+                    if (doc._deleted || !doc.driveId || live.has(doc.driveId)) continue;
+                    try {
+                        await deleteDriveFile(doc.driveId);
+                        if (doc.localPath) await removeSupersededFile(null, doc.localPath, null);
+                        doc._deleted = true;
+                        doc._deletedAt = Date.now();
+                        removed++;
+                    } catch (e) { console.warn('[cleanup] failed for', doc.fileName, e); }
+                }
+            }
+            if (removed) { saveData(); await pruneEmptyDriveFolders(); }
+            if (!silent && removed) console.log('[cleanup] removed', removed, 'superseded files');
+            return removed;
+        }
+
         // ===== AUTOMATIC RE-FILING =====
         // Whenever a record changes (category, supplier, date, amount) its attachment
         // is moved and renamed immediately — in Drive and on disk — so the archive
@@ -5753,6 +5802,8 @@
         async function postUnlockSync() {
             try {
                 await tryAutoConnect();
+                // Clear out files left behind by earlier replacements, once, quietly.
+                await cleanupSupersededFiles(true);
             } catch (e) {
                 console.error('postUnlockSync error:', e);
             }
@@ -6160,6 +6211,7 @@
                 itemData.fileName = file.name;
                 itemData.localPath = results.local;
                 itemData.driveId = results.drive.id;
+                if (editingId) _replacedFile = (function(){ const yd2=getYearData(); for (const k of ["salary","unemployment","miluim","selfEmployed","expenses","taxAdvances","blAdvances"]) { const r=(yd2[k]||[]).find(x=>x.id===editingId); if (r && r.driveId && r.driveId!==results.drive.id) return {driveId:r.driveId, localPath:r.localPath}; } return null; })();
                 itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
                 document.getElementById('salaryFileStatus').textContent = '✅ הועלה!';
             }
@@ -6176,6 +6228,7 @@
             
             saveData();
             autoRefile('salary', yd.salary.find(x => x.id === recordId), currentYear);
+            if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('salaryModal');
             clearForm('salaryModal');
             renderAll();
@@ -6210,6 +6263,7 @@
                 itemData.fileName = file.name;
                 itemData.localPath = results.local;
                 itemData.driveId = results.drive.id;
+                if (editingId) _replacedFile = (function(){ const yd2=getYearData(); for (const k of ["salary","unemployment","miluim","selfEmployed","expenses","taxAdvances","blAdvances"]) { const r=(yd2[k]||[]).find(x=>x.id===editingId); if (r && r.driveId && r.driveId!==results.drive.id) return {driveId:r.driveId, localPath:r.localPath}; } return null; })();
                 itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
                 document.getElementById('unemploymentFileStatus').textContent = '✅ הועלה!';
             }
@@ -6226,6 +6280,7 @@
             
             saveData();
             autoRefile('unemployment', yd.unemployment.find(x => x.id === recordId), currentYear);
+            if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('unemploymentModal');
             clearForm('unemploymentModal');
             renderAll();
@@ -6270,6 +6325,7 @@
                 itemData.fileName = file.name;
                 itemData.localPath = results.local;
                 itemData.driveId = results.drive.id;
+                if (editingId) _replacedFile = (function(){ const yd2=getYearData(); for (const k of ["salary","unemployment","miluim","selfEmployed","expenses","taxAdvances","blAdvances"]) { const r=(yd2[k]||[]).find(x=>x.id===editingId); if (r && r.driveId && r.driveId!==results.drive.id) return {driveId:r.driveId, localPath:r.localPath}; } return null; })();
                 itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
                 document.getElementById('miluimFileStatus').textContent = '✅ הועלה!';
             }
@@ -6286,6 +6342,7 @@
             
             saveData();
             autoRefile('miluim', yd.miluim.find(x => x.id === recordId), currentYear);
+            if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('miluimModal');
             clearForm('miluimModal');
             renderAll();
@@ -6318,6 +6375,7 @@
                 itemData.fileName = file.name;
                 itemData.localPath = results.local;
                 itemData.driveId = results.drive.id;
+                if (editingId) _replacedFile = (function(){ const yd2=getYearData(); for (const k of ["salary","unemployment","miluim","selfEmployed","expenses","taxAdvances","blAdvances"]) { const r=(yd2[k]||[]).find(x=>x.id===editingId); if (r && r.driveId && r.driveId!==results.drive.id) return {driveId:r.driveId, localPath:r.localPath}; } return null; })();
                 itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
                 document.getElementById('selfFileStatus').textContent = '✅ הועלה!';
             }
@@ -6334,6 +6392,7 @@
             
             saveData();
             autoRefile('selfEmployed', yd.selfEmployed.find(x => x.id === recordId), currentYear);
+            if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('selfEmployedModal');
             clearForm('selfEmployedModal');
             renderAll();
@@ -6374,6 +6433,7 @@
                 itemData.fileName = file.name;
                 itemData.localPath = results.local;
                 itemData.driveId = results.drive.id;
+                if (editingId) _replacedFile = (function(){ const yd2=getYearData(); for (const k of ["salary","unemployment","miluim","selfEmployed","expenses","taxAdvances","blAdvances"]) { const r=(yd2[k]||[]).find(x=>x.id===editingId); if (r && r.driveId && r.driveId!==results.drive.id) return {driveId:r.driveId, localPath:r.localPath}; } return null; })();
                 itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
                 document.getElementById('expenseFileStatus').textContent = '✅ הועלה!';
             }
@@ -6390,6 +6450,7 @@
             
             saveData();
             autoRefile('expenses', yd.expenses.find(x => x.id === recordId), currentYear);
+            if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('expenseModal');
             clearForm('expenseModal');
             renderAll();
@@ -6421,6 +6482,7 @@
                 itemData.fileName = file.name;
                 itemData.localPath = results.local;
                 itemData.driveId = results.drive.id;
+                if (editingId) _replacedFile = (function(){ const yd2=getYearData(); for (const k of ["salary","unemployment","miluim","selfEmployed","expenses","taxAdvances","blAdvances"]) { const r=(yd2[k]||[]).find(x=>x.id===editingId); if (r && r.driveId && r.driveId!==results.drive.id) return {driveId:r.driveId, localPath:r.localPath}; } return null; })();
                 itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
                 document.getElementById('taxAdvanceFileStatus').textContent = '✅ הועלה!';
             }
@@ -6438,6 +6500,7 @@
             yd.taxAdvances.sort((a, b) => a.month - b.month);
             saveData();
             autoRefile('taxAdvances', yd.taxAdvances.find(x => x.id === recordId), currentYear);
+            if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('taxAdvanceModal');
             clearForm('taxAdvanceModal');
             renderAll();
@@ -6493,6 +6556,7 @@
                 itemData.fileName = file.name;
                 itemData.localPath = results.local;
                 itemData.driveId = results.drive.id;
+                if (editingId) _replacedFile = (function(){ const yd2=getYearData(); for (const k of ["salary","unemployment","miluim","selfEmployed","expenses","taxAdvances","blAdvances"]) { const r=(yd2[k]||[]).find(x=>x.id===editingId); if (r && r.driveId && r.driveId!==results.drive.id) return {driveId:r.driveId, localPath:r.localPath}; } return null; })();
                 itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
                 document.getElementById('blAdvanceFileStatus').textContent = '✅ הועלה!';
             }
@@ -6510,6 +6574,7 @@
             yd.blAdvances.sort((a, b) => a.month - b.month);
             saveData();
             autoRefile('blAdvances', yd.blAdvances.find(x => x.id === recordId), currentYear);
+            if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('blAdvanceModal');
             clearForm('blAdvanceModal');
             renderAll();
@@ -6747,6 +6812,7 @@
 
         // ========== EDIT FUNCTIONS ==========
         let editingId = null;
+        let _replacedFile = null;   // previous attachment of the record being edited
 
         function editSalary(id) {
             const yd = getYearData();
