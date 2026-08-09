@@ -1812,8 +1812,8 @@
                     <thead>
                         <tr>
                             <th>תאריך</th>
-                            <th>תיאור</th>
                             <th>קטגוריה</th>
+                            <th>שם החברה</th>
                             <th>סכום</th>
                             <th>% הכרה</th>
                             <th>מוכר</th>
@@ -9106,14 +9106,15 @@
             const effPct = payment ? (payment.recognition ?? 100) : pct;
             const actions = payment
                 ? `${payment.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${payment.driveLink}','_blank')" title="צפה בקבלה">👁️</button>` : ''}
+                   <button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${monthKey}','${item.id}')" title="ערוך את ההגדרה הקבועה (סוג, קטגוריה, סכום)">🔁</button>
                    <button class="btn btn-icon btn-sm" onclick="editExpense(${payment.id})" title="ערוך את התשלום">✏️</button>
                    <button class="btn btn-icon btn-sm" onclick="deleteItem('expenses',${payment.id})" title="מחק את התשלום">🗑️</button>`
                 : `<button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${monthKey}','${item.id}')" title="עריכה">✏️</button>
                    <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${monthKey}','${item.id}')" title="מחיקה">🗑️</button>`;
             return `<tr${isCarry ? ' style="background:rgba(239,68,68,0.07);"' : ''}>
                 <td style="color:var(--text-muted);font-size:0.8rem;">💳 קבוע</td>
-                <td>${item.description}</td>
                 <td>${categoryLabel(item.category)}</td>
+                <td>${item.description}</td>
                 <td style="color:var(--danger)">${formatCurrency(amount)}</td>
                 <td style="text-align:center;">${status}</td>
                 <td style="color:var(--success)">${formatCurrency(amount * (effPct / 100))}</td>
@@ -9142,8 +9143,8 @@
             const recognized = e.amount * (pct / 100);
             return `<tr>
                 <td>${formatDate(e.date)}</td>
-                <td>${e.description || '-'} ${e.notes ? '<span data-tip="'+e.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${categoryLabel(e.category)}</td>
+                <td>${e.description || '-'} ${e.notes ? '<span data-tip="'+e.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
                 <td style="text-align:center;${pct < 100 ? 'color:var(--warning)' : ''}">${pct}%</td>
                 <td style="color:var(--success)">${formatCurrency(recognized)}</td>
