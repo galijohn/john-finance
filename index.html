@@ -4546,6 +4546,9 @@
             return String(s || '').replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 60);
         }
 
+        // Mirrors the app's own navigation: section (the page you're on) → month → category.
+        //   2026 / הוצאות-מוכרות / 01-ינואר / נסיעות / 01-01 פז דלק 368₪.pdf
+        //   2026 / מילואים       / 01-ינואר / 25-01 מילואים 10,076₪.pdf
         // meta: { date:'YYYY-MM-DD' | null, month: 1-12 | null, category, description, amount }
         function archiveSubFolder(baseFolder, meta) {
             meta = meta || {};
@@ -4553,12 +4556,10 @@
             if (meta.date && String(meta.date).length >= 7) m = parseInt(String(meta.date).slice(5, 7));
             else if (meta.month) m = parseInt(meta.month);
             const monthSeg = m ? String(m).padStart(2, '0') + '-' + MONTHS[m] : 'ללא-תאריך';
-            // A category is a single segment; a baseFolder may already be a path ('טפסים/106')
-            // and its slashes must survive as real folder levels.
-            const catSeg = meta.category
-                ? (sanitizeSegment(meta.category) || baseFolder)
-                : String(baseFolder).split('/').filter(s => s).map(sanitizeSegment).join('/');
-            return monthSeg + '/' + catSeg;
+            // baseFolder may already be a path ('טפסים/106') — its slashes stay real levels.
+            const sectionSeg = String(baseFolder).split('/').filter(s => s).map(sanitizeSegment).join('/');
+            const catSeg = meta.category ? sanitizeSegment(meta.category) : '';
+            return sectionSeg + '/' + monthSeg + (catSeg ? '/' + catSeg : '');
         }
 
         function archiveFileName(originalName, meta) {
