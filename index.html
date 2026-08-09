@@ -757,6 +757,70 @@
             border-top: 1px dashed var(--border);
         }
 
+        /* ===== Clickable rows + right-click menu ===== */
+        tr.row-click { cursor: pointer; }
+        tr.row-click:hover { background: rgba(255,255,255,0.04); }
+
+        .row-menu {
+            position: fixed;
+            z-index: 10000;
+            min-width: 190px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 6px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+            display: none;
+        }
+
+        .row-menu.open { display: block; }
+
+        .row-menu button {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            text-align: right;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            padding: 9px 12px;
+            border-radius: 7px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .row-menu button:hover { background: var(--bg-input); }
+        .row-menu button.danger { color: var(--danger); }
+        .row-menu .sep { height: 1px; background: var(--border); margin: 5px 4px; }
+
+        /* ===== Phone & tablet ===== */
+        @media (max-width: 1024px) {
+            #page-expenses table { font-size: 0.86rem; }
+            #page-expenses th, #page-expenses td { padding: 8px 6px; }
+            #page-expenses th:nth-child(5), #page-expenses td.col-pct { display: none; }
+        }
+
+        @media (max-width: 700px) {
+            /* On a phone the row itself is the control: tap opens the document,
+               long-press opens the actions menu — so the buttons column goes away. */
+            #page-expenses th:nth-child(6), #page-expenses td.col-net { display: none; }
+            #page-expenses th:nth-child(7), #page-expenses tbody td:last-child { display: none; }
+            /* With four columns left there is nothing to scroll to — let it fit. */
+            #page-expenses .table-container table { min-width: 0; }
+            #page-expenses table { font-size: 0.82rem; }
+            #page-expenses .btn-icon { padding: 8px 9px; font-size: 0.95rem; }
+            .month-select { font-size: 0.95rem; padding: 8px 10px; max-width: 60vw; }
+            .rec-head { flex-direction: column; align-items: stretch; gap: 8px; }
+            .expense-controls { flex-direction: column; align-items: stretch; }
+            .expense-controls .expense-filters,
+            .expense-controls .expense-actions { justify-content: space-between; }
+            #expenseCategoryFilter { flex: 1; }
+            .row-menu { min-width: 62vw; }
+            .row-menu button { padding: 12px 14px; font-size: 0.95rem; }
+            .modal { width: 94vw; max-width: 94vw; }
+        }
+
         .btn-sm {
             padding: 5px 12px;
             font-size: 0.82rem;
@@ -3035,6 +3099,28 @@
                     <button class="btn" onclick="resolveRecurringScope('month')" style="width:100%;">רק החודש הזה</button>
                     <button class="btn" onclick="resolveRecurringScope(null)" style="width:100%;">ביטול</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row-menu" id="rowMenu"></div>
+
+    <div class="modal-overlay" id="quickCategoryModal">
+        <div class="modal" style="max-width:380px;">
+            <div class="modal-header">
+                <h3>🏷️ שינוי סיווג</h3>
+                <button class="btn-icon" onclick="closeModal('quickCategoryModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="quickCategoryWhat" style="color:var(--text-muted);font-size:0.88rem;margin-bottom:12px;"></div>
+                <div class="form-group">
+                    <label>קטגוריה</label>
+                    <select class="form-control" id="quickCategorySelect"></select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveQuickCategory()">שמור</button>
+                <button class="btn" onclick="closeModal('quickCategoryModal')">ביטול</button>
             </div>
         </div>
     </div>
@@ -9138,27 +9224,30 @@
                     const catGross = items.reduce((s, e) => s + (Number(e.amount) || 0), 0);
                     const isCollapsed = collapsedCategories[cat];
                     const b = budgets[cat];
-                    let budgetCell = '<td colspan="1" style="text-align:center;">—</td>';
+                    let budgetCell = '<td class="col-pct" colspan="1" style="text-align:center;">—</td>';
                     if (b && b.amount) {
                         const pct = Math.min(100, Math.round(catGross / b.amount * 100));
                         const over = catGross > b.amount;
-                        budgetCell = `<td style="text-align:center;">
+                        budgetCell = `<td class="col-pct" style="text-align:center;">
                             <div style="display:flex;align-items:center;gap:6px;justify-content:center;">
                                 <div class="rec-bar${over ? ' over' : ''}" style="width:70px;"><div style="width:${pct}%"></div></div>
                                 <span style="font-size:0.75rem;color:${over ? 'var(--warning)' : 'var(--text-muted)'};">${formatCurrency(catGross)} / ${formatCurrency(b.amount)}</span>
                             </div>
                         </td>`;
                     }
-                    html += `<tr class="category-group-header">
-                        <td colspan="4" onclick="toggleCategoryCollapse('${cat}')" style="cursor:pointer;">${isCollapsed ? '▶' : '▼'} ${categoryLabel(cat)} (${items.length})</td>
+                    const catExtra = b ? `{budgetId:'${b.id}'}` : 'null';
+                    html += `<tr class="category-group-header row-click" onclick="toggleCategoryCollapse('${cat}')"
+                                 oncontextmenu="showRowMenu(event,'category','${cat}',${catExtra})"
+                                 ontouchstart="rowTouchStart(event,'category','${cat}',${catExtra})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
+                        <td colspan="4">${isCollapsed ? '▶' : '▼'} ${categoryLabel(cat)} (${items.length})</td>
                         ${budgetCell}
-                        <td style="color:var(--warning)">${formatCurrency(catRecognized)}</td>
-                        <td>${expenseMonth === 'all' ? '' : `
+                        <td class="col-net" style="color:var(--warning)">${formatCurrency(catRecognized)}</td>
+                        <td onclick="event.stopPropagation()">${expenseMonth === 'all' ? '' : `
                             <button class="btn btn-icon btn-sm" onclick="addExpenseToCategory('${cat}')" title="הוסף חשבונית לקטגוריה">＋</button>
                             <button class="btn btn-icon btn-sm" onclick="renameCategory('${cat}')" title="שנה שם קטגוריה">🏷️</button>
                             ${b
                                 ? `<button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${expenseMonth}','${b.id}')" title="שנה תקציב חודשי">✏️</button>
-                                   <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${expenseMonth}','${b.id}')" title="הסר תקציב">🗑️</button>`
+                                   <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${expenseMonth}','${b.id}')" title="הסר תקציב">✕</button>`
                                 : `<button class="btn btn-icon btn-sm" onclick="setCategoryBudget('${cat}')" title="הגדר תקציב חודשי" style="opacity:0.45;">🎯</button>`}
                         `}</td>
                     </tr>`;
@@ -9214,17 +9303,22 @@
                 ? `${payment.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${payment.driveLink}','_blank')" title="צפה בקבלה">👁️</button>` : ''}
                    <button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${monthKey}','${item.id}')" title="ערוך את ההגדרה הקבועה (סוג, קטגוריה, סכום)">🔁</button>
                    <button class="btn btn-icon btn-sm" onclick="editExpense(${payment.id})" title="ערוך את התשלום">✏️</button>
-                   <button class="btn btn-icon btn-sm" onclick="deleteItem('expenses',${payment.id})" title="מחק את התשלום">🗑️</button>`
+                   <button class="btn btn-icon btn-sm" onclick="deleteItem('expenses',${payment.id})" title="מחק את התשלום">✕</button>`
                 : `<button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${monthKey}','${item.id}')" title="עריכה">✏️</button>
-                   <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${monthKey}','${item.id}')" title="מחיקה">🗑️</button>`;
-            return `<tr${isCarry ? ' style="background:rgba(239,68,68,0.07);"' : ''}>
+                   <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${monthKey}','${item.id}')" title="מחיקה">✕</button>`;
+            const menuExtra = `{monthKey:'${monthKey}',paymentId:${payment ? payment.id : 'null'}}`;
+            const rowClick = payment ? `openRecordFile(${payment.id})` : `payRecurring('${monthKey}','${item.id}')`;
+            return `<tr class="row-click"${isCarry ? ' style="background:rgba(239,68,68,0.07);"' : ''}
+                        onclick="${rowClick}"
+                        oncontextmenu="showRowMenu(event,'bill','${item.id}',${menuExtra})"
+                        ontouchstart="rowTouchStart(event,'bill','${item.id}',${menuExtra})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td style="white-space:nowrap;"><span style="color:var(--text-muted);font-size:0.8rem;margin-inline-end:4px;">💳</span>${status}</td>
                 <td>${categoryLabel(item.category)}</td>
                 <td>${item.description}</td>
                 <td style="color:var(--danger)">${formatCurrency(amount)}</td>
-                <td style="text-align:center;${effPct < 100 ? 'color:var(--warning)' : ''}">${effPct}%</td>
-                <td style="color:var(--success)">${formatCurrency(amount * (effPct / 100))}</td>
-                <td>${actions}</td>
+                <td class="col-pct" style="text-align:center;${effPct < 100 ? 'color:var(--warning)' : ''}">${effPct}%</td>
+                <td class="col-net" style="color:var(--success)">${formatCurrency(amount * (effPct / 100))}</td>
+                <td onclick="event.stopPropagation()">${actions}</td>
             </tr>`;
         }
 
@@ -9240,6 +9334,138 @@
             onRecKindChange();
             openModal('recurringModal');
             setTimeout(() => document.getElementById('recAmount').focus(), 100);
+        }
+
+        // ===== ROW INTERACTIONS =====
+        // Clicking a row opens its archived document; right-click (or long-press on
+        // touch) opens the actions menu.
+        async function openRecordFile(id) {
+            const e = active(getYearData().expenses).find(x => x.id === id);
+            if (!e) return;
+            if (e.driveLink || e.driveId) {
+                window.open(e.driveLink || ('https://drive.google.com/file/d/' + e.driveId + '/view'), '_blank');
+                return;
+            }
+            const ok = await showPopup({
+                type: 'warning',
+                title: 'לא אורכב קובץ',
+                message: 'ל"' + (e.description || 'רישום זה') + '" לא צורף מסמך.\n\nלצרף עכשיו?',
+                okText: 'צרף מסמך',
+                cancelText: 'סגור'
+            });
+            if (ok) editExpense(id);
+        }
+
+        function hideRowMenu() {
+            const m = document.getElementById('rowMenu');
+            if (m) m.classList.remove('open');
+        }
+        document.addEventListener('click', hideRowMenu);
+        document.addEventListener('scroll', hideRowMenu, true);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') hideRowMenu(); });
+
+        function showRowMenu(ev, kind, id, extra) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const m = document.getElementById('rowMenu');
+            let html = '';
+            if (kind === 'expense') {
+                const e = active(getYearData().expenses).find(x => x.id === id);
+                if (!e) return;
+                html += `<button onclick="hideRowMenu();openRecordFile(${id})">👁️ פתח מסמך</button>`;
+                html += `<button onclick="hideRowMenu();editExpense(${id})">✏️ עריכה</button>`;
+                html += `<button onclick="hideRowMenu();quickChangeCategory('expense',${id})">🏷️ שינוי סיווג</button>`;
+                html += e.recurringKey
+                    ? `<button onclick="hideRowMenu();unlinkExpenseRecurring(${id})">🔁 נתק מהוצאה קבועה</button>`
+                    : `<button onclick="hideRowMenu();makeExpenseRecurring(${id})">🔁 הפוך להוצאה קבועה</button>`;
+                html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteItem('expenses',${id})">✕ מחיקה</button>`;
+            } else if (kind === 'bill') {
+                const monthKey = extra.monthKey;
+                const payment = extra.paymentId ? active(getYearData().expenses).find(x => x.id === extra.paymentId) : null;
+                if (payment) {
+                    html += `<button onclick="hideRowMenu();openRecordFile(${payment.id})">👁️ פתח מסמך</button>`;
+                    html += `<button onclick="hideRowMenu();editExpense(${payment.id})">✏️ ערוך תשלום</button>`;
+                } else {
+                    html += `<button onclick="hideRowMenu();payRecurring('${monthKey}','${id}')">💳 סמן כשולם</button>`;
+                }
+                html += `<button onclick="hideRowMenu();openRecurringEdit('${monthKey}','${id}')">🔁 ערוך הגדרה קבועה</button>`;
+                html += `<button onclick="hideRowMenu();quickChangeCategory('bill','${id}','${monthKey}')">🏷️ שינוי סיווג</button>`;
+                html += `<div class="sep"></div>`;
+                if (payment) html += `<button class="danger" onclick="hideRowMenu();deleteItem('expenses',${payment.id})">✕ מחק תשלום</button>`;
+                html += `<button class="danger" onclick="hideRowMenu();deleteRecurring('${monthKey}','${id}')">✕ מחק שורה קבועה</button>`;
+            } else if (kind === 'category') {
+                const cat = id;
+                html += `<button onclick="hideRowMenu();addExpenseToCategory('${cat}')">＋ הוסף חשבונית</button>`;
+                html += `<button onclick="hideRowMenu();renameCategory('${cat}')">🏷️ שנה שם קטגוריה</button>`;
+                html += extra && extra.budgetId
+                    ? `<button onclick="hideRowMenu();openRecurringEdit('${expenseMonth}','${extra.budgetId}')">🎯 שנה תקציב</button>
+                       <div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteRecurring('${expenseMonth}','${extra.budgetId}')">✕ הסר תקציב</button>`
+                    : `<button onclick="hideRowMenu();setCategoryBudget('${cat}')">🎯 הגדר תקציב</button>`;
+            }
+            m.innerHTML = html;
+            m.classList.add('open');
+            const x = ev.clientX, y = ev.clientY;
+            const r = m.getBoundingClientRect();
+            m.style.left = Math.max(6, Math.min(x, window.innerWidth - r.width - 6)) + 'px';
+            m.style.top = Math.max(6, Math.min(y, window.innerHeight - r.height - 6)) + 'px';
+        }
+
+        // Long-press opens the same menu on touch devices.
+        let _pressTimer = null;
+        function rowTouchStart(ev, kind, id, extra) {
+            clearTimeout(_pressTimer);
+            const t = ev.touches && ev.touches[0];
+            if (!t) return;
+            const fake = { clientX: t.clientX, clientY: t.clientY, preventDefault(){}, stopPropagation(){} };
+            _pressTimer = setTimeout(() => showRowMenu(fake, kind, id, extra), 550);
+        }
+        function rowTouchEnd() { clearTimeout(_pressTimer); }
+
+        let _quickCatTarget = null;
+        function quickChangeCategory(kind, id, monthKey) {
+            _quickCatTarget = { kind, id, monthKey };
+            const sel = document.getElementById('quickCategorySelect');
+            const cats = allCategories();
+            let current = '';
+            if (kind === 'expense') {
+                const e = active(getYearData().expenses).find(x => x.id === id);
+                current = e ? e.category : '';
+                document.getElementById('quickCategoryWhat').textContent = e ? (e.description || '') + ' · ' + formatCurrency(e.amount) : '';
+            } else {
+                const rec = getRecurring();
+                const item = active(rec.months[monthKey] || []).find(i => String(i.id) === String(id));
+                current = item ? item.category : '';
+                document.getElementById('quickCategoryWhat').textContent = item ? item.description : '';
+            }
+            sel.innerHTML = cats.map(c => `<option value="${c}" ${c === current ? 'selected' : ''}>${categoryLabel(c)}</option>`).join('');
+            sel.value = current;
+            openModal('quickCategoryModal');
+        }
+
+        async function saveQuickCategory() {
+            const t = _quickCatTarget;
+            if (!t) return;
+            const cat = document.getElementById('quickCategorySelect').value;
+            if (t.kind === 'expense') {
+                const yd = getYearData();
+                const e = active(yd.expenses).find(x => x.id === t.id);
+                if (e) {
+                    e.category = cat;
+                    saveData();
+                    await autoRefile('expenses', e, currentYear);   // file follows the new category
+                }
+            } else {
+                const rec = getRecurring();
+                const item = active(rec.months[t.monthKey] || []).find(i => String(i.id) === String(t.id));
+                if (item) {
+                    item.category = cat;
+                    if (!isBill(item)) item.description = cat;
+                    saveData();
+                }
+            }
+            _quickCatTarget = null;
+            closeModal('quickCategoryModal');
+            renderAll();
         }
 
         // "+" on a category group header — add an invoice straight into that category.
@@ -9261,20 +9487,22 @@
         function renderExpenseRow(e) {
             const pct = e.recognition ?? 100;
             const recognized = e.amount * (pct / 100);
-            return `<tr>
+            return `<tr class="row-click" onclick="openRecordFile(${e.id})"
+                        oncontextmenu="showRowMenu(event,'expense',${e.id})"
+                        ontouchstart="rowTouchStart(event,'expense',${e.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td>${formatDate(e.date)}</td>
                 <td>${categoryLabel(e.category)}</td>
                 <td>${e.description || '-'} ${e.notes ? '<span data-tip="'+e.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
-                <td style="text-align:center;${pct < 100 ? 'color:var(--warning)' : ''}">${pct}%</td>
-                <td style="color:var(--success)">${formatCurrency(recognized)}</td>
-                <td>
+                <td class="col-pct" style="text-align:center;${pct < 100 ? 'color:var(--warning)' : ''}">${pct}%</td>
+                <td class="col-net" style="color:var(--success)">${formatCurrency(recognized)}</td>
+                <td onclick="event.stopPropagation()">
                     ${e.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${e.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
                     ${e.recurringKey
                         ? `<button class="btn btn-icon btn-sm" onclick="unlinkExpenseRecurring(${e.id})" title="מקושר להוצאה קבועה — לחץ לניתוק">🔁</button>`
                         : `<button class="btn btn-icon btn-sm" onclick="makeExpenseRecurring(${e.id})" title="הפוך להוצאה קבועה" style="opacity:0.45;">🔁</button>`}
                     <button class="btn btn-icon btn-sm" onclick="editExpense(${e.id})" title="עריכה">✏️</button>
-                    <button class="btn btn-icon btn-sm" onclick="deleteItem('expenses',${e.id})" title="מחיקה">🗑️</button>
+                    <button class="btn btn-icon btn-sm" onclick="deleteItem('expenses',${e.id})" title="מחיקה">✕</button>
                 </td>
             </tr>`;
         }
