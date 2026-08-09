@@ -798,14 +798,14 @@
         @media (max-width: 1024px) {
             #page-expenses table { font-size: 0.86rem; }
             #page-expenses th, #page-expenses td { padding: 8px 6px; }
+        }
+
+        @media (max-width: 820px) {
             #page-expenses th:nth-child(5), #page-expenses td.col-pct { display: none; }
         }
 
         @media (max-width: 700px) {
-            /* On a phone the row itself is the control: tap opens the document,
-               long-press opens the actions menu — so the buttons column goes away. */
             #page-expenses th:nth-child(6), #page-expenses td.col-net { display: none; }
-            #page-expenses th:nth-child(7), #page-expenses tbody td:last-child { display: none; }
             /* With four columns left there is nothing to scroll to — let it fit. */
             #page-expenses .table-container table { min-width: 0; }
             #page-expenses table { font-size: 0.82rem; }
@@ -1881,7 +1881,6 @@
                             <th>סכום</th>
                             <th>% הכרה</th>
                             <th>מוכר</th>
-                            <th>פעולות</th>
                         </tr>
                     </thead>
                     <tbody id="expenseTable"></tbody>
@@ -9173,7 +9172,7 @@
 
             if (expenseItems.length === 0) {
                 const msg = expenseMonth === 'all' ? 'לחץ + להוסיף' : 'אין הוצאות ב' + monthLabelFromKey(expenseMonth);
-                tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div class="icon">🧾</div><p>' + msg + '</p></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">🧾</div><p>' + msg + '</p></td></tr>';
                 return;
             }
 
@@ -9242,14 +9241,6 @@
                         <td colspan="4">${isCollapsed ? '▶' : '▼'} ${categoryLabel(cat)} (${items.length})</td>
                         ${budgetCell}
                         <td class="col-net" style="color:var(--warning)">${formatCurrency(catRecognized)}</td>
-                        <td onclick="event.stopPropagation()">${expenseMonth === 'all' ? '' : `
-                            <button class="btn btn-icon btn-sm" onclick="addExpenseToCategory('${cat}')" title="הוסף חשבונית לקטגוריה">＋</button>
-                            <button class="btn btn-icon btn-sm" onclick="renameCategory('${cat}')" title="שנה שם קטגוריה">🏷️</button>
-                            ${b
-                                ? `<button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${expenseMonth}','${b.id}')" title="שנה תקציב חודשי">✏️</button>
-                                   <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${expenseMonth}','${b.id}')" title="הסר תקציב">✕</button>`
-                                : `<button class="btn btn-icon btn-sm" onclick="setCategoryBudget('${cat}')" title="הגדר תקציב חודשי" style="opacity:0.45;">🎯</button>`}
-                        `}</td>
                     </tr>`;
                     if (!isCollapsed) {
                         html += items.map(e => renderExpenseRow(e)).join('');
@@ -9299,13 +9290,6 @@
             }
             const amount = payment ? payment.amount : item.amount;
             const effPct = payment ? (payment.recognition ?? 100) : pct;
-            const actions = payment
-                ? `${payment.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${payment.driveLink}','_blank')" title="צפה בקבלה">👁️</button>` : ''}
-                   <button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${monthKey}','${item.id}')" title="ערוך את ההגדרה הקבועה (סוג, קטגוריה, סכום)">🔁</button>
-                   <button class="btn btn-icon btn-sm" onclick="editExpense(${payment.id})" title="ערוך את התשלום">✏️</button>
-                   <button class="btn btn-icon btn-sm" onclick="deleteItem('expenses',${payment.id})" title="מחק את התשלום">✕</button>`
-                : `<button class="btn btn-icon btn-sm" onclick="openRecurringEdit('${monthKey}','${item.id}')" title="עריכה">✏️</button>
-                   <button class="btn btn-icon btn-sm" onclick="deleteRecurring('${monthKey}','${item.id}')" title="מחיקה">✕</button>`;
             const menuExtra = `{monthKey:'${monthKey}',paymentId:${payment ? payment.id : 'null'}}`;
             const rowClick = payment ? `openRecordFile(${payment.id})` : `payRecurring('${monthKey}','${item.id}')`;
             return `<tr class="row-click"${isCarry ? ' style="background:rgba(239,68,68,0.07);"' : ''}
@@ -9318,7 +9302,6 @@
                 <td style="color:var(--danger)">${formatCurrency(amount)}</td>
                 <td class="col-pct" style="text-align:center;${effPct < 100 ? 'color:var(--warning)' : ''}">${effPct}%</td>
                 <td class="col-net" style="color:var(--success)">${formatCurrency(amount * (effPct / 100))}</td>
-                <td onclick="event.stopPropagation()">${actions}</td>
             </tr>`;
         }
 
@@ -9496,14 +9479,6 @@
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
                 <td class="col-pct" style="text-align:center;${pct < 100 ? 'color:var(--warning)' : ''}">${pct}%</td>
                 <td class="col-net" style="color:var(--success)">${formatCurrency(recognized)}</td>
-                <td onclick="event.stopPropagation()">
-                    ${e.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${e.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
-                    ${e.recurringKey
-                        ? `<button class="btn btn-icon btn-sm" onclick="unlinkExpenseRecurring(${e.id})" title="מקושר להוצאה קבועה — לחץ לניתוק">🔁</button>`
-                        : `<button class="btn btn-icon btn-sm" onclick="makeExpenseRecurring(${e.id})" title="הפוך להוצאה קבועה" style="opacity:0.45;">🔁</button>`}
-                    <button class="btn btn-icon btn-sm" onclick="editExpense(${e.id})" title="עריכה">✏️</button>
-                    <button class="btn btn-icon btn-sm" onclick="deleteItem('expenses',${e.id})" title="מחיקה">✕</button>
-                </td>
             </tr>`;
         }
 
