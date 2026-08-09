@@ -6155,10 +6155,17 @@
                 renderYearsList();
             }
         }
+        // Helper modals that open ON TOP of a record modal (e.g. "new category" while
+        // editing an expense). Closing one must NOT forget which record is being edited —
+        // otherwise saving creates a duplicate instead of updating.
+        const AUX_MODALS = ['categoryModal', 'recurringScopeModal', 'exportScopeModal'];
+
         function closeModal(id) {
             document.getElementById(id).classList.remove('active');
-            editingId = null;
-            if (id === 'expenseModal') recurringPayContext = null;
+            if (!AUX_MODALS.includes(id)) {
+                editingId = null;
+                if (id === 'expenseModal') recurringPayContext = null;
+            }
             clearForm(id);
         }
         
