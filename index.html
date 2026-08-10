@@ -10565,7 +10565,9 @@
             // those must show too, so don't shortcut to the empty state when they exist.
             const hasPendingCollects = expenseGrouped && expenseMonth !== 'all' && expenseFilter === 'all' &&
                 active(getRecurring().months[expenseMonth] || []).some(i => isCollect(i) && !lineDone(expenseMonth, i));
-            if (expenseItems.length === 0 && !hasPendingCollects) {
+            const hasNonDeductBills = expenseGrouped && expenseMonth !== 'all' && expenseFilter === 'all' &&
+                active(getRecurring().months[expenseMonth] || []).some(i => isBill(i) && !isDeductible(i));
+            if (expenseItems.length === 0 && !hasPendingCollects && !hasNonDeductBills) {
                 if (billsHtmlEarly) { tbody.innerHTML = billsHtmlEarly; return; }
                 const msg = expenseMonth === 'all' ? 'לחץ + להוסיף' : 'אין הוצאות ב' + monthLabelFromKey(expenseMonth);
                 tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">🧾</div><p>' + msg + '</p></td></tr>';
@@ -10677,13 +10679,29 @@
         // The 'לא מוכר' section: a header, the non-deductible rows, and a subtotal —
         // always below the deductible expenses.
         function nonDeductibleSectionHtml(items) {
-            if (!items.length) return '';
-            const total = items.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+            // Non-deductible bills of the shown month (paid or not) belong here too.
+            let billRows = '';
+            let billTotal = 0, billCount = 0;
+            if (expenseGrouped && expenseMonth !== 'all' && expenseFilter === 'all') {
+                const rec = getRecurring();
+                active(rec.months[expenseMonth] || []).forEach(i => {
+                    if (isBill(i) && !isDeductible(i)) {
+                        billRows += billRowHtml(expenseMonth, i, false);
+                        const pay = lineDone(expenseMonth, i);
+                        billTotal += Number((pay && pay.amount) || i.amount) || 0;
+                        billCount++;
+                    }
+                });
+            }
+            if (!items.length && !billCount) return '';
+            const total = items.reduce((s, e) => s + (Number(e.amount) || 0), 0) + billTotal;
+            const count = items.length + billCount;
             let html = `<tr class="category-group-header" style="background:rgba(148,163,184,0.10);">
-                <td colspan="4" style="color:var(--text-muted);">🔒 הוצאות לא מוכרות — מעקב בלבד (${items.length})</td>
+                <td colspan="4" style="color:var(--text-muted);">🔒 הוצאות לא מוכרות — מעקב בלבד (${count})</td>
                 <td class="col-pct"></td>
                 <td class="col-net" style="color:var(--text-muted)">${formatCurrency(total)}</td>
             </tr>`;
+            html += billRows;
             html += [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(e => renderExpenseRow(e)).join('');
             return html;
         }
@@ -10695,12 +10713,14 @@
         // including anything still unpaid from earlier months.
         function billRowsHtml(monthKey) {
             const rec = getRecurring();
-            const items = active(rec.months[monthKey] || []).filter(isBill);
+            // Only deductible bills belong in the top section; non-deductible ones are
+            // shown in the 'לא מוכר' section at the bottom.
+            const items = active(rec.months[monthKey] || []).filter(i => isBill(i) && isDeductible(i));
             const carry = [];
             Object.keys(rec.months).sort().forEach(k => {
                 if (k >= monthKey) return;
                 active(rec.months[k]).forEach(i => {
-                    if (isBill(i) && !lineDone(k, i)) carry.push({ k, i });
+                    if (isBill(i) && isDeductible(i) && !lineDone(k, i)) carry.push({ k, i });
                 });
             });
             if (!items.length && !carry.length) return '';
