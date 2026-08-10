@@ -3498,6 +3498,12 @@
                 <button class="btn-icon" onclick="closeModal('exportScopeModal')">✕</button>
             </div>
             <div class="modal-body">
+                <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">מה לכלול:</div>
+                <div style="display:flex;gap:8px;margin-bottom:14px;">
+                    <button type="button" id="exportInclDeductOnly" class="btn btn-sm btn-primary" onclick="setExportInclude(false)" style="flex:1;">✓ רק מוכרות (לרו"ח)</button>
+                    <button type="button" id="exportInclAll" class="btn btn-sm" onclick="setExportInclude(true)" style="flex:1;">הכל כולל לא מוכרות</button>
+                </div>
+                <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">תקופה:</div>
                 <div style="display:flex;flex-direction:column;gap:10px;">
                     <button class="btn btn-primary" id="exportScopeMonthBtn" onclick="runScopedExport('month')" style="width:100%;"></button>
                     <button class="btn" id="exportScopeYearBtn" onclick="runScopedExport('year')" style="width:100%;"></button>
@@ -10607,6 +10613,15 @@
         // ===== SCOPED EXPORT (expenses): month / year-by-months / flat =====
         let expenseExportScope = null;
         let _exportKind = 'pdf';
+        let _exportIncludeNonDeduct = false;   // default: accountant report = deductible only
+
+        function setExportInclude(all) {
+            _exportIncludeNonDeduct = !!all;
+            document.getElementById('exportInclDeductOnly').classList.toggle('btn-primary', !all);
+            document.getElementById('exportInclDeductOnly').textContent = (!all ? '✓ ' : '') + 'רק מוכרות (לרו"ח)';
+            document.getElementById('exportInclAll').classList.toggle('btn-primary', all);
+            document.getElementById('exportInclAll').textContent = (all ? '✓ ' : '') + 'הכל כולל לא מוכרות';
+        }
 
         function getScopedExpenses() {
             const yd = getYearData();
@@ -10614,6 +10629,7 @@
             const s = expenseExportScope;
             if (s && s.mode === 'month') list = list.filter(e => (e.date || '').startsWith(s.monthKey));
             if (expenseFilter !== 'all') list = list.filter(e => e.category === expenseFilter);
+            if (!_exportIncludeNonDeduct) list = list.filter(isDeductible);
             return list;
         }
 
@@ -10623,6 +10639,7 @@
                 : s.mode === 'flat' ? 'כל השנה — ללא חלוקה'
                 : 'כל השנה — לפי חודשים';
             if (expenseFilter !== 'all') t += ' · קטגוריה: ' + expenseFilter;
+            t += _exportIncludeNonDeduct ? ' · כולל לא מוכרות' : ' · מוכרות בלבד';
             return t;
         }
 
@@ -10634,6 +10651,7 @@
             document.getElementById('exportScopeMonthBtn').textContent = icon + ' ' + monthLabelFromKey(mk) + ' — החודש המוצג';
             document.getElementById('exportScopeYearBtn').textContent = icon + ' כל שנת ' + currentYear + ' — לפי חודשים';
             document.getElementById('exportScopeFlatBtn').textContent = icon + ' הכל — ללא חלוקה';
+            setExportInclude(_exportIncludeNonDeduct);
             const note = document.getElementById('exportScopeCatNote');
             if (expenseFilter !== 'all') {
                 note.textContent = 'סינון קטגוריה פעיל: הדוח יכלול רק "' + expenseFilter + '"';
@@ -12082,6 +12100,42 @@
 
         // ========== PDF EXPORT WITH pdf-lib (real PDF, not HTML) ==========
 
+        // A caption strip for an attachment, rendered on a canvas (canvas draws Hebrew
+        // correctly; pdf-lib's built-in fonts do not). Returns a small JPEG data URL.
+        function attachmentCaption(doc) {
+            const parts = ['נספח'];
+            if (doc.type) parts.push(doc.type);
+            if (doc.description) parts.push(doc.description);
+            if (doc.date) parts.push(formatDate(doc.date));
+            if (doc.amount) parts.push(formatCurrency(doc.amount));
+            return parts.join('  ·  ');
+        }
+        function makeCaptionImage(text, widthPt) {
+            const scale = 2;
+            const wPx = Math.round(widthPt * scale);
+            const hPx = Math.round(26 * scale);
+            const c = document.createElement('canvas');
+            c.width = wPx; c.height = hPx;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#1e293b'; ctx.fillRect(0, 0, wPx, hPx);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '500 ' + (13 * scale) + 'px Segoe UI, Arial, sans-serif';
+            ctx.direction = 'rtl';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, wPx - 12 * scale, hPx / 2);
+            return { dataUrl: c.toDataURL('image/jpeg', 0.85), hPt: 26 };
+        }
+        async function drawCaption(finalPdf, pdfPage, doc) {
+            try {
+                const w = pdfPage.getWidth();
+                const cap = makeCaptionImage(attachmentCaption(doc), w);
+                const bytes = Uint8Array.from(atob(cap.dataUrl.split(',')[1]), ch => ch.charCodeAt(0));
+                const img = await finalPdf.embedJpg(bytes);
+                pdfPage.drawImage(img, { x: 0, y: pdfPage.getHeight() - cap.hPt, width: w, height: cap.hPt });
+            } catch (e) { console.warn('caption failed', e); }
+        }
+
         // Fetch all Drive attachments and return { images: [], pdfs: [] }
         async function fetchAttachments(docs) {
             if (!docs || docs.length === 0) return { images: [], pdfs: [] };
@@ -12550,6 +12604,20 @@
                         bgcolor: '#ffffff',
                         scale: 2
                     });
+
+                    // Collect safe cut points: the bottom edge of every row / heading /
+                    // total line, in canvas pixels. Pages are cut only AT these gaps so a
+                    // row is never sliced in half across a page break.
+                    const reportRect = reportEl.getBoundingClientRect();
+                    const scaleY = canvas.height / reportRect.height;
+                    const breakYs = [];
+                    reportEl.querySelectorAll('tr, h3, div').forEach(el => {
+                        const r = el.getBoundingClientRect();
+                        if (r.height > 0) breakYs.push((r.bottom - reportRect.top) * scaleY);
+                    });
+                    breakYs.push(canvas.height);
+                    breakYs.sort((a, b) => a - b);
+
                     document.body.removeChild(container);
 
                     // Split canvas into A4 pages
@@ -12560,21 +12628,39 @@
                     const usableH = a4H - 2 * pdfMargin;
                     const imgScale = usableW / canvas.width;
                     const pageHeightPx = usableH / imgScale;
-                    const numPages = Math.ceil(canvas.height / pageHeightPx);
 
-                    for (let p = 0; p < numPages; p++) {
-                        const yStart = p * pageHeightPx;
-                        const thisH = Math.min(pageHeightPx, canvas.height - yStart);
+                    let yStart = 0;
+                    let guard = 0;
+                    while (yStart < canvas.height - 1 && guard++ < 500) {
+                        const target = yStart + pageHeightPx;
+                        let cut = target;
+                        if (target < canvas.height) {
+                            // largest safe break that fits on this page and makes progress
+                            let best = 0;
+                            for (const b of breakYs) {
+                                if (b > yStart + 20 && b <= target) best = b;
+                                if (b > target) break;
+                            }
+                            if (best > yStart + 20) cut = best;   // otherwise a giant element → hard cut
+                        } else {
+                            cut = canvas.height;
+                        }
+                        const thisH = Math.round(cut - yStart);
                         const pageCanvas = document.createElement('canvas');
                         pageCanvas.width = canvas.width;
                         pageCanvas.height = thisH;
-                        pageCanvas.getContext('2d').drawImage(canvas, 0, yStart, canvas.width, thisH, 0, 0, canvas.width, thisH);
-                        const pageDataUrl = pageCanvas.toDataURL('image/png', 1.0);
+                        const ctx = pageCanvas.getContext('2d');
+                        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, thisH);
+                        ctx.drawImage(canvas, 0, yStart, canvas.width, thisH, 0, 0, canvas.width, thisH);
+                        // JPEG (not PNG) — a text-on-white report compresses to a fraction
+                        // of the size with no visible loss, keeping the whole PDF light.
+                        const pageDataUrl = pageCanvas.toDataURL('image/jpeg', 0.85);
                         const pageImgBytes = Uint8Array.from(atob(pageDataUrl.split(',')[1]), c => c.charCodeAt(0));
-                        const pageImg = await finalPdf.embedPng(pageImgBytes);
+                        const pageImg = await finalPdf.embedJpg(pageImgBytes);
                         const drawH = thisH * imgScale;
                         const pdfPage = finalPdf.addPage([a4W, a4H]);
                         pdfPage.drawImage(pageImg, { x: pdfMargin, y: a4H - pdfMargin - drawH, width: usableW, height: drawH });
+                        yStart = cut;
                     }
 
                     // Report pages already added above via canvas splitting
@@ -12584,18 +12670,22 @@
                         document.getElementById('pdfDetail').textContent = 'טוען ' + pageDocs.length + ' נספחים מ-Google Drive...';
                         const attachments = await fetchAttachments(pageDocs);
 
-                        // Merge PDF attachments
+                        // Merge PDF attachments — each preceded by a caption strip on a
+                        // thin banner drawn over the top of its first page.
                         for (const pdfAtt of attachments.pdfs) {
                             try {
                                 const attDoc = await PDFDocument.load(pdfAtt.bytes);
                                 const attPages = await finalPdf.copyPages(attDoc, attDoc.getPageIndices());
-                                attPages.forEach(p => finalPdf.addPage(p));
+                                attPages.forEach((p, idx) => {
+                                    finalPdf.addPage(p);
+                                    if (idx === 0) drawCaption(finalPdf, p, pdfAtt.doc);
+                                });
                             } catch(e) {
                                 console.warn('Failed to merge PDF:', pdfAtt.doc.fileName, e);
                             }
                         }
 
-                        // Add image attachments as PDF pages
+                        // Add image attachments as PDF pages, with a caption strip on top.
                         for (const imgAtt of attachments.images) {
                             try {
                                 const imgDataUrl = imgAtt.data;
@@ -12607,15 +12697,17 @@
                                     img = await finalPdf.embedJpg(imgBytes);
                                 }
                                 const page = finalPdf.addPage([595.28, 841.89]); // A4
-                                const scale = Math.min((595.28 - 40) / img.width, (841.89 - 40) / img.height, 1);
+                                const capH = 30;
+                                const scale = Math.min((595.28 - 40) / img.width, (841.89 - 40 - capH) / img.height, 1);
                                 const w = img.width * scale;
                                 const h = img.height * scale;
                                 page.drawImage(img, {
                                     x: (595.28 - w) / 2,
-                                    y: (841.89 - h) / 2,
+                                    y: (841.89 - capH - h) / 2,
                                     width: w,
                                     height: h
                                 });
+                                await drawCaption(finalPdf, page, imgAtt.doc);
                             } catch(e) {
                                 console.warn('Failed to add image:', imgAtt.doc.fileName, e);
                             }
