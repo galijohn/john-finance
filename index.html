@@ -9377,6 +9377,12 @@
             document.getElementById('expenseRecognition').value = item.recognition ?? 100;
             document.getElementById('expenseNotes').value = (collect ? 'חשבונית · ' : 'תשלום קבוע · ') + monthLabelFromKey(monthKey);
             setExpenseDeductible(item.deductible !== false);
+            // Show the type the item was defined as (bill/category/collect), and keep the
+            // chooser available so it can still be changed if the user wants.
+            const kg = document.getElementById('expenseKindGroup');
+            if (kg) kg.style.display = '';
+            const ks = document.getElementById('expenseKind');
+            if (ks) ks.value = item.kind || 'bill';
             openModal('expenseModal');
             if (collect) setTimeout(() => document.getElementById('expenseAmount').focus(), 100);
         }
