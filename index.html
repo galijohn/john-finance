@@ -10588,6 +10588,11 @@
                 return expenseSortAsc ? da.localeCompare(db) : db.localeCompare(da);
             });
 
+            // Non-deductible expenses live in their own section at the bottom, never
+            // mixed into the deductible category groups.
+            const filteredNonDeduct = filtered.filter(e => !isDeductible(e));
+            filtered = filtered.filter(isDeductible);
+
             if (expenseGrouped) {
                 // Group by category
                 const groups = {};
@@ -10659,10 +10664,27 @@
                         (pendingCollects[cat] || []).forEach(i => { html += collectRowHtml(expenseMonth, i); });
                     }
                 }
+                html += nonDeductibleSectionHtml(filteredNonDeduct);
                 tbody.innerHTML = html;
             } else {
-                tbody.innerHTML = filtered.map(e => renderExpenseRow(e)).join('');
+                let html = filtered.map(e => renderExpenseRow(e)).join('');
+                html += nonDeductibleSectionHtml(filteredNonDeduct);
+                tbody.innerHTML = html;
             }
+        }
+
+        // The 'לא מוכר' section: a header, the non-deductible rows, and a subtotal —
+        // always below the deductible expenses.
+        function nonDeductibleSectionHtml(items) {
+            if (!items.length) return '';
+            const total = items.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+            let html = `<tr class="category-group-header" style="background:rgba(148,163,184,0.10);">
+                <td colspan="4" style="color:var(--text-muted);">🔒 הוצאות לא מוכרות — מעקב בלבד (${items.length})</td>
+                <td class="col-pct"></td>
+                <td class="col-net" style="color:var(--text-muted)">${formatCurrency(total)}</td>
+            </tr>`;
+            html += [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(e => renderExpenseRow(e)).join('');
+            return html;
         }
 
         let _carryOpen = false;
