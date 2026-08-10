@@ -2644,6 +2644,14 @@
             </div>
 
             <div class="card" style="margin-top:20px;">
+                <h3 style="margin:0 0 15px;">🏦 נכסים כלכליים</h3>
+                <div style="color:var(--text-muted);font-size:0.88rem;margin-bottom:12px;line-height:1.6;">
+                    בנקים וכרטיסי אשראי. כל נכס מקבל תיקיית מסמכים משלו לדפי החשבון, וזמין כאמצעי תשלום בכל הוצאה.
+                </div>
+                <button class="btn btn-primary" onclick="openAssetsManager()">🏦 ניהול נכסים</button>
+            </div>
+
+            <div class="card" style="margin-top:20px;">
                 <h3 style="margin:0 0 15px;">💾 גיבוי ידני</h3>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
                     <button class="btn btn-primary" onclick="exportData()">📥 ייצא קובץ</button>
@@ -3170,6 +3178,20 @@
                     <input type="text" class="form-control" id="expenseNotes" placeholder="לדוגמה: קבלה מס' 123">
                 </div>
                 <div class="form-group">
+                    <label>💳 אמצעי תשלום</label>
+                    <select class="form-control" id="expensePayMethod" onchange="onExpensePayMethodChange()">
+                        <option value="">— לא צוין —</option>
+                        <option value="card">כרטיס אשראי</option>
+                        <option value="bank">העברה בנקאית / עו"ש</option>
+                        <option value="standing">הוראת קבע</option>
+                        <option value="cash">מזומן</option>
+                    </select>
+                </div>
+                <div class="form-group" id="expenseAssetGroup" style="display:none;">
+                    <label>איזה נכס</label>
+                    <select class="form-control" id="expenseAsset" onchange="if(this.value==='__add__'){this.value='';openAssetEditor();}"></select>
+                </div>
+                <div class="form-group">
                     <label>סוג ההוצאה לצורכי מס</label>
                     <div style="display:flex;gap:8px;">
                         <button type="button" id="expDeductibleYes" class="btn btn-sm" onclick="setExpenseDeductible(true)" style="flex:1;">מוכרת</button>
@@ -3342,6 +3364,53 @@
             <div class="modal-footer">
                 <button class="btn btn-primary" onclick="saveDoc()">שמור</button>
                 <button class="btn" onclick="closeModal('docModal')">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="assetsManagerModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>🏦 הנכסים הכלכליים שלי</h3>
+                <button class="btn-icon" onclick="closeModal('assetsManagerModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:12px;">בנקים וכרטיסי אשראי. כל נכס מקבל תיקיית מסמכים משלו לדפי החשבון, וזמין כאמצעי תשלום בהוצאה.</div>
+                <div id="assetsManagerList"></div>
+                <button class="btn btn-sm btn-primary" onclick="openAssetEditor()" style="margin-top:12px;">+ נכס חדש</button>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('assetsManagerModal')">סגור</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="assetEditorModal">
+        <div class="modal" style="max-width:400px;">
+            <div class="modal-header">
+                <h3 id="assetEditorTitle">🏦 נכס חדש</h3>
+                <button class="btn-icon" onclick="closeModal('assetEditorModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>סוג</label>
+                    <select class="form-control" id="assetKind" onchange="onAssetKindChange()">
+                        <option value="card">💳 כרטיס אשראי</option>
+                        <option value="bank">🏦 חשבון בנק (עו"ש)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>שם</label>
+                    <input type="text" class="form-control" id="assetName" placeholder="לדוגמה: ויזה כאל / בנק הפועלים">
+                </div>
+                <div class="form-group">
+                    <label id="assetRefLabel">4 ספרות אחרונות</label>
+                    <input type="text" class="form-control" id="assetRef" placeholder="1234">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveAssetFromEditor()">שמור</button>
+                <button class="btn" onclick="closeModal('assetEditorModal')">ביטול</button>
             </div>
         </div>
     </div>
@@ -4324,6 +4393,10 @@
             // Renamed category labels (local wins on conflict)
             const labels = { ...(cloudData.categoryLabels || {}), ...(localData.categoryLabels || {}) };
             if (Object.keys(labels).length) merged.categoryLabels = labels;
+            // Financial assets (banks + credit cards) — id-merged, deletions propagate.
+            if (localData.assets || cloudData.assets) {
+                merged.assets = mergeArrayById(localData.assets, cloudData.assets);
+            }
             // Keep PIN from whichever has it
             if (!merged.pin && cloudData.pin) merged.pin = cloudData.pin;
             // Keep favorites from local
@@ -6822,7 +6895,10 @@
                 amount: parseFloat(document.getElementById('expenseAmount').value) || 0,
                 recognition: parseFloat(document.getElementById('expenseRecognition').value) ?? 100,
                 notes: document.getElementById('expenseNotes').value,
-                deductible: document.getElementById('expenseDeductible').value === '1'
+                deductible: document.getElementById('expenseDeductible').value === '1',
+                payMethod: document.getElementById('expensePayMethod').value || null,
+                assetId: (document.getElementById('expenseAssetGroup').style.display !== 'none'
+                    ? (document.getElementById('expenseAsset').value || null) : null)
             };
 
             // Guard against creating an identical expense twice (double-click on
@@ -7317,10 +7393,31 @@
             document.getElementById('expenseRecognition').value = item.recognition ?? 100;
             document.getElementById('expenseNotes').value = item.notes || '';
             setExpenseDeductible(item.deductible !== false);
+            setExpensePayment(item.payMethod || '', item.assetId || '');
             const ks = document.getElementById('expenseKindGroup');
             if (ks) ks.style.display = 'none';   // editing an existing expense — no type switch
             document.getElementById('expenseModalTitle').textContent = '🧾 עריכת הוצאה';
             openModal('expenseModal');
+        }
+
+        // Payment method: for card / bank, show a picker of the matching assets.
+        function onExpensePayMethodChange() {
+            const m = document.getElementById('expensePayMethod').value;
+            const grp = document.getElementById('expenseAssetGroup');
+            const sel = document.getElementById('expenseAsset');
+            const wantsAsset = (m === 'card' || m === 'bank' || m === 'standing');
+            if (!wantsAsset) { grp.style.display = 'none'; return; }
+            const kind = m === 'card' ? 'card' : 'bank';
+            const matching = activeAssets().filter(a => a.kind === kind);
+            sel.innerHTML = '<option value="">— בחר —</option>'
+                + matching.map(a => `<option value="${a.id}">${assetLabel(a)}</option>`).join('')
+                + '<option value="__add__">➕ הוסף נכס...</option>';
+            grp.style.display = matching.length || true ? '' : 'none';
+        }
+        function setExpensePayment(method, assetId) {
+            document.getElementById('expensePayMethod').value = method || '';
+            onExpensePayMethodChange();
+            if (assetId) document.getElementById('expenseAsset').value = assetId;
         }
 
         // מוכר / לא מוכר toggle. Non-deductible expenses are tracked but never enter
@@ -8875,6 +8972,105 @@
             return data.recurring;
         }
 
+        // ===== FINANCIAL ASSETS (banks + credit cards) =====
+        // data.assets = [{ id, kind:'bank'|'card', name, ref, _deleted }]
+        // ref = last 4 digits (card) or account number (bank). Each asset auto-owns a
+        // matching document category so its monthly statements have a home.
+        function getAssets() {
+            if (!Array.isArray(data.assets)) data.assets = [];
+            return data.assets;
+        }
+        const activeAssets = () => active(getAssets());
+        function assetLabel(a) {
+            const icon = a.kind === 'card' ? '💳' : '🏦';
+            return icon + ' ' + a.name + (a.ref ? ' · ' + a.ref : '');
+        }
+        function assetById(id) { return getAssets().find(a => String(a.id) === String(id)); }
+        function assetDocCategory(a) {
+            return (a.kind === 'card' ? 'אשראי — ' : 'עו"ש — ') + a.name + (a.ref ? ' ' + a.ref : '');
+        }
+
+        let _rememberedPaymentMethod = 'card';   // default for the next new expense
+
+        function saveAsset(kind, name, ref, editId) {
+            name = String(name || '').trim();
+            if (!name) return false;
+            const assets = getAssets();
+            if (editId) {
+                const a = assets.find(x => String(x.id) === String(editId));
+                if (a) { a.kind = kind; a.name = name; a.ref = ref; }
+            } else {
+                const id = 'as' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+                assets.push({ id, kind, name, ref });
+                // auto-create the matching document category so statements can be filed
+                const cat = assetDocCategory({ kind, name, ref });
+                if (!data.docCategories) data.docCategories = [];
+                const list = docCategories();
+                if (!list.includes(cat)) { data.docCategories.push(cat); list.push(cat); }
+            }
+            saveData();
+            return true;
+        }
+
+        async function deleteAsset(id) {
+            const a = assetById(id);
+            if (!a) return;
+            const ok = await popupConfirm('מחיקת נכס', 'למחוק את "' + a.name + '"?\n\nהוצאות שסומנו עם הנכס יישארו, רק התיוג יוסר.', 'מחק', 'ביטול');
+            if (!ok) return;
+            a._deleted = true;
+            a._deletedAt = Date.now();
+            saveData();
+            renderAll();
+            if (document.getElementById('assetsManagerModal').classList.contains('active')) renderAssetsManager();
+        }
+
+        function openAssetsManager() {
+            renderAssetsManager();
+            openModal('assetsManagerModal');
+        }
+
+        function renderAssetsManager() {
+            const el = document.getElementById('assetsManagerList');
+            if (!el) return;
+            const list = activeAssets();
+            el.innerHTML = list.length ? list.map(a => `
+                <div style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--border);">
+                    <span style="flex:1;">${assetLabel(a)}</span>
+                    <button class="btn btn-icon btn-sm" onclick="openAssetEditor('${a.id}')" title="עריכה">✏️</button>
+                    <button class="btn btn-icon btn-sm" onclick="deleteAsset('${a.id}')" title="מחק">🗑️</button>
+                </div>`).join('')
+                : '<div style="color:var(--text-muted);padding:8px;">אין נכסים עדיין</div>';
+        }
+
+        let _editingAssetId = null;
+        function onAssetKindChange() {
+            const isCard = document.getElementById('assetKind').value === 'card';
+            document.getElementById('assetRefLabel').textContent = isCard ? '4 ספרות אחרונות' : 'מספר חשבון';
+            document.getElementById('assetRef').placeholder = isCard ? '1234' : '12-345-678';
+        }
+        function openAssetEditor(id) {
+            _editingAssetId = id || null;
+            const a = id ? assetById(id) : null;
+            document.getElementById('assetEditorTitle').textContent = a ? '🏦 עריכת נכס' : '🏦 נכס חדש';
+            document.getElementById('assetKind').value = a ? a.kind : 'card';
+            document.getElementById('assetName').value = a ? a.name : '';
+            document.getElementById('assetRef').value = a ? (a.ref || '') : '';
+            onAssetKindChange();
+            openModal('assetEditorModal');
+            setTimeout(() => document.getElementById('assetName').focus(), 100);
+        }
+        async function saveAssetFromEditor() {
+            const kind = document.getElementById('assetKind').value;
+            const name = document.getElementById('assetName').value.trim();
+            const ref = document.getElementById('assetRef').value.trim();
+            if (!name) { await popupError('חסר שם', 'תן שם לנכס'); return; }
+            saveAsset(kind, name, ref, _editingAssetId);
+            _editingAssetId = null;
+            closeModal('assetEditorModal');
+            renderAssetsManager();
+            renderAll();
+        }
+
         function monthLabelFromKey(k) {
             const parts = k.split('-');
             return MONTHS[parseInt(parts[1])] + ' ' + parts[0];
@@ -9341,6 +9537,7 @@
             recurringPayContext = null;
             editingId = null;
             setExpenseDeductible(true);
+            setExpensePayment('', '');
             const ks = document.getElementById('expenseKindGroup');
             const sel = document.getElementById('expenseKind');
             if (ks) ks.style.display = '';       // show the type chooser for a new entry
