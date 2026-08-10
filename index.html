@@ -9652,6 +9652,50 @@
             popupSuccess('נוסף לאיסוף', '"' + values.description + '" יופיע כל חודש עד שתשלים אותו');
         }
 
+        // Undo a bill/collection payment: delete the payment record (its file goes to
+        // the Drive trash) and revert the row to unpaid — the recurring row itself stays.
+        async function revertRecurringPayment(monthKey, itemId) {
+            const rec = getRecurring();
+            const item = active(rec.months[monthKey] || []).find(i => String(i.id) === String(itemId));
+            if (!item) return;
+            const payment = findRecurringPayment(monthKey, itemId);
+            const word = isCollect(item) ? 'האיסוף' : 'התשלום';
+            const ok = await showPopup({
+                type: 'warning',
+                title: 'ביטול ' + word,
+                message: 'השורה תישאר במעקב ותחזור ל"' + (isCollect(item) ? 'לאסוף' : 'לתשלום') + '".' +
+                    (payment && payment.driveId ? '\n\nהקובץ שצורף יימחק (יעבור לסל האשפה של Drive).' : ''),
+                okText: 'בטל ' + word, cancelText: 'השאר'
+            });
+            if (!ok) return;
+            if (payment) {
+                if (payment.driveId) deleteDriveFile(payment.driveId).catch(e => console.warn('[drive] revert delete failed', e));
+                payment._deleted = true;
+                payment._deletedAt = Date.now();
+            }
+            if (isCollect(item)) item.collected = false;
+            saveData();
+            renderAll();
+        }
+
+        // Remove only the attached file from an expense — keep the expense for tracking.
+        async function removeExpenseFile(id) {
+            const yd = getYearData();
+            const e = active(yd.expenses).find(x => x.id === id);
+            if (!e || (!e.driveId && !e.fileName)) return;
+            const ok = await showPopup({
+                type: 'warning',
+                title: 'הסרת הקובץ',
+                message: 'הקובץ המצורף יימחק (יעבור לסל האשפה של Drive), אך שורת ההוצאה תישאר.',
+                okText: 'הסר קובץ', cancelText: 'ביטול'
+            });
+            if (!ok) return;
+            if (e.driveId) deleteDriveFile(e.driveId).catch(err => console.warn('[drive] file remove failed', err));
+            delete e.driveId; delete e.driveLink; delete e.fileName; delete e.localPath;
+            saveData();
+            renderAll();
+        }
+
         // The collection line this expense satisfies, if any — so it can be undone
         // straight from the expense's own row.
         function collectLineForExpense(e) {
@@ -10730,6 +10774,7 @@
                 html += `<button onclick="hideRowMenu();openRecordFile(${id})">👁️ פתח מסמך</button>`;
                 html += `<button onclick="hideRowMenu();editExpense(${id})">✏️ עריכה</button>`;
                 html += `<button onclick="hideRowMenu();quickChangeCategory('expense',${id})">🏷️ שינוי סיווג</button>`;
+                if (e.driveId || e.fileName) html += `<button onclick="hideRowMenu();removeExpenseFile(${id})">📎 הסר קובץ בלבד</button>`;
                 // Word the action for what this expense is actually linked to —
                 // a bill and a collection are not the same thing.
                 const line = recurringLineOf(e);
@@ -10764,25 +10809,28 @@
                     } else {
                         html += `<button onclick="hideRowMenu();payRecurring('${monthKey}','${id}')">📄 השלם חשבונית</button>`;
                     }
-                    html += done
-                        ? `<button onclick="hideRowMenu();setCollected('${monthKey}','${id}',false)">↩️ בטל איסוף</button>`
-                        : `<button onclick="hideRowMenu();setCollected('${monthKey}','${id}',true)">✓ סמן כנאסף</button>`;
+                    if (done) {
+                        html += payment
+                            ? `<button onclick="hideRowMenu();revertRecurringPayment('${monthKey}','${id}')">↩️ בטל איסוף (מחזיר ל"לאסוף", מוחק קובץ)</button>`
+                            : `<button onclick="hideRowMenu();setCollected('${monthKey}','${id}',false)">↩️ בטל איסוף</button>`;
+                    } else {
+                        html += `<button onclick="hideRowMenu();setCollected('${monthKey}','${id}',true)">✓ סמן כנאסף</button>`;
+                    }
                     html += `<button onclick="hideRowMenu();openRecurringEdit('${monthKey}','${id}')">✏️ ערוך פריט איסוף</button>`;
                     html += `<button onclick="hideRowMenu();quickChangeCategory('bill','${id}','${monthKey}')">🏷️ שינוי סיווג</button>`;
                     html += `<div class="sep"></div>`;
-                    if (payment) html += `<button class="danger" onclick="hideRowMenu();deleteItem('expenses',${payment.id})">✕ מחק חשבונית</button>`;
                     html += `<button class="danger" onclick="hideRowMenu();deleteRecurring('${monthKey}','${id}')">✕ הסר מרשימת האיסוף</button>`;
                 } else {
                     if (payment) {
                         html += `<button onclick="hideRowMenu();openRecordFile(${payment.id})">👁️ פתח מסמך</button>`;
                         html += `<button onclick="hideRowMenu();editExpense(${payment.id})">✏️ ערוך תשלום</button>`;
+                        html += `<button onclick="hideRowMenu();revertRecurringPayment('${monthKey}','${id}')">↩️ בטל תשלום (מחזיר ל"לתשלום", מוחק קובץ)</button>`;
                     } else {
                         html += `<button onclick="hideRowMenu();payRecurring('${monthKey}','${id}')">💳 סמן כשולם</button>`;
                     }
                     html += `<button onclick="hideRowMenu();openRecurringEdit('${monthKey}','${id}')">🔁 ערוך הגדרה קבועה</button>`;
                     html += `<button onclick="hideRowMenu();quickChangeCategory('bill','${id}','${monthKey}')">🏷️ שינוי סיווג</button>`;
                     html += `<div class="sep"></div>`;
-                    if (payment) html += `<button class="danger" onclick="hideRowMenu();deleteItem('expenses',${payment.id})">✕ מחק תשלום</button>`;
                     html += `<button class="danger" onclick="hideRowMenu();deleteRecurring('${monthKey}','${id}')">✕ מחק שורה קבועה</button>`;
                 }
             } else if (kind === 'category') {
