@@ -12538,11 +12538,16 @@
                 }
             }
 
-            // Build report HTML for pdf conversion (all inline styles - html2canvas ignores CSS classes)
-            let titleLine = title + ' לשנת המס ' + year;
-            if (page === 'expenses' && expenseExportScope && expenseExportScope.mode === 'month') {
-                titleLine = title + ' — ' + monthLabelFromKey(expenseExportScope.monthKey);
+            // The period this export covers — used in both the title and the filename.
+            let _scopeName = 'לשנת המס ' + year;
+            if (page === 'expenses' && expenseExportScope) {
+                const m = expenseExportScope.mode;
+                _scopeName = m === 'month' ? monthLabelFromKey(expenseExportScope.monthKey)
+                    : m === 'flat' ? 'כל שנת ' + year + ' (ללא חלוקה)'
+                    : 'כל שנת ' + year;
             }
+            // Build report HTML for pdf conversion (all inline styles - html2canvas ignores CSS classes)
+            const titleLine = title + ' — ' + _scopeName;
             const reportHTML = '<div dir="rtl" style="font-family:Segoe UI,Tahoma,Arial,sans-serif; color:#1e293b; padding:20px 25px; font-size:11px; width:700px; background:white;">' +
                 '<div style="border-top:3px double #1e293b; border-bottom:3px double #1e293b; padding:15px 0; margin-bottom:5px; text-align:center;">' +
                 '<h1 style="font-size:20px; margin:0 0 5px;">' + titleLine + '</h1></div>' +
@@ -12723,7 +12728,8 @@
                     const _now = new Date();
                     const _pad = n => String(n).padStart(2, '0');
                     const _dateStamp = _pad(_now.getDate()) + '-' + _pad(_now.getMonth() + 1) + '-' + _now.getFullYear();
-                    const fileName = title.replace(/[^\u0590-\u05FFa-zA-Z0-9 ]/g, '') + ' ' + year + ' - ' + _dateStamp + '.pdf';
+                    const _cleanScope = _scopeName.replace(/[^\u0590-\u05FFa-zA-Z0-9 ]/g, '').trim();
+                    const fileName = title.replace(/[^\u0590-\u05FFa-zA-Z0-9 ]/g, '') + ' - ' + _cleanScope + ' - ' + _dateStamp + '.pdf';
 
                     // Show PDF in fullscreen iframe with download button
                     overlay.innerHTML = '';
