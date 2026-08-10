@@ -12602,7 +12602,7 @@
                     const reportEl = container.firstChild;
                     const canvas = await domtoimage.toCanvas(reportEl, {
                         bgcolor: '#ffffff',
-                        scale: 2
+                        scale: 3
                     });
 
                     // Collect safe cut points: the bottom edge of every row / heading /
@@ -12654,7 +12654,7 @@
                         ctx.drawImage(canvas, 0, yStart, canvas.width, thisH, 0, 0, canvas.width, thisH);
                         // JPEG (not PNG) — a text-on-white report compresses to a fraction
                         // of the size with no visible loss, keeping the whole PDF light.
-                        const pageDataUrl = pageCanvas.toDataURL('image/jpeg', 0.85);
+                        const pageDataUrl = pageCanvas.toDataURL('image/jpeg', 0.95);
                         const pageImgBytes = Uint8Array.from(atob(pageDataUrl.split(',')[1]), c => c.charCodeAt(0));
                         const pageImg = await finalPdf.embedJpg(pageImgBytes);
                         const drawH = thisH * imgScale;
