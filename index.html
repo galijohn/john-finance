@@ -1873,7 +1873,7 @@
                         </div>
                     </div>
                 </div>
-                <button class="btn btn-primary" onclick="openAddExpense()">+ הוסף הוצאה</button>
+                <button class="btn btn-primary" onclick="openAddExpense()">+ הוסף</button>
             </div>
 
             <div class="info-box">
@@ -3128,10 +3128,19 @@
     <div class="modal-overlay" id="expenseModal">
         <div class="modal">
             <div class="modal-header">
-                <h3>🧾 הוסף הוצאה מוכרת</h3>
+                <h3 id="expenseModalTitle">🧾 הוסף הוצאה</h3>
                 <button class="btn-icon" onclick="closeModal('expenseModal')">✕</button>
             </div>
             <div class="modal-body">
+                <div class="form-group" id="expenseKindGroup" style="display:none;">
+                    <label>סוג</label>
+                    <select class="form-control" id="expenseKind" onchange="onExpenseKindChange(this.value)">
+                        <option value="once">🧾 הוצאה חד־פעמית</option>
+                        <option value="bill">💳 חשבון קבוע — תשלום אחד בחודש (בזק, רו"ח)</option>
+                        <option value="category">🔄 קטגוריה שוטפת — הרבה תשלומים (דלק, חניות)</option>
+                        <option value="collect">📄 חשבונית לאיסוף — ספק חוזר בלי סכום קבוע</option>
+                    </select>
+                </div>
                 <div class="form-group">
                     <label>תאריך</label>
                     <input type="date" class="form-control" id="expenseDate">
@@ -7309,6 +7318,9 @@
             document.getElementById('expenseRecognition').value = item.recognition ?? 100;
             document.getElementById('expenseNotes').value = item.notes || '';
             setExpenseDeductible(item.deductible !== false);
+            const ks = document.getElementById('expenseKindGroup');
+            if (ks) ks.style.display = 'none';   // editing an existing expense — no type switch
+            document.getElementById('expenseModalTitle').textContent = '🧾 עריכת הוצאה';
             openModal('expenseModal');
         }
 
@@ -9329,7 +9341,22 @@
             recurringPayContext = null;
             editingId = null;
             setExpenseDeductible(true);
+            const ks = document.getElementById('expenseKindGroup');
+            const sel = document.getElementById('expenseKind');
+            if (ks) ks.style.display = '';       // show the type chooser for a new entry
+            if (sel) sel.value = 'once';
+            document.getElementById('expenseModalTitle').textContent = '🧾 הוסף הוצאה';
             openModal('expenseModal');
+        }
+
+        // The unified "+ הוסף" chooser: 'once' stays here; the recurring types hand off
+        // to the recurring dialog preset to that kind.
+        function onExpenseKindChange(kind) {
+            if (kind === 'once') return;
+            closeModal('expenseModal');
+            openRecurringAdd();
+            document.getElementById('recKind').value = kind;
+            onRecKindChange();
         }
 
         function payRecurring(monthKey, itemId) {
