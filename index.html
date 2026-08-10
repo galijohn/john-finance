@@ -3173,8 +3173,8 @@
                 <div class="form-group">
                     <label>סוג ההוצאה לצורכי מס</label>
                     <div style="display:flex;gap:8px;">
-                        <button type="button" id="expDeductibleYes" class="btn btn-sm" onclick="setExpenseDeductible(true)" style="flex:1;">✓ מוכרת (נכנסת לחישוב המס)</button>
-                        <button type="button" id="expDeductibleNo" class="btn btn-sm" onclick="setExpenseDeductible(false)" style="flex:1;">לא מוכרת (מעקב בלבד)</button>
+                        <button type="button" id="expDeductibleYes" class="btn btn-sm" onclick="setExpenseDeductible(true)" style="flex:1;">מוכרת</button>
+                        <button type="button" id="expDeductibleNo" class="btn btn-sm" onclick="setExpenseDeductible(false)" style="flex:1;">לא מוכרת</button>
                     </div>
                     <input type="hidden" id="expenseDeductible" value="1">
                 </div>
@@ -3247,8 +3247,8 @@
                 <div class="form-group" id="recDeductibleGroup">
                     <label>סוג לצורכי מס</label>
                     <div style="display:flex;gap:8px;">
-                        <button type="button" id="recDeductibleYes" class="btn btn-sm" onclick="setRecDeductible(true)" style="flex:1;">✓ מוכרת</button>
-                        <button type="button" id="recDeductibleNo" class="btn btn-sm" onclick="setRecDeductible(false)" style="flex:1;">לא מוכרת (מעקב)</button>
+                        <button type="button" id="recDeductibleYes" class="btn btn-sm" onclick="setRecDeductible(true)" style="flex:1;">מוכרת</button>
+                        <button type="button" id="recDeductibleNo" class="btn btn-sm" onclick="setRecDeductible(false)" style="flex:1;">לא מוכרת</button>
                     </div>
                     <input type="hidden" id="recDeductible" value="1">
                 </div>
@@ -7330,8 +7330,9 @@
             document.getElementById('expenseDeductible').value = v ? '1' : '0';
             const yes = document.getElementById('expDeductibleYes');
             const no = document.getElementById('expDeductibleNo');
-            if (yes) yes.classList.toggle('btn-primary', v);
-            if (no) no.classList.toggle('btn-primary', !v);
+            // The ✓ moves to whichever option is selected — that is the visible signal.
+            if (yes) { yes.classList.toggle('btn-primary', v); yes.textContent = (v ? '✓ ' : '') + 'מוכרת'; }
+            if (no) { no.classList.toggle('btn-primary', !v); no.textContent = (!v ? '✓ ' : '') + 'לא מוכרת'; }
             const rg = document.getElementById('expRecognitionGroup');
             if (rg) rg.style.display = v ? '' : 'none';
         }
