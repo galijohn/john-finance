@@ -10516,7 +10516,8 @@
             const tbody = document.getElementById('expenseTable');
 
             dedupeRecurringMonths();
-            if (!_expenseDedupeDone) { dedupeExpenses(); _expenseDedupeDone = true; }
+            // DISABLED — this automatic dedupe deleted edited invoices. Never runs.
+            // if (!_expenseDedupeDone) { dedupeExpenses(); _expenseDedupeDone = true; }
             buildCollectedExpenseIds(expenseMonth);
             renderExpenseMonthBar();
             renderRecurringPanel();
