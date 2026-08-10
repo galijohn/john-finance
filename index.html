@@ -1924,24 +1924,24 @@
             </div>
 
             <div class="summary-box">
-                <div class="summary-row">
-                    <span id="expSummaryGrossLabel">סה"כ הוצאות (לפני הכרה)</span>
-                    <span id="totalExpensesGross">₪0</span>
+                <div class="summary-row" style="border-bottom:none;">
+                    <span id="expSummaryGrossLabel" style="color:var(--text-muted);">הוצאות מוכרות (לפני הכרה)</span>
+                    <span id="totalExpensesGross" style="color:var(--text-muted);">₪0</span>
                 </div>
-                <div class="summary-row total">
-                    <span id="expSummaryNetLabel">סה"כ הוצאות מוכרות</span>
+                <div class="summary-row" style="font-weight:600;">
+                    <span id="expSummaryNetLabel">הוצאות מוכרות (מוכר במס)</span>
                     <span id="totalExpenses">₪0</span>
                 </div>
-                <div class="summary-row" id="expNonDeductibleRow" style="display:none;">
-                    <span style="color:var(--text-muted);">סה"כ הוצאות לא מוכרות (מעקב)</span>
+                <div class="summary-row" id="expNonDeductibleRow" style="display:none;border-top:1px solid var(--border);border-bottom:none;">
+                    <span style="color:var(--text-muted);">הוצאות רגילות (לא מוכרות)</span>
                     <span id="totalExpensesNonDeductible" style="color:var(--text-muted);">₪0</span>
                 </div>
-                <div class="summary-row total" id="expAllRow" style="display:none;border-top:1px solid var(--border);">
-                    <span>סה"כ הוצאות החודש</span>
+                <div class="summary-row" id="expAllRow" style="display:none;font-weight:600;">
+                    <span>סך כל ההוצאות החודש</span>
                     <span id="totalExpensesAll">₪0</span>
                 </div>
-                <div class="summary-row" id="expAnnualRow" style="display:none;font-size:0.85rem;color:var(--text-muted);">
-                    <span>סה"כ שנתי מוכר (כל השנה)</span>
+                <div class="summary-row" id="expAnnualRow" style="display:none;border-top:1px solid var(--border);border-bottom:none;color:var(--text-muted);">
+                    <span>מוכר מצטבר מתחילת השנה</span>
                     <span id="totalExpensesAnnual">₪0</span>
                 </div>
             </div>
@@ -10546,8 +10546,8 @@
             const totalAll = deductibleItems.reduce((s, e) => s + (Number(e.amount) || 0), 0) + totalNonDeductible;
             const annualRecognized = allItems.filter(isDeductible).reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
             const scopeLabel = expenseMonth === 'all' ? '' : ' — ' + monthLabelFromKey(expenseMonth);
-            document.getElementById('expSummaryGrossLabel').textContent = 'סה"כ הוצאות מוכרות (לפני הכרה)' + scopeLabel;
-            document.getElementById('expSummaryNetLabel').textContent = 'סה"כ הוצאות מוכרות' + scopeLabel;
+            document.getElementById('expSummaryGrossLabel').textContent = 'הוצאות מוכרות (לפני הכרה)' + scopeLabel;
+            document.getElementById('expSummaryNetLabel').textContent = 'הוצאות מוכרות (מוכר במס)' + scopeLabel;
             document.getElementById('totalExpensesGross').textContent = formatCurrency(totalGross);
             document.getElementById('totalExpenses').textContent = formatCurrency(totalRecognized);
             document.getElementById('expNonDeductibleRow').style.display = nonDeductibleItems.length ? '' : 'none';
