@@ -3235,6 +3235,14 @@
                     <input type="number" class="form-control" id="recAmount">
                     <div id="recAmountHint" style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">אפשר לתקן את הסכום המדויק בכל תשלום</div>
                 </div>
+                <div class="form-group" id="recDeductibleGroup">
+                    <label>סוג לצורכי מס</label>
+                    <div style="display:flex;gap:8px;">
+                        <button type="button" id="recDeductibleYes" class="btn btn-sm" onclick="setRecDeductible(true)" style="flex:1;">✓ מוכרת</button>
+                        <button type="button" id="recDeductibleNo" class="btn btn-sm" onclick="setRecDeductible(false)" style="flex:1;">לא מוכרת (מעקב)</button>
+                    </div>
+                    <input type="hidden" id="recDeductible" value="1">
+                </div>
                 <div class="form-group" id="recRecognitionGroup">
                     <label>% הכרה</label>
                     <div style="display:flex;align-items:center;gap:10px;">
@@ -6809,6 +6817,24 @@
                 deductible: document.getElementById('expenseDeductible').value === '1'
             };
 
+            // Guard against creating an identical expense twice (double-click on
+            // 'שולם'/'השלם', or re-adding the same receipt).
+            if (!editingId) {
+                const twin = active(yd.expenses).find(e =>
+                    (e.date || '') === (itemData.date || '') &&
+                    String(e.description || '').trim() === String(itemData.description || '').trim() &&
+                    (Number(e.amount) || 0) === (Number(itemData.amount) || 0) &&
+                    (e.category || '') === (itemData.category || ''));
+                if (twin) {
+                    const ok = await showPopup({
+                        type: 'warning', title: 'הוצאה זהה כבר קיימת',
+                        message: 'כבר רשומה הוצאה "' + (itemData.description || '') + '" מ' + formatDate(itemData.date) + ' בסכום ' + formatCurrency(itemData.amount) + '.\n\nלהוסיף בכל זאת?',
+                        okText: 'הוסף בכל זאת', cancelText: 'ביטול'
+                    });
+                    if (!ok) { closeModal('expenseModal'); return; }
+                }
+            }
+
             // Link this payment to its recurring-checklist row (paid status is derived from this)
             if (!editingId && recurringPayContext) {
                 itemData.recurringKey = recurringPayContext.monthKey + ':' + recurringPayContext.itemId;
@@ -8874,7 +8900,8 @@
                         category: t.category,
                         amount: t.amount,
                         recognition: t.recognition ?? 100,
-                        dueDay: t.dueDay || null
+                        dueDay: t.dueDay || null,
+                        deductible: t.deductible !== false
                     }));
                     changed = true;
                 }
@@ -8961,6 +8988,30 @@
                 });
             });
             if (removed) { saveData(); console.log('[recurring] removed', removed, 'duplicate lines'); }
+            return removed;
+        }
+
+        // Remove duplicate expense records (same date + description + amount + category).
+        // The copy that has a file / recurring link is kept; runs once per load, quietly.
+        function dedupeExpenses() {
+            let removed = 0;
+            Object.values(data.yearData || {}).forEach(yd => {
+                if (!yd || !yd.expenses) return;
+                const seen = {};
+                active(yd.expenses).forEach(e => {
+                    const k = (e.date || '') + '|' + String(e.description || '').trim() + '|' + (Number(e.amount) || 0) + '|' + (e.category || '');
+                    if (!seen[k]) { seen[k] = e; return; }
+                    // keep whichever carries a file or a recurring link
+                    const prev = seen[k];
+                    const score = x => (x.driveId ? 2 : 0) + (x.recurringKey ? 1 : 0);
+                    const loser = score(e) > score(prev) ? prev : e;
+                    if (loser === prev) seen[k] = e;
+                    loser._deleted = true;
+                    loser._deletedAt = Date.now();
+                    removed++;
+                });
+            });
+            if (removed) { saveData(); console.log('[dedupe] removed', removed, 'duplicate expenses'); }
             return removed;
         }
 
@@ -9298,14 +9349,25 @@
             document.getElementById('expenseAmount').value = collect ? '' : item.amount;
             document.getElementById('expenseRecognition').value = item.recognition ?? 100;
             document.getElementById('expenseNotes').value = (collect ? 'חשבונית · ' : 'תשלום קבוע · ') + monthLabelFromKey(monthKey);
+            setExpenseDeductible(item.deductible !== false);
             openModal('expenseModal');
             if (collect) setTimeout(() => document.getElementById('expenseAmount').focus(), 100);
+        }
+
+        function setRecDeductible(v) {
+            document.getElementById('recDeductible').value = v ? '1' : '0';
+            document.getElementById('recDeductibleYes').classList.toggle('btn-primary', v);
+            document.getElementById('recDeductibleNo').classList.toggle('btn-primary', !v);
+            const rg = document.getElementById('recRecognitionGroup');
+            if (rg && document.getElementById('recKind').value !== 'category') rg.style.display = v ? '' : 'none';
         }
 
         function onRecKindChange() {
             const kind = document.getElementById('recKind').value;
             const isCat = kind === 'category';
             const isCol = kind === 'collect';
+            // Only bills carry a deductible flag on the template itself.
+            document.getElementById('recDeductibleGroup').style.display = (isCat || isCol) ? 'none' : '';
             document.getElementById('recDescGroup').style.display = isCat ? 'none' : '';
             document.getElementById('recDueDayGroup').style.display = (isCat || isCol) ? 'none' : '';
             // A collection line carries no amount — that is the whole point of it.
@@ -9327,6 +9389,7 @@
             document.getElementById('recurringModalTitle').textContent = '🔁 הוספת הוצאה קבועה';
             document.getElementById('recKind').value = 'bill';
             document.getElementById('recRecognition').value = 100;
+            setRecDeductible(true);
             buildCategoryOptions();
             onRecKindChange();
             openModal('recurringModal');
@@ -9345,6 +9408,7 @@
             document.getElementById('recAmount').value = item.amount;
             document.getElementById('recRecognition').value = item.recognition ?? 100;
             document.getElementById('recDueDay').value = item.dueDay || '';
+            setRecDeductible(item.deductible !== false);
             onRecKindChange();
             openModal('recurringModal');
         }
@@ -9376,7 +9440,8 @@
                 category: category,
                 amount: parseFloat(document.getElementById('recAmount').value) || 0,
                 recognition: Math.min(100, Math.max(0, parseFloat(document.getElementById('recRecognition').value) || 100)),
-                dueDay: kind === 'category' ? null : (parseInt(document.getElementById('recDueDay').value) || null)
+                dueDay: kind === 'category' ? null : (parseInt(document.getElementById('recDueDay').value) || null),
+                deductible: kind === 'bill' ? (document.getElementById('recDeductible').value === '1') : true
             };
             const ctx = editingRecurring;
             const monthKey = ctx ? ctx.monthKey : (expenseMonth !== 'all' ? expenseMonth : realMonthKey());
@@ -10373,12 +10438,14 @@
         }
 
         let expenseFirstRender = true;
+        let _expenseDedupeDone = false;
 
         function renderExpenseTable(total) {
             const yd = getYearData();
             const tbody = document.getElementById('expenseTable');
 
             dedupeRecurringMonths();
+            if (!_expenseDedupeDone) { dedupeExpenses(); _expenseDedupeDone = true; }
             buildCollectedExpenseIds(expenseMonth);
             renderExpenseMonthBar();
             renderRecurringPanel();
