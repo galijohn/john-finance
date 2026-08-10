@@ -1873,7 +1873,6 @@
                         </div>
                     </div>
                 </div>
-                <button class="btn btn-primary" onclick="openAddExpense()">+ הוסף</button>
             </div>
 
             <div class="info-box">
@@ -3128,14 +3127,14 @@
     <div class="modal-overlay" id="expenseModal">
         <div class="modal">
             <div class="modal-header">
-                <h3 id="expenseModalTitle">🧾 הוסף הוצאה</h3>
+                <h3 id="expenseModalTitle">🧾 הוספת הוצאה</h3>
                 <button class="btn-icon" onclick="closeModal('expenseModal')">✕</button>
             </div>
             <div class="modal-body">
                 <div class="form-group" id="expenseKindGroup" style="display:none;">
                     <label>סוג</label>
                     <select class="form-control" id="expenseKind" onchange="onExpenseKindChange(this.value)">
-                        <option value="once">🧾 הוצאה חד־פעמית</option>
+                        <option value="once">🧾 הוצאה רגילה חד־פעמית</option>
                         <option value="bill">💳 חשבון קבוע — תשלום אחד בחודש (בזק, רו"ח)</option>
                         <option value="category">🔄 קטגוריה שוטפת — הרבה תשלומים (דלק, חניות)</option>
                         <option value="collect">📄 חשבונית לאיסוף — ספק חוזר בלי סכום קבוע</option>
@@ -9144,7 +9143,7 @@
             if (!hasTemplate && items.length === 0) {
                 panel.innerHTML = `<div class="rec-head">
                         <strong>🔁 הוצאות קבועות — ${monthLabelFromKey(expenseMonth)}</strong>
-                        <button class="btn btn-sm btn-primary" onclick="openRecurringAdd()">+ הוצאה קבועה</button>
+                        <button class="btn btn-sm btn-primary" onclick="openAddExpense()">+ הוסף הוצאה</button>
                     </div>
                     <div style="color:var(--text-muted);font-size:0.85rem;">בנה פעם אחת את רשימת התשלומים הקבועים שלך — היא תיווצר אוטומטית בכל חודש, ותסמן ✔ עם קבלה על כל תשלום.</div>`;
                 return;
@@ -9169,7 +9168,7 @@
                         ${waiting ? bits.join(' · ') : '✓ הכל טופל'}
                     </span>
                 </div>
-                <button class="btn btn-sm btn-primary" onclick="openRecurringAdd()">+ הוצאה קבועה</button>
+                <button class="btn btn-sm btn-primary" onclick="openAddExpense()">+ הוסף הוצאה</button>
             </div>`;
             return;
         }
@@ -9217,7 +9216,7 @@
                         ${summary} · הוצאת ${formatCurrency(spent)} מתוך ${formatCurrency(planned)} שתכננת
                     </div>
                 </div>
-                <button class="btn btn-sm btn-primary" onclick="openRecurringAdd()">+ הוצאה קבועה</button>
+                <button class="btn btn-sm btn-primary" onclick="openAddExpense()">+ הוסף הוצאה</button>
             </div>`;
 
             if (bills.length || carry.length) {
@@ -9346,7 +9345,7 @@
             const sel = document.getElementById('expenseKind');
             if (ks) ks.style.display = '';       // show the type chooser for a new entry
             if (sel) sel.value = 'once';
-            document.getElementById('expenseModalTitle').textContent = '🧾 הוסף הוצאה';
+            document.getElementById('expenseModalTitle').textContent = '🧾 הוספת הוצאה';
             openModal('expenseModal');
         }
 
