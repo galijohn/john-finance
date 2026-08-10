@@ -1932,6 +1932,14 @@
                     <span id="expSummaryNetLabel">סה"כ הוצאות מוכרות</span>
                     <span id="totalExpenses">₪0</span>
                 </div>
+                <div class="summary-row" id="expNonDeductibleRow" style="display:none;">
+                    <span style="color:var(--text-muted);">סה"כ הוצאות לא מוכרות (מעקב)</span>
+                    <span id="totalExpensesNonDeductible" style="color:var(--text-muted);">₪0</span>
+                </div>
+                <div class="summary-row total" id="expAllRow" style="display:none;border-top:1px solid var(--border);">
+                    <span>סה"כ הוצאות החודש</span>
+                    <span id="totalExpensesAll">₪0</span>
+                </div>
                 <div class="summary-row" id="expAnnualRow" style="display:none;font-size:0.85rem;color:var(--text-muted);">
                     <span>סה"כ שנתי מוכר (כל השנה)</span>
                     <span id="totalExpensesAnnual">₪0</span>
@@ -3154,6 +3162,14 @@
                     <input type="text" class="form-control" id="expenseNotes" placeholder="לדוגמה: קבלה מס' 123">
                 </div>
                 <div class="form-group">
+                    <label>סוג ההוצאה לצורכי מס</label>
+                    <div style="display:flex;gap:8px;">
+                        <button type="button" id="expDeductibleYes" class="btn btn-sm" onclick="setExpenseDeductible(true)" style="flex:1;">✓ מוכרת (נכנסת לחישוב המס)</button>
+                        <button type="button" id="expDeductibleNo" class="btn btn-sm" onclick="setExpenseDeductible(false)" style="flex:1;">לא מוכרת (מעקב בלבד)</button>
+                    </div>
+                    <input type="hidden" id="expenseDeductible" value="1">
+                </div>
+                <div class="form-group" id="expRecognitionGroup">
                     <label>% הכרה</label>
                     <div style="display:flex;align-items:center;gap:10px;">
                         <input type="number" class="form-control" id="expenseRecognition" min="0" max="100" value="100" style="width:100px;">
@@ -6789,7 +6805,8 @@
                 category: document.getElementById('expenseCategory').value,
                 amount: parseFloat(document.getElementById('expenseAmount').value) || 0,
                 recognition: parseFloat(document.getElementById('expenseRecognition').value) ?? 100,
-                notes: document.getElementById('expenseNotes').value
+                notes: document.getElementById('expenseNotes').value,
+                deductible: document.getElementById('expenseDeductible').value === '1'
             };
 
             // Link this payment to its recurring-checklist row (paid status is derived from this)
@@ -7265,7 +7282,20 @@
             document.getElementById('expenseAmount').value = item.amount;
             document.getElementById('expenseRecognition').value = item.recognition ?? 100;
             document.getElementById('expenseNotes').value = item.notes || '';
+            setExpenseDeductible(item.deductible !== false);
             openModal('expenseModal');
+        }
+
+        // מוכר / לא מוכר toggle. Non-deductible expenses are tracked but never enter
+        // the tax calculation; the % recognition field only matters when deductible.
+        function setExpenseDeductible(v) {
+            document.getElementById('expenseDeductible').value = v ? '1' : '0';
+            const yes = document.getElementById('expDeductibleYes');
+            const no = document.getElementById('expDeductibleNo');
+            if (yes) yes.classList.toggle('btn-primary', v);
+            if (no) no.classList.toggle('btn-primary', !v);
+            const rg = document.getElementById('expRecognitionGroup');
+            if (rg) rg.style.display = v ? '' : 'none';
         }
 
         // ========== CREDITS ==========
@@ -7305,6 +7335,9 @@
         // ========== TAX CALCULATIONS ==========
         // Filter out soft-deleted items
         const active = arr => (arr || []).filter(i => !i._deleted);
+        // Expenses default to deductible; only an explicit false excludes from tax.
+        const isDeductible = e => e.deductible !== false;
+        const deductibleExpenses = yd => active(yd && yd.expenses).filter(isDeductible);
 
         function calculateTotals() {
             const yd = getYearData();
@@ -7382,7 +7415,7 @@
             const totalMiluim = active(yd.miluim).reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
             const totalMiluimDays = active(yd.miluim).reduce((sum, m) => sum + (Number(m.days) || 0), 0);
             const totalSelfEmployed = active(yd.selfEmployed).reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-            const totalExpenses = active(yd.expenses).reduce((sum, e) => sum + ((Number(e.amount) || 0) * ((e.recognition ?? 100) / 100)), 0);
+            const totalExpenses = deductibleExpenses(yd).reduce((sum, e) => sum + ((Number(e.amount) || 0) * ((e.recognition ?? 100) / 100)), 0);
 
             const taxFromUnemployment = active(yd.unemployment).reduce((sum, u) => sum + (Number(u.taxDeducted) || 0), 0);
             const taxFromMiluim = active(yd.miluim).reduce((sum, m) => sum + (Number(m.taxDeducted) || 0), 0);
@@ -8763,7 +8796,7 @@
             const yd = getYearData();
             const el = document.getElementById('dashExpenses');
             if (!el) return;
-            const totalRecognized = active(yd.expenses).reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+            const totalRecognized = deductibleExpenses(yd).reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
             el.textContent = formatCurrency(totalRecognized);
         }
 
@@ -9244,6 +9277,7 @@
         function openAddExpense() {
             recurringPayContext = null;
             editingId = null;
+            setExpenseDeductible(true);
             openModal('expenseModal');
         }
 
@@ -10364,15 +10398,23 @@
             buildExpenseCategoryFilter(allItems);
             buildCategoryOptions();
 
-            // Calculate totals with recognition (for the current view) + annual reference
-            const totalGross = expenseItems.reduce((sum, e) => sum + e.amount, 0);
-            const totalRecognized = expenseItems.reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
-            const annualRecognized = allItems.reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+            // Deductible expenses feed the tax total; non-deductible are tracked only.
+            const deductibleItems = expenseItems.filter(isDeductible);
+            const nonDeductibleItems = expenseItems.filter(e => !isDeductible(e));
+            const totalGross = deductibleItems.reduce((sum, e) => sum + e.amount, 0);
+            const totalRecognized = deductibleItems.reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+            const totalNonDeductible = nonDeductibleItems.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+            const totalAll = deductibleItems.reduce((s, e) => s + (Number(e.amount) || 0), 0) + totalNonDeductible;
+            const annualRecognized = allItems.filter(isDeductible).reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
             const scopeLabel = expenseMonth === 'all' ? '' : ' — ' + monthLabelFromKey(expenseMonth);
-            document.getElementById('expSummaryGrossLabel').textContent = 'סה"כ הוצאות (לפני הכרה)' + scopeLabel;
+            document.getElementById('expSummaryGrossLabel').textContent = 'סה"כ הוצאות מוכרות (לפני הכרה)' + scopeLabel;
             document.getElementById('expSummaryNetLabel').textContent = 'סה"כ הוצאות מוכרות' + scopeLabel;
             document.getElementById('totalExpensesGross').textContent = formatCurrency(totalGross);
             document.getElementById('totalExpenses').textContent = formatCurrency(totalRecognized);
+            document.getElementById('expNonDeductibleRow').style.display = nonDeductibleItems.length ? '' : 'none';
+            document.getElementById('totalExpensesNonDeductible').textContent = formatCurrency(totalNonDeductible);
+            document.getElementById('expAllRow').style.display = nonDeductibleItems.length ? '' : 'none';
+            document.getElementById('totalExpensesAll').textContent = formatCurrency(totalAll);
             document.getElementById('expAnnualRow').style.display = expenseMonth === 'all' ? 'none' : '';
             document.getElementById('totalExpensesAnnual').textContent = formatCurrency(annualRecognized);
 
@@ -10448,7 +10490,7 @@
                 }
 
                 for (const [cat, items] of Object.entries(groups)) {
-                    const catRecognized = items.reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+                    const catRecognized = items.reduce((s, e) => s + (isDeductible(e) ? e.amount * ((e.recognition ?? 100) / 100) : 0), 0);
                     const catGross = items.reduce((s, e) => s + (Number(e.amount) || 0), 0);
                     const isCollapsed = collapsedCategories[cat];
                     const b = budgets[cat];
@@ -10785,16 +10827,18 @@
 
         function renderExpenseRow(e) {
             const pct = e.recognition ?? 100;
-            const recognized = e.amount * (pct / 100);
-            return `<tr class="row-click" onclick="openRecordFile(${e.id})"
+            const deduct = isDeductible(e);
+            const recognized = deduct ? e.amount * (pct / 100) : 0;
+            const tag = deduct ? '' : ' <span style="font-size:0.72rem;padding:1px 7px;border-radius:8px;background:var(--bg-input);color:var(--text-muted);">לא מוכר</span>';
+            return `<tr class="row-click"${deduct ? '' : ' style="opacity:0.75;"'} onclick="openRecordFile(${e.id})"
                         oncontextmenu="showRowMenu(event,'expense',${e.id})"
                         ontouchstart="rowTouchStart(event,'expense',${e.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td>${formatDate(e.date)}</td>
                 <td>${categoryLabel(e.category)}</td>
-                <td>${_collectedExpenseIds.has(e.id) ? '<span title="נאסף — מופיע ברשימת האיסוף" style="color:#a78bfa;margin-inline-end:4px;">📄✓</span>' : ''}${e.description || '-'} ${e.notes ? '<span data-tip="'+e.notes+'" style="cursor:help;">📎</span>' : ''}</td>
+                <td>${_collectedExpenseIds.has(e.id) ? '<span title="נאסף — מופיע ברשימת האיסוף" style="color:#a78bfa;margin-inline-end:4px;">📄✓</span>' : ''}${e.description || '-'}${tag} ${e.notes ? '<span data-tip="'+e.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
-                <td class="col-pct" style="text-align:center;${pct < 100 ? 'color:var(--warning)' : ''}">${pct}%</td>
-                <td class="col-net" style="color:var(--success)">${formatCurrency(recognized)}</td>
+                <td class="col-pct" style="text-align:center;${deduct ? (pct < 100 ? 'color:var(--warning)' : '') : 'color:var(--text-muted)'}">${deduct ? pct + '%' : '—'}</td>
+                <td class="col-net" style="color:${deduct ? 'var(--success)' : 'var(--text-muted)'}">${deduct ? formatCurrency(recognized) : '—'}</td>
             </tr>`;
         }
 
@@ -11096,7 +11140,7 @@
                     const taxAdv = active(yd.taxAdvances);
                     const blAdv = active(yd.blAdvances);
                     const totalIncome = se.reduce((s, si) => s + si.amount, 0);
-                    const totalExpenses = active(yd.expenses).reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+                    const totalExpenses = deductibleExpenses(yd).reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
                     const totalTaxAdv = taxAdv.reduce((s, t) => s + t.amount, 0);
                     const totalBLAdv = blAdv.reduce((s, b) => s + b.amount, 0);
                     title = 'הכנסה כעצמאי - דוח מלא';
