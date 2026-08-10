@@ -4279,12 +4279,15 @@
             if (allCats.size) merged.customCategories = [...allCats];
             const allDocCats = new Set([...(localData.docCategories || []), ...(cloudData.docCategories || [])]);
             if (allDocCats.size) merged.docCategories = [...allDocCats];
-            // The ordered list: this device's order wins, anything only the other side
-            // knows about is appended rather than lost.
+            // The ordered category list: take it from whichever side was edited more
+            // recently, whole. Unioning the two brought deleted categories back to life
+            // on the next sync. Categories that still hold documents are re-added by
+            // docCategories()'s self-heal, so nothing in use is ever lost.
             if (Array.isArray(localData.docCategoryList) || Array.isArray(cloudData.docCategoryList)) {
-                const base = localData.docCategoryList || cloudData.docCategoryList || [];
-                const extra = (cloudData.docCategoryList || []).filter(c => !base.includes(c));
-                merged.docCategoryList = [...base, ...extra];
+                const localNewer = (localData.lastModified || 0) >= (cloudData.lastModified || 0);
+                merged.docCategoryList = (localNewer
+                    ? (localData.docCategoryList || cloudData.docCategoryList)
+                    : (cloudData.docCategoryList || localData.docCategoryList)).slice();
             }
             // Renamed category labels (local wins on conflict)
             const labels = { ...(cloudData.categoryLabels || {}), ...(localData.categoryLabels || {}) };
