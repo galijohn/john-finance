@@ -9742,15 +9742,26 @@
             return n;
         }
 
+        // Category names can contain quotes (מע"מ) which would break inline onclick
+        // attributes, so every control refers to a category by its INDEX, not its name.
+        function docCatByIndex(i) { return docCategories()[i]; }
+        async function deleteDocCategoryManaged(i) { const c = docCatByIndex(i); if (c != null) { await deleteDocCategory(c); renderDocCategoryManager(); } }
+        function renameDocCategoryIdx(i) { const c = docCatByIndex(i); if (c != null) renameDocCategory(c); }
+        function deleteDocCategoryIdx(i) { const c = docCatByIndex(i); if (c != null) return deleteDocCategory(c); }
+        function moveDocCategoryIdx(i, dir) { const c = docCatByIndex(i); if (c != null) moveDocCategory(c, dir); }
+        function setDocTabIdx(i) { const c = docCatByIndex(i); if (c != null) setDocTab(c); }
+        function showDocTabMenuIdx(ev, i) { const c = docCatByIndex(i); if (c != null) showDocTabMenu(ev, c); }
+        function docTabTouchStartIdx(ev, i) { const c = docCatByIndex(i); if (c != null) docTabTouchStart(ev, c); }
+
         function showDocTabMenu(ev, cat) {
             ev.preventDefault(); ev.stopPropagation();
             const list = docCategories();
             const i = list.indexOf(cat);
             const m = document.getElementById('rowMenu');
-            let html = `<button onclick="hideRowMenu();renameDocCategory('${cat}')">🏷️ שנה שם</button>`;
-            if (i > 0) html += `<button onclick="hideRowMenu();moveDocCategory('${cat}',-1)">→ הזז ימינה</button>`;
-            if (i < list.length - 1) html += `<button onclick="hideRowMenu();moveDocCategory('${cat}',1)">← הזז שמאלה</button>`;
-            html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteDocCategory('${cat}')">✕ מחק קטגוריה</button>`;
+            let html = `<button onclick="hideRowMenu();renameDocCategoryIdx(${i})">🏷️ שנה שם</button>`;
+            if (i > 0) html += `<button onclick="hideRowMenu();moveDocCategoryIdx(${i},-1)">→ הזז ימינה</button>`;
+            if (i < list.length - 1) html += `<button onclick="hideRowMenu();moveDocCategoryIdx(${i},1)">← הזז שמאלה</button>`;
+            html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteDocCategoryIdx(${i})">✕ מחק קטגוריה</button>`;
             m.innerHTML = html;
             m.classList.add('open');
             const r = m.getBoundingClientRect();
@@ -9867,7 +9878,8 @@
             };
             let html = `<button class="filter-btn ${docTab === 'all' ? 'active' : ''}" onclick="setDocTab('all')">הכל</button>`;
             cats.forEach(c => {
-                html += `<button class="filter-btn ${docTab === c ? 'active' : ''}" onclick="setDocTab('${c}')" oncontextmenu="showDocTabMenu(event,'${c}')" ontouchstart="docTabTouchStart(event,'${c}')" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()" title="לחיצה ימנית: שנה שם, סדר או מחק">${c} ${countOf(c) || ''}</button>`;
+                const ci = cats.indexOf(c);
+                html += `<button class="filter-btn ${docTab === c ? 'active' : ''}" onclick="setDocTabIdx(${ci})" oncontextmenu="showDocTabMenuIdx(event,${ci})" ontouchstart="docTabTouchStartIdx(event,${ci})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()" title="לחיצה ימנית: שנה שם, סדר או מחק">${c} ${countOf(c) || ''}</button>`;
             });
             html += `<button class="filter-btn" onclick="openNewDocCategory()" title="הוסף קטגוריה">➕</button>`;
             el.innerHTML = html;
@@ -10062,10 +10074,10 @@
                 const n = docCategoryCount(c);
                 return `<div style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--border);">
                     <span style="flex:1;">${c} <span style="color:var(--text-muted);font-size:0.8rem;">${n ? '(' + n + ')' : ''}</span></span>
-                    <button class="btn btn-icon btn-sm" ${i === 0 ? 'disabled style="opacity:0.3;"' : ''} onclick="moveDocCategory('${c}',-1);renderDocCategoryManager();" title="הזז ימינה">→</button>
-                    <button class="btn btn-icon btn-sm" ${i === list.length - 1 ? 'disabled style="opacity:0.3;"' : ''} onclick="moveDocCategory('${c}',1);renderDocCategoryManager();" title="הזז שמאלה">←</button>
-                    <button class="btn btn-icon btn-sm" onclick="renameDocCategory('${c}')" title="שנה שם">🏷️</button>
-                    <button class="btn btn-icon btn-sm" onclick="deleteDocCategory('${c}').then(renderDocCategoryManager)" title="מחק" ${n ? 'style="opacity:0.4;"' : ''}>🗑️</button>
+                    <button class="btn btn-icon btn-sm" ${i === 0 ? 'disabled style="opacity:0.3;"' : ''} onclick="moveDocCategoryIdx(${i},-1);renderDocCategoryManager();" title="הזז ימינה">→</button>
+                    <button class="btn btn-icon btn-sm" ${i === list.length - 1 ? 'disabled style="opacity:0.3;"' : ''} onclick="moveDocCategoryIdx(${i},1);renderDocCategoryManager();" title="הזז שמאלה">←</button>
+                    <button class="btn btn-icon btn-sm" onclick="renameDocCategoryIdx(${i})" title="שנה שם">🏷️</button>
+                    <button class="btn btn-icon btn-sm" onclick="deleteDocCategoryManaged(${i})" title="מחק" ${n ? 'style="opacity:0.4;"' : ''}>🗑️</button>
                 </div>`;
             }).join('') || '<div style="color:var(--text-muted);padding:8px;">אין קטגוריות</div>';
         }
