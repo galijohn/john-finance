@@ -3170,12 +3170,12 @@
                     <button type="button" id="incomeDS_selfEmployed" class="btn btn-sm btn-primary" onclick="setIncomeDataset('selfEmployed')">💰 הכנסה כעצמאי</button>
                     <button type="button" id="incomeDS_taxAdvance" class="btn btn-sm" onclick="setIncomeDataset('taxAdvance')">🏛️ מס הכנסה</button>
                     <button type="button" id="incomeDS_blAdvance" class="btn btn-sm" onclick="setIncomeDataset('blAdvance')">🏥 ביטוח לאומי</button>
-                    <button type="button" id="incomeDS_all" class="btn btn-sm" onclick="setIncomeDataset('all')">📚 הכל ביחד</button>
+                    <button type="button" id="incomeDS_all" class="btn btn-sm" onclick="setIncomeDataset('all')">📚 הכל</button>
                 </div>
                 <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">פילוג:</div>
                 <div style="display:flex;flex-direction:column;gap:10px;">
                     <button class="btn btn-primary" id="incomeExportByMonthBtn" onclick="runIncomeExport('year')" style="width:100%;">📄 לפי חודשים</button>
-                    <button class="btn" id="incomeExportFlatBtn" onclick="runIncomeExport('flat')" style="width:100%;">📄 הכל ביחד</button>
+                    <button class="btn" id="incomeExportFlatBtn" onclick="runIncomeExport('flat')" style="width:100%;">📄 בלי חלוקה לחודשים</button>
                     <button class="btn" onclick="closeModal('incomeExportModal')" style="width:100%;">ביטול</button>
                 </div>
             </div>
@@ -8990,6 +8990,15 @@
             if (i === 0) return box('rgba(37,99,235,0.20)', '#60a5fa', '📄 ' + label);
             return box('rgba(245,158,11,0.15)', '#f59e0b', '⏳ ' + label);
         }
+        // Status chip + an explicit red list of which of the 4 documents are still missing.
+        function incomeStatusCell(r) {
+            let html = incomeStatusChip(r);
+            const missing = incomeMissingStages(r);
+            if (missing.length) {
+                html += '<div style="font-size:0.68rem;color:#f87171;margin-top:4px;">⚠ חסר: ' + missing.map(s => s.label).join(', ') + '</div>';
+            }
+            return html;
+        }
 
         let _incomeDossierId = null;
         let _incomeAttachStage = null;
@@ -9096,14 +9105,22 @@
             setIncomeDataset(_incomeDataset || 'selfEmployed');
             const icon = kind === 'excel' ? '📊' : '📄';
             document.getElementById('incomeExportByMonthBtn').textContent = icon + ' לפי חודשים';
-            document.getElementById('incomeExportFlatBtn').textContent = icon + ' הכל ביחד';
+            document.getElementById('incomeExportFlatBtn').textContent = icon + ' בלי חלוקה לחודשים';
             openModal('incomeExportModal');
         }
+        const _incomeDsLabels = { selfEmployed: '💰 הכנסה כעצמאי', taxAdvance: '🏛️ מס הכנסה', blAdvance: '🏥 ביטוח לאומי', all: '📚 הכל' };
         function setIncomeDataset(ds) {
             _incomeDataset = ds;
             ['selfEmployed', 'taxAdvance', 'blAdvance', 'all'].forEach(k => {
                 const b = document.getElementById('incomeDS_' + k);
-                if (b) b.classList.toggle('btn-primary', k === ds);
+                if (!b) return;
+                const on = k === ds;
+                b.classList.toggle('btn-primary', on);
+                b.innerHTML = (on ? '✓ ' : '') + _incomeDsLabels[k];
+                b.style.background = on ? 'var(--primary)' : '';
+                b.style.color = on ? '#fff' : '';
+                b.style.boxShadow = on ? 'inset 0 0 0 2px rgba(255,255,255,0.45)' : '';
+                b.style.fontWeight = on ? '700' : '';
             });
         }
         async function runIncomeExport(mode) {
@@ -9173,7 +9190,7 @@
                     oncontextmenu="showRowMenu(event,'selfEmployed',${s.id})"
                     ontouchstart="rowTouchStart(event,'selfEmployed',${s.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td>${MONTHS[s.month]}</td>
-                <td onclick="event.stopPropagation();openIncomeDossier(${s.id})" style="cursor:pointer;">${incomeStatusChip(s)}</td>
+                <td onclick="event.stopPropagation();openIncomeDossier(${s.id})" style="cursor:pointer;">${incomeStatusCell(s)}</td>
                 <td>${s.description || '-'} ${s.notes ? '<span data-tip="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${formatCurrency(s.amount)}</td>
             </tr>`).join('');
