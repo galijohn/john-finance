@@ -8992,6 +8992,33 @@
             return icon + ' ' + a.name + (a.ref ? ' · ' + a.ref : '');
         }
         function assetById(id) { return getAssets().find(a => String(a.id) === String(id)); }
+        // Payment-method presentation. The icon on an expense/bill row carries state:
+        // unpaid → 🪙 (money owed), paid → the method it was paid with (💳/🏦/📌/💵),
+        // or 🧾 when it's paid but no method was recorded. Collect lines never use this.
+        function payMethodMeta(method) {
+            return ({
+                card:     { icon: '💳', name: 'כרטיס אשראי' },
+                bank:     { icon: '🏦', name: 'העברה בנקאית / עו"ש' },
+                standing: { icon: '📌', name: 'הוראת קבע' },
+                cash:     { icon: '💵', name: 'מזומן' },
+            })[method] || null;
+        }
+        // Icon + tooltip for something that HAS been paid.
+        function paidPayIcon(rec) {
+            const m = rec && rec.payMethod ? payMethodMeta(rec.payMethod) : null;
+            if (!m) return { icon: '🧾', tip: 'שולם' };
+            const a = rec.assetId ? assetById(rec.assetId) : null;
+            const icon = a ? (a.kind === 'card' ? '💳' : '🏦') : m.icon;
+            const tip = a ? (m.name + ' · ' + a.name + (a.ref ? ' ' + a.ref : '')) : m.name;
+            return { icon, tip };
+        }
+        // Plain-text label for exports (Excel/PDF columns). '' when nothing to show.
+        function payMethodText(rec) {
+            const m = rec && rec.payMethod ? payMethodMeta(rec.payMethod) : null;
+            if (!m) return '';
+            const a = rec.assetId ? assetById(rec.assetId) : null;
+            return a ? (a.name + (a.ref ? ' ' + a.ref : '')) : m.name;
+        }
         function assetDocCategory(a) {
             return (a.kind === 'card' ? 'אשראי — ' : 'עו"ש — ') + a.name + (a.ref ? ' ' + a.ref : '');
         }
@@ -10999,11 +11026,17 @@
             const effPct = real ? (real.recognition ?? 100) : pct;
             const menuExtra = `{monthKey:'${monthKey}',paymentId:${real ? real.id : 'null'}}`;
             const rowClick = real ? `openRecordFile(${real.id})` : `payRecurring('${monthKey}','${item.id}')`;
+            // State icon: unpaid → 🪙, paid → how it was paid. Collect lines carry no money out.
+            let payIcon = '';
+            if (!collect) {
+                if (payment) { const pi = paidPayIcon(real || {}); payIcon = `<span title="${pi.tip}" style="font-size:0.8rem;margin-inline-end:4px;">${pi.icon}</span>`; }
+                else { payIcon = `<span title="טרם שולם" style="font-size:0.8rem;margin-inline-end:4px;">🪙</span>`; }
+            }
             return `<tr class="row-click"${isCarry ? ' style="background:rgba(239,68,68,0.07);"' : ''}
                         onclick="${rowClick}"
                         oncontextmenu="showRowMenu(event,'bill','${item.id}',${menuExtra})"
                         ontouchstart="rowTouchStart(event,'bill','${item.id}',${menuExtra})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
-                <td style="white-space:nowrap;">${collect ? '' : '<span style="color:var(--text-muted);font-size:0.8rem;margin-inline-end:4px;">💳</span>'}${status}</td>
+                <td style="white-space:nowrap;">${payIcon}${status}</td>
                 <td>${categoryLabel(item.category)}</td>
                 <td>${item.description}</td>
                 <td style="color:${collect ? 'var(--text-muted)' : 'var(--danger)'}">${collect ? '—' : formatCurrency(amount)}</td>
@@ -11236,10 +11269,11 @@
             const deduct = isDeductible(e);
             const recognized = deduct ? e.amount * (pct / 100) : 0;
             const tag = deduct ? '' : ' <span style="font-size:0.72rem;padding:1px 7px;border-radius:8px;background:var(--bg-input);color:var(--text-muted);">לא מוכר</span>';
+            const pi = paidPayIcon(e);   // a recorded expense is already paid → show how
             return `<tr class="row-click"${deduct ? '' : ' style="opacity:0.75;"'} onclick="openRecordFile(${e.id})"
                         oncontextmenu="showRowMenu(event,'expense',${e.id})"
                         ontouchstart="rowTouchStart(event,'expense',${e.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
-                <td>${formatDate(e.date)}</td>
+                <td style="white-space:nowrap;"><span title="${pi.tip}" style="font-size:0.8rem;margin-inline-end:4px;">${pi.icon}</span>${formatDate(e.date)}</td>
                 <td>${categoryLabel(e.category)}</td>
                 <td>${_collectedExpenseIds.has(e.id) ? '<span title="נאסף — מופיע ברשימת האיסוף" style="color:#a78bfa;margin-inline-end:4px;">📄✓</span>' : ''}${e.description || '-'}${tag} ${e.notes ? '<span data-tip="'+e.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
@@ -11762,23 +11796,22 @@
                 const scoped = getScopedExpenses();
                 const byDate = (a, b) => (a.date || '').localeCompare(b.date || '');
                 const recOf = e => e.amount * ((e.recognition ?? 100) / 100);
-                const S = mode === 'month' ? 5 : 6;
+                const S = mode === 'month' ? 6 : 7;
                 addTitle(S); addInfo(S);
                 const subR = ws.addRow([expenseScopeSubtitle()]);
                 subR.getCell(1).font = { bold: true, size: 10, color: { argb: 'FF475569' }, name: 'Segoe UI' };
                 ws.addRow([]);
-                ws.getColumn(1).width = 14; ws.getColumn(2).width = 30; ws.getColumn(3).width = 14; ws.getColumn(4).width = 12; ws.getColumn(5).width = 14;
-                if (S === 6) ws.getColumn(6).width = 14;
+                ws.getColumn(1).width = 14; ws.getColumn(2).width = 30; ws.getColumn(3).width = 14; ws.getColumn(4).width = 12; ws.getColumn(5).width = 14; ws.getColumn(6).width = 16; ws.getColumn(7).width = 22;
 
                 const grandTotal = scoped.reduce((s, e) => s + e.amount, 0);
                 const grandRecognized = scoped.reduce((s, e) => s + recOf(e), 0);
-                const HDR6 = ['תאריך', 'תיאור', 'קטגוריה', 'סכום', '% הכרה', 'מוכר'];
-                const row6 = e => { const pct = e.recognition ?? 100; return [formatDate(e.date), e.description || '', categoryLabel(e.category) || '', e.amount, pct + '%', recOf(e)]; };
+                const HDR7 = ['תאריך', 'תיאור', 'קטגוריה', 'סכום', '% הכרה', 'מוכר', 'אמצעי תשלום'];
+                const row7 = e => { const pct = e.recognition ?? 100; return [formatDate(e.date), e.description || '', categoryLabel(e.category) || '', e.amount, pct + '%', recOf(e), payMethodText(e)]; };
 
                 if (mode === 'flat') {
-                    addHdr(HDR6);
-                    [...scoped].sort(byDate).forEach((e, i) => addDR(row6(e), i));
-                    addGrand(['סה"כ הוצאות מוכרות (' + scoped.length + ')', '', '', grandTotal, '', grandRecognized]);
+                    addHdr(HDR7);
+                    [...scoped].sort(byDate).forEach((e, i) => addDR(row7(e), i));
+                    addGrand(['סה"כ הוצאות מוכרות (' + scoped.length + ')', '', '', grandTotal, '', grandRecognized, '']);
                 } else if (mode === 'year') {
                     const byMonth = {};
                     scoped.forEach(e => { const k = (e.date || '').slice(0, 7) || 'ללא תאריך'; (byMonth[k] = byMonth[k] || []).push(e); });
@@ -11786,11 +11819,11 @@
                         const items = byMonth[k].sort(byDate);
                         const label = k.includes('-') ? monthLabelFromKey(k) : k;
                         addSection(label, S);
-                        addHdr(HDR6);
-                        items.forEach((e, i) => addDR(row6(e), i));
-                        addSub(['סה"כ ' + label + ' (' + items.length + ')', '', '', items.reduce((s, e) => s + e.amount, 0), '', items.reduce((s, e) => s + recOf(e), 0)]);
+                        addHdr(HDR7);
+                        items.forEach((e, i) => addDR(row7(e), i));
+                        addSub(['סה"כ ' + label + ' (' + items.length + ')', '', '', items.reduce((s, e) => s + e.amount, 0), '', items.reduce((s, e) => s + recOf(e), 0), '']);
                     });
-                    addGrand(['סה"כ הוצאות מוכרות', '', '', grandTotal, '', grandRecognized]);
+                    addGrand(['סה"כ הוצאות מוכרות', '', '', grandTotal, '', grandRecognized, '']);
                 } else {
                     // month scope — classic category-grouped layout
                     const groups = {}; const catOrder = [];
@@ -11799,11 +11832,11 @@
                     catOrder.forEach((cat, idx) => {
                         const items = groups[cat].sort(byDate);
                         addSection((letters[idx] || '') + '. ' + categoryLabel(cat), S);
-                        addHdr(['תאריך', 'תיאור', 'סכום', '% הכרה', 'מוכר']);
-                        items.forEach((e, i) => { const pct = e.recognition ?? 100; addDR([formatDate(e.date), e.description || '', e.amount, pct + '%', recOf(e)], i); });
-                        addSub(['סה"כ ' + categoryLabel(cat) + ' (' + items.length + ')', '', items.reduce((s, e) => s + e.amount, 0), '', items.reduce((s, e) => s + recOf(e), 0)]);
+                        addHdr(['תאריך', 'תיאור', 'סכום', '% הכרה', 'מוכר', 'אמצעי תשלום']);
+                        items.forEach((e, i) => { const pct = e.recognition ?? 100; addDR([formatDate(e.date), e.description || '', e.amount, pct + '%', recOf(e), payMethodText(e)], i); });
+                        addSub(['סה"כ ' + categoryLabel(cat) + ' (' + items.length + ')', '', items.reduce((s, e) => s + e.amount, 0), '', items.reduce((s, e) => s + recOf(e), 0), '']);
                     });
-                    addGrand(['סה"כ הוצאות מוכרות', '', grandTotal, '', grandRecognized]);
+                    addGrand(['סה"כ הוצאות מוכרות', '', grandTotal, '', grandRecognized, '']);
                 }
                 if (grandTotal !== grandRecognized) { const r = ws.addRow(['סה"כ לפני הכרה: ₪' + grandTotal.toLocaleString('he-IL')]); r.getCell(1).font = { size: 9, color: { argb: 'FF94A3B8' }, name: 'Segoe UI' }; }
                 addFooter(S);
@@ -12011,7 +12044,16 @@
             const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = `${title}-${year}.xlsx`;
+            // Filename carries the exported period, matching the PDF export.
+            let _xlScope = 'שנת ' + year;
+            if (page === 'expenses' && expenseExportScope) {
+                const _m = expenseExportScope.mode;
+                _xlScope = _m === 'month' ? monthLabelFromKey(expenseExportScope.monthKey)
+                         : _m === 'flat' ? 'כל שנת ' + year + ' (ללא חלוקה)'
+                         : 'כל שנת ' + year;
+            }
+            const _cleanXlScope = _xlScope.replace(/[^֐-׿a-zA-Z0-9 ]/g, '').trim();
+            a.href = url; a.download = `${title.replace(/[^֐-׿a-zA-Z0-9 ]/g, '').trim()} - ${_cleanXlScope}.xlsx`;
             document.body.appendChild(a); a.click();
             document.body.removeChild(a); URL.revokeObjectURL(url);
 
@@ -12184,13 +12226,14 @@
                 bodyContent += '<div style="font-size:11px;font-weight:bold;color:#475569;margin-bottom:10px;">' + expenseScopeSubtitle() + '</div>';
                 const h3 = t => '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">' + t + '</h3>';
                 const subTotal = (label, val) => '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>' + label + '</span><span>' + fmtNum(val) + '</span></div>';
-                const tableOpen6 = '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>קטגוריה</th><th>סכום</th><th>% הכרה</th><th>מוכר</th></tr></thead><tbody>';
+                const tableOpen6 = '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>קטגוריה</th><th>סכום</th><th>% הכרה</th><th>מוכר</th><th>אמצעי תשלום</th></tr></thead><tbody>';
                 const rowHtml6 = e => {
                     const pct = e.recognition ?? 100;
                     return '<tr><td>' + formatDate(e.date) + '</td><td>' + (e.description || '-') + '</td><td>' + (categoryLabel(e.category) || '') + '</td>' +
                         '<td style="text-align:left;direction:ltr;">' + fmtNum(e.amount) + '</td>' +
                         '<td style="text-align:left;direction:ltr;' + (pct < 100 ? 'color:#d97706;' : '') + '">' + pct + '%</td>' +
-                        '<td style="text-align:left;direction:ltr;">' + fmtNum(recOf(e)) + '</td></tr>';
+                        '<td style="text-align:left;direction:ltr;">' + fmtNum(recOf(e)) + '</td>' +
+                        '<td style="font-size:10px;color:#475569;">' + (payMethodText(e) || '—') + '</td></tr>';
                 };
 
                 if (mode === 'flat') {
@@ -12219,13 +12262,14 @@
                     catOrder.forEach((cat, idx) => {
                         const items = groups[cat].sort(byDate);
                         bodyContent += h3((letters[idx] || '') + '. ' + categoryLabel(cat));
-                        bodyContent += '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>סכום</th><th>% הכרה</th><th>מוכר</th></tr></thead><tbody>';
+                        bodyContent += '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>סכום</th><th>% הכרה</th><th>מוכר</th><th>אמצעי תשלום</th></tr></thead><tbody>';
                         items.forEach(e => {
                             const pct = e.recognition ?? 100;
                             bodyContent += '<tr><td>' + formatDate(e.date) + '</td><td>' + (e.description || '-') + '</td>';
                             bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(e.amount) + '</td>';
                             bodyContent += '<td style="text-align:left;direction:ltr;' + (pct < 100 ? 'color:#d97706;' : '') + '">' + pct + '%</td>';
-                            bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(recOf(e)) + '</td></tr>';
+                            bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(recOf(e)) + '</td>';
+                            bodyContent += '<td style="font-size:10px;color:#475569;">' + (payMethodText(e) || '—') + '</td></tr>';
                         });
                         bodyContent += '</tbody></table>' + subTotal('סה"כ ' + categoryLabel(cat) + ' (' + items.length + ' פריטים)', items.reduce((s, e) => s + recOf(e), 0));
                     });
