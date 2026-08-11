@@ -11029,8 +11029,8 @@
             // State icon: unpaid → 🪙, paid → how it was paid. Collect lines carry no money out.
             let payIcon = '';
             if (!collect) {
-                if (payment) { const pi = paidPayIcon(real || {}); payIcon = `<span title="${pi.tip}" style="font-size:0.8rem;margin-inline-end:4px;">${pi.icon}</span>`; }
-                else { payIcon = `<span title="טרם שולם" style="font-size:0.8rem;margin-inline-end:4px;">🪙</span>`; }
+                if (payment) { const pi = paidPayIcon(real || {}); payIcon = `<span data-tip="${escapeFormHtml(pi.tip)}" style="font-size:0.8rem;margin-inline-end:4px;cursor:help;">${pi.icon}</span>`; }
+                else { payIcon = `<span data-tip="טרם שולם" style="font-size:0.8rem;margin-inline-end:4px;cursor:help;">🪙</span>`; }
             }
             return `<tr class="row-click"${isCarry ? ' style="background:rgba(239,68,68,0.07);"' : ''}
                         onclick="${rowClick}"
@@ -11273,7 +11273,7 @@
             return `<tr class="row-click"${deduct ? '' : ' style="opacity:0.75;"'} onclick="openRecordFile(${e.id})"
                         oncontextmenu="showRowMenu(event,'expense',${e.id})"
                         ontouchstart="rowTouchStart(event,'expense',${e.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
-                <td style="white-space:nowrap;"><span title="${pi.tip}" style="font-size:0.8rem;margin-inline-end:4px;">${pi.icon}</span>${formatDate(e.date)}</td>
+                <td style="white-space:nowrap;"><span data-tip="${escapeFormHtml(pi.tip)}" style="font-size:0.8rem;margin-inline-end:4px;cursor:help;">${pi.icon}</span>${formatDate(e.date)}</td>
                 <td>${categoryLabel(e.category)}</td>
                 <td>${_collectedExpenseIds.has(e.id) ? '<span title="נאסף — מופיע ברשימת האיסוף" style="color:#a78bfa;margin-inline-end:4px;">📄✓</span>' : ''}${e.description || '-'}${tag} ${e.notes ? '<span data-tip="'+e.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
