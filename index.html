@@ -7014,6 +7014,13 @@
                     ? (document.getElementById('expenseAsset').value || null) : null)
             };
 
+            // A dateless expense belongs to no month and disappears from the month view —
+            // require a date so it can never be "added" yet invisible.
+            if (!itemData.date) {
+                await popupError('חסר תאריך', 'בחר תאריך להוצאה — אחרת היא לא תופיע בתצוגת החודש.');
+                return;
+            }
+
             // Guard against creating an identical expense twice (double-click on
             // 'שולם'/'השלם', or re-adding the same receipt).
             if (!editingId) {
@@ -9895,6 +9902,11 @@
             editingId = null;
             setExpenseDeductible(true);
             setExpensePayment('', '');
+            // Default the date so a new expense never gets saved without one and
+            // vanishes from the month view — the current month if viewed (else today).
+            document.getElementById('expenseDate').value = (expenseMonth && expenseMonth !== 'all')
+                ? (expenseMonth === realMonthKey() ? localTodayISO() : expenseMonth + '-01')
+                : localTodayISO();
             const ks = document.getElementById('expenseKindGroup');
             const sel = document.getElementById('expenseKind');
             if (ks) ks.style.display = '';       // show the type chooser for a new entry
