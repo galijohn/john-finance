@@ -8998,7 +8998,8 @@
             let html = incomeStatusChip(r);
             const missing = incomeMissingStages(r);
             if (missing.length) {
-                html += '<div style="font-size:0.68rem;color:#f87171;margin-top:4px;">⚠ חסר: ' + missing.map(s => s.label).join(', ') + '</div>';
+                // Inline, to the side — never a second line (rows must not grow taller).
+                html += '<span style="font-size:0.72rem;color:#f87171;margin-inline-start:10px;white-space:nowrap;">⚠ חסר: ' + missing.map(s => s.label).join(', ') + '</span>';
             }
             return html;
         }
