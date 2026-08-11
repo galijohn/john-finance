@@ -9012,9 +9012,11 @@
             const stage = INCOME_STAGES.find(s => s.key === _incomeAttachStage);
             const st = document.getElementById('incomeDossierStatus');
             st.textContent = '⏳ מעלה...';
-            const subFolder = 'חשבוניות-עצמאי/' + String(r.description || 'הכנסה').replace(/[\/\\"]/g, ' ').trim();
-            const results = await requireDriveUpload(file, subFolder, 'selfEmployed', r.id, {
-                month: r.month, description: (r.description || 'הכנסה') + ' — ' + stage.label, amount: r.amount
+            // All docs of one income nest together under  חשבוניות-עצמאי/<חודש>/<תיאור>/ —
+            // the description is passed as the category so it lands INSIDE the month folder,
+            // like the rest of the app, not as a sibling of the month folders.
+            const results = await requireDriveUpload(file, 'חשבוניות-עצמאי', 'selfEmployed', r.id, {
+                month: r.month, category: r.description || 'הכנסה', description: stage.label, amount: r.amount
             });
             if (!results) { st.textContent = '❌ ההעלאה נכשלה'; input.value = ''; return; }
             if (!r.incomeDocs) r.incomeDocs = incomeDocsOf(r);   // preserve any legacy attachment
