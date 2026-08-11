@@ -1947,10 +1947,6 @@
                     <span>סך כל ההוצאות החודש</span>
                     <span id="totalExpensesAll">₪0</span>
                 </div>
-                <div class="summary-row" id="expAnnualRow" style="display:none;border-top:1px solid var(--border);border-bottom:none;color:var(--text-muted);">
-                    <span>מוכר מצטבר מתחילת השנה</span>
-                    <span id="totalExpensesAnnual">₪0</span>
-                </div>
             </div>
         </div>
 
@@ -11138,8 +11134,6 @@
             document.getElementById('totalExpensesNonDeductible').textContent = formatCurrency(totalNonDeductible);
             document.getElementById('expAllRow').style.display = nonDeductibleItems.length ? '' : 'none';
             document.getElementById('totalExpensesAll').textContent = formatCurrency(totalAll);
-            document.getElementById('expAnnualRow').style.display = expenseMonth === 'all' ? 'none' : '';
-            document.getElementById('totalExpensesAnnual').textContent = formatCurrency(annualRecognized);
 
             // A month can have no recorded expenses and still have bills waiting —
             // show those instead of an empty table.
@@ -11283,7 +11277,7 @@
             let html = `<tr class="category-group-header" style="background:rgba(148,163,184,0.10);">
                 <td colspan="4" style="color:var(--text-muted);">🔒 הוצאות לא מוכרות — מעקב בלבד (${count})</td>
                 <td class="col-pct"></td>
-                <td class="col-net" style="color:var(--text-muted)">${formatCurrency(total)}</td>
+                <td class="col-net"></td>
             </tr>`;
             html += billRows;
             html += [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(e => renderExpenseRow(e)).join('');
