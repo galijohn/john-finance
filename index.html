@@ -1816,7 +1816,6 @@
                             <th>חודש</th>
                             <th>תיאור</th>
                             <th>סכום</th>
-                            <th>פעולות</th>
                         </tr>
                     </thead>
                     <tbody id="selfEmployedTable"></tbody>
@@ -1835,7 +1834,6 @@
                             <th>סכום</th>
                             <th>מצטבר</th>
                             <th>מסמך</th>
-                            <th>פעולות</th>
                         </tr>
                     </thead>
                     <tbody id="taxAdvanceTable"></tbody>
@@ -1858,7 +1856,6 @@
                             <th>סכום</th>
                             <th>מצטבר</th>
                             <th>מסמך</th>
-                            <th>פעולות</th>
                         </tr>
                     </thead>
                     <tbody id="blAdvanceTable"></tbody>
@@ -8925,18 +8922,16 @@
             document.getElementById('selfEmployedWarning').style.display = selfItems.length > 0 ? 'block' : 'none';
 
             if (selfItems.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><div class="icon">💰</div><p>לחץ + להוסיף</p></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="3" class="empty-state"><div class="icon">💰</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = [...selfItems].sort((a, b) => a.month - b.month).map(s => `<tr>
+            tbody.innerHTML = [...selfItems].sort((a, b) => a.month - b.month).map(s => `<tr class="row-click"
+                    ondblclick="openIncomeDoc('selfEmployed',${s.id})"
+                    oncontextmenu="showRowMenu(event,'selfEmployed',${s.id})"
+                    ontouchstart="rowTouchStart(event,'selfEmployed',${s.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td>${MONTHS[s.month]}</td>
-                <td>${s.description || '-'} ${s.notes ? '<span data-tip="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
+                <td>${(s.driveLink || s.driveId) ? '<span title="מצורף מסמך — דאבל-קליק לפתיחה" style="margin-inline-end:4px;">📄</span>' : ''}${s.description || '-'} ${s.notes ? '<span data-tip="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${formatCurrency(s.amount)}</td>
-                <td>
-                    ${s.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${s.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
-                    <button class="btn btn-icon btn-sm" onclick="editSelfEmployed(${s.id})" title="עריכה">✏️</button>
-                    <button class="btn btn-icon btn-sm" onclick="deleteItem('selfEmployed',${s.id})" title="מחיקה">🗑️</button>
-                </td>
             </tr>`).join('');
         }
 
@@ -11086,6 +11081,31 @@
             if (ok) editExpense(id);
         }
 
+        // Double-click on an income / advance row opens its attached document.
+        function incomeArr(kind) {
+            const yd = getYearData();
+            return kind === 'selfEmployed' ? yd.selfEmployed : kind === 'taxAdvance' ? yd.taxAdvances : yd.blAdvances;
+        }
+        function incomeEditFn(kind) {
+            return kind === 'selfEmployed' ? editSelfEmployed : kind === 'taxAdvance' ? editTaxAdvance : editBLAdvance;
+        }
+        async function openIncomeDoc(kind, id) {
+            const r = active(incomeArr(kind)).find(x => x.id === id);
+            if (!r) return;
+            if (r.driveLink || r.driveId) {
+                window.open(r.driveLink || ('https://drive.google.com/file/d/' + r.driveId + '/view'), '_blank');
+                return;
+            }
+            const ok = await showPopup({
+                type: 'warning',
+                title: 'לא אורכב קובץ',
+                message: 'לרישום זה לא צורף מסמך.\n\nלצרף עכשיו?',
+                okText: 'צרף מסמך',
+                cancelText: 'סגור'
+            });
+            if (ok) incomeEditFn(kind)(id);
+        }
+
         function hideRowMenu() {
             const m = document.getElementById('rowMenu');
             if (m) m.classList.remove('open');
@@ -11172,6 +11192,14 @@
                     ? `<button onclick="hideRowMenu();openRecurringEdit('${expenseMonth}','${extra.budgetId}')">🎯 שנה תקציב</button>
                        <div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteRecurring('${expenseMonth}','${extra.budgetId}')">✕ הסר תקציב</button>`
                     : `<button onclick="hideRowMenu();setCategoryBudget('${cat}')">🎯 הגדר תקציב</button>`;
+            } else if (kind === 'selfEmployed' || kind === 'taxAdvance' || kind === 'blAdvance') {
+                const r = active(incomeArr(kind)).find(x => x.id === id);
+                if (!r) return;
+                const editName = kind === 'selfEmployed' ? 'editSelfEmployed' : kind === 'taxAdvance' ? 'editTaxAdvance' : 'editBLAdvance';
+                const delCall = kind === 'selfEmployed' ? `deleteItem('selfEmployed',${id})` : kind === 'taxAdvance' ? `deleteTaxAdvance(${id})` : `deleteBLAdvance(${id})`;
+                if (r.driveLink || r.driveId) html += `<button onclick="hideRowMenu();openIncomeDoc('${kind}',${id})">👁️ צפייה במסמך</button>`;
+                html += `<button onclick="hideRowMenu();${editName}(${id})">✏️ עריכה</button>`;
+                html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();${delCall}">✕ מחיקה</button>`;
             }
             m.innerHTML = html;
             m.classList.add('open');
@@ -11208,7 +11236,7 @@
                 current = item ? item.category : '';
                 document.getElementById('quickCategoryWhat').textContent = item ? item.description : '';
             }
-            sel.innerHTML = cats.map(c => `<option value="${c}" ${c === current ? 'selected' : ''}>${categoryLabel(c)}</option>`).join('');
+            sel.innerHTML = cats.map(c => `<option value="${escapeFormHtml(c)}" ${c === current ? 'selected' : ''}>${escapeFormHtml(categoryLabel(c))}</option>`).join('');
             sel.value = current;
             openModal('quickCategoryModal');
         }
@@ -11296,7 +11324,7 @@
             
             const taxAdvItems = active(yd.taxAdvances);
             if (taxAdvItems.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">🏛️</div><p>לחץ + להוסיף מקדמת מס</p></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><div class="icon">🏛️</div><p>לחץ + להוסיף מקדמת מס</p></td></tr>';
                 tfoot.innerHTML = '';
                 return;
             }
@@ -11308,23 +11336,20 @@
                 cumulative += p.amount;
                 total += p.amount;
 
-                return `<tr>
+                return `<tr class="row-click"
+                    ondblclick="openIncomeDoc('taxAdvance',${p.id})"
+                    oncontextmenu="showRowMenu(event,'taxAdvance',${p.id})"
+                    ontouchstart="rowTouchStart(event,'taxAdvance',${p.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                     <td>${MONTHS[p.month]}</td>
                     <td>${formatCurrency(p.amount)}</td>
                     <td style="color:var(--primary)">${formatCurrency(cumulative)}</td>
                     <td>${p.notes ? '<span data-tip="'+p.notes+'" style="cursor:help;">📎</span>' : '-'}</td>
-                    <td>
-                        ${p.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${p.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
-                        <button class="btn btn-icon btn-sm" onclick="editTaxAdvance(${p.id})" title="עריכה">✏️</button>
-                        <button class="btn btn-icon btn-sm" onclick="deleteTaxAdvance(${p.id})" title="מחיקה">🗑️</button>
-                    </td>
                 </tr>`;
             }).join('');
-            
+
             tfoot.innerHTML = `<tr style="background:rgba(239,68,68,0.1);font-weight:bold;">
                 <td>סה"כ</td>
                 <td style="color:var(--danger)">${formatCurrency(total)}</td>
-                <td></td>
                 <td></td>
                 <td></td>
             </tr>`;
@@ -11337,7 +11362,7 @@
             
             const blAdvItems = active(yd.blAdvances);
             if (blAdvItems.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">🏥</div><p>לחץ + להוסיף תשלום ביט"ל</p></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><div class="icon">🏥</div><p>לחץ + להוסיף תשלום ביט"ל</p></td></tr>';
                 tfoot.innerHTML = '';
                 return;
             }
@@ -11349,23 +11374,20 @@
                 cumulative += p.amount;
                 total += p.amount;
 
-                return `<tr>
+                return `<tr class="row-click"
+                    ondblclick="openIncomeDoc('blAdvance',${p.id})"
+                    oncontextmenu="showRowMenu(event,'blAdvance',${p.id})"
+                    ontouchstart="rowTouchStart(event,'blAdvance',${p.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                     <td>${MONTHS[p.month]}</td>
                     <td>${formatCurrency(p.amount)}</td>
                     <td style="color:var(--primary)">${formatCurrency(cumulative)}</td>
                     <td>${p.notes ? '<span data-tip="'+p.notes+'" style="cursor:help;">📎</span>' : '-'}</td>
-                    <td>
-                        ${p.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${p.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
-                        <button class="btn btn-icon btn-sm" onclick="editBLAdvance(${p.id})" title="עריכה">✏️</button>
-                        <button class="btn btn-icon btn-sm" onclick="deleteBLAdvance(${p.id})" title="מחיקה">🗑️</button>
-                    </td>
                 </tr>`;
             }).join('');
-            
+
             tfoot.innerHTML = `<tr style="background:rgba(245,158,11,0.1);font-weight:bold;">
                 <td>סה"כ</td>
                 <td style="color:var(--warning)">${formatCurrency(total)}</td>
-                <td></td>
                 <td></td>
                 <td></td>
             </tr>`;
