@@ -5311,6 +5311,44 @@
         // Walks every record that has an attachment, works out where the file SHOULD live
         // (year/month/category + descriptive name) and moves/renames it in Drive.
         // Nothing is ever deleted — only relocated and renamed.
+        // When an income's description changes, rename its stage documents to match —
+        // flat in the month folder — in both Drive and the local folder. Rename/move only,
+        // never delete; touches ONLY this record's own files.
+        async function refileIncomeDocs(rec) {
+            if (!rec || !rec.incomeDocs) return;
+            const SL = { proforma: 'פרופורמה', swift: 'סוויפט', conversion: 'המרה לש"ח', invoice: 'חשבונית קבלה' };
+            const cust = rec.description || 'הכנסה';
+            const year = archiveYearOf({ month: rec.month }, currentYear);
+            const flat = archiveSubFolder('חשבוניות-עצמאי', { month: rec.month });
+            for (const k of Object.keys(rec.incomeDocs)) {
+                const d = rec.incomeDocs[k];
+                if (!d) continue;
+                const base = d.fileName || (d.localPath ? d.localPath.split('/').pop() : 'קובץ.pdf');
+                const name = archiveFileName(base, { month: rec.month, description: cust + ' ' + (SL[k] || k), amount: rec.amount });
+                if (d.driveId) {
+                    try {
+                        const ok = await ensureValidToken();
+                        if (ok && driveFolderId) {
+                            const info = await gapi.client.drive.files.get({ fileId: d.driveId, fields: 'id,name,parents' });
+                            const parentId = await ensureDrivePath(year, flat);
+                            const cur = info.result.parents || [];
+                            const needMove = !cur.includes(parentId), needRename = info.result.name !== name;
+                            if (needMove || needRename) {
+                                const params = { fileId: d.driveId, fields: 'id' };
+                                if (needMove) { params.addParents = parentId; if (cur.length) params.removeParents = cur.join(','); }
+                                await gapi.client.drive.files.update({ ...params, resource: needRename ? { name } : {} });
+                            }
+                            d.fileName = name; d.archivePath = year + '/' + flat + '/' + name;
+                        }
+                    } catch (e) { console.warn('[refile-income] drive', e); }
+                }
+                if (d.localPath && localFolderHandle) {
+                    try { const np = await moveLocalFile(d.localPath, year, flat, name); if (np) d.localPath = np; } catch (e) { console.warn('[refile-income] local', e); }
+                }
+            }
+            saveData();
+        }
+
         function collectArchiveItems() {
             const items = [];
             for (const [yearKey, yd] of Object.entries(data.yearData || {})) {
@@ -6935,6 +6973,8 @@
                 document.getElementById('selfFileStatus').textContent = '✅ הועלה!';
             }
             
+            // Remember the previous description so we can rename its documents if it changed.
+            const _oldDesc = editingId ? (yd.selfEmployed.find(s => s.id === editingId) || {}).description : null;
             if (editingId) {
                 const idx = yd.selfEmployed.findIndex(s => s.id === editingId);
                 if (idx !== -1) {
@@ -6944,9 +6984,13 @@
             } else {
                 yd.selfEmployed.push({ id: recordId, ...itemData });
             }
-            
+
             saveData();
             autoRefile('selfEmployed', yd.selfEmployed.find(x => x.id === recordId), currentYear);
+            // Description changed → rename this income's stage documents to match (rename only).
+            if (_oldDesc != null && _oldDesc !== itemData.description) {
+                refileIncomeDocs(yd.selfEmployed.find(x => x.id === recordId)).catch(e => console.warn('refile income docs', e));
+            }
             if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('selfEmployedModal');
             clearForm('selfEmployedModal');
