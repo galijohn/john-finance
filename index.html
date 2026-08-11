@@ -9012,11 +9012,11 @@
             const stage = INCOME_STAGES.find(s => s.key === _incomeAttachStage);
             const st = document.getElementById('incomeDossierStatus');
             st.textContent = '⏳ מעלה...';
-            // All docs of one income nest together under  חשבוניות-עצמאי/<חודש>/<תיאור>/ —
-            // the description is passed as the category so it lands INSIDE the month folder,
-            // like the rest of the app, not as a sibling of the month folders.
+            // Everything for a month lands flat in that month's folder — one place.
+            // The filename carries the customer + stage so each doc is identifiable:
+            //   חשבוניות-עצמאי/01-ינואר/01 FuelOmat פרופורמה 17,519₪.pdf
             const results = await requireDriveUpload(file, 'חשבוניות-עצמאי', 'selfEmployed', r.id, {
-                month: r.month, category: r.description || 'הכנסה', description: stage.label, amount: r.amount
+                month: r.month, description: (r.description || 'הכנסה') + ' ' + stage.label, amount: r.amount
             });
             if (!results) { st.textContent = '❌ ההעלאה נכשלה'; input.value = ''; return; }
             if (!r.incomeDocs) r.incomeDocs = incomeDocsOf(r);   // preserve any legacy attachment
