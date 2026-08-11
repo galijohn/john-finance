@@ -8995,13 +8995,16 @@
         }
         // Status chip + an explicit red list of which of the 4 documents are still missing.
         function incomeStatusCell(r) {
-            let html = incomeStatusChip(r);
+            const box = (bg, c, txt) => `<span style="background:${bg};color:${c};padding:3px 11px;border-radius:20px;font-size:0.78rem;white-space:nowrap;">${txt}</span>`;
             const missing = incomeMissingStages(r);
-            if (missing.length) {
-                // Inline, to the side — never a second line (rows must not grow taller).
-                html += '<span style="font-size:0.72rem;color:#f87171;margin-inline-start:10px;white-space:nowrap;">⚠ חסר: ' + missing.map(s => s.label).join(', ') + '</span>';
-            }
-            return html;
+            // Green only once every document is in.
+            if (missing.length === 0) return box('rgba(16,185,129,0.15)', '#10b981', '✓ הושלם');
+            // Otherwise the status is red, with a warning triangle on its right (hover = what's missing).
+            const idx = incomeStageIdx(r);
+            const label = idx < 0 ? 'טרם החל' : INCOME_STAGES[idx].label;
+            const tip = 'חסר: ' + missing.map(s => s.label).join(', ');
+            const tri = `<span class="pay-tip" data-tip="${escapeFormHtml(tip)}" style="color:#f87171;margin-inline-end:6px;cursor:help;font-size:0.9rem;">⚠</span>`;
+            return tri + box('rgba(239,68,68,0.15)', '#f87171', label);
         }
 
         let _incomeDossierId = null;
