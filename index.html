@@ -11371,7 +11371,7 @@
                         ontouchstart="rowTouchStart(event,'bill','${item.id}',${menuExtra})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td style="white-space:nowrap;">${payIcon}${status}</td>
                 <td>${categoryLabel(item.category)}</td>
-                <td>${item.description}</td>
+                <td>${(real && real.description) ? real.description : item.description}${real && real.notes ? ' <span data-tip="' + escapeFormHtml(real.notes) + '" style="cursor:help;">📎</span>' : ''}</td>
                 <td style="color:${collect ? 'var(--text-muted)' : 'var(--danger)'}">${collect ? '—' : formatCurrency(amount)}</td>
                 <td class="col-pct" style="text-align:center;${!collect && deduct && effPct < 100 ? 'color:var(--warning)' : ''}">${collect || !deduct ? '—' : effPct + '%'}</td>
                 <td class="col-net" style="color:${collect || !deduct ? 'var(--text-muted)' : 'var(--success)'}">${collect || !deduct ? '—' : formatCurrency(amount * (effPct / 100))}</td>
