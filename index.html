@@ -10045,7 +10045,7 @@
                 const sel = document.getElementById(sid);
                 if (!sel || sel.dataset.catsig === sig) return;
                 const prev = sel.value;
-                sel.innerHTML = cats.map(v => `<option value="${v}">${labelOf(v)}</option>`).join('') +
+                sel.innerHTML = cats.map(v => `<option value="${escapeFormHtml(v)}">${escapeFormHtml(labelOf(v))}</option>`).join('') +
                     '<option value="__addcat__">➕ קטגוריה חדשה...</option>';
                 sel.dataset.catsig = sig;
                 if (prev && cats.includes(prev)) sel.value = prev;
@@ -10461,7 +10461,7 @@
         function buildDocCategoryOptions(selected) {
             const sel = document.getElementById('docCategory');
             const cats = docCategories();
-            sel.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('')
+            sel.innerHTML = cats.map(c => `<option value="${escapeFormHtml(c)}">${escapeFormHtml(c)}</option>`).join('')
                 + '<option value="__adddoccat__">➕ קטגוריה חדשה...</option>';
             sel.value = selected && cats.includes(selected) ? selected : cats[0];
             sel.dataset.prev = sel.value;
