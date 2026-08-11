@@ -1814,6 +1814,7 @@
                     <thead>
                         <tr>
                             <th>חודש</th>
+                            <th>סטטוס</th>
                             <th>תיאור</th>
                             <th>סכום</th>
                         </tr>
@@ -3132,6 +3133,27 @@
             <div class="modal-footer">
                 <button class="btn btn-primary" onclick="addSelfEmployed()">שמור</button>
                 <button class="btn" onclick="closeModal('selfEmployedModal')">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="incomeDossierModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div>
+                    <h3 id="incomeDossierTitle" style="margin:0;">📂 תיק הכנסה</h3>
+                    <div id="incomeDossierSub" style="font-size:0.85rem;color:var(--text-muted);margin-top:3px;"></div>
+                </div>
+                <button class="btn-icon" onclick="closeModal('incomeDossierModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;">שלבי ההכנסה — לחץ "צרף" בכל שלב. הסטטוס מתעדכן לבד לפי המסמך האחרון שצורף.</div>
+                <div id="incomeDossierBody"></div>
+                <div id="incomeDossierStatus" style="font-size:0.85rem;color:var(--text-muted);margin-top:6px;"></div>
+                <input type="file" id="incomeDocFile" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="onIncomeDocPicked(this)">
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('incomeDossierModal')">סגור</button>
             </div>
         </div>
     </div>
@@ -8915,6 +8937,119 @@
             </tr>`).join('');
         }
 
+        // ===== Income lifecycle: proforma → SWIFT → conversion → invoice =====
+        // Status is DERIVED from which stage documents are attached (no separate
+        // field to keep in sync). A legacy single attachment counts as the invoice.
+        const INCOME_STAGES = [
+            { key: 'proforma',   label: 'פרופורמה' },
+            { key: 'swift',      label: 'סוויפט' },
+            { key: 'conversion', label: 'המרה לש"ח' },
+            { key: 'invoice',    label: 'חשבונית קבלה' },
+        ];
+        function incomeDocsOf(r) {
+            if (r.incomeDocs) return r.incomeDocs;
+            if (r.driveLink || r.driveId) return { invoice: { driveLink: r.driveLink, driveId: r.driveId, fileName: r.fileName, localPath: r.localPath } };
+            return {};
+        }
+        function incomeStageIdx(r) {
+            const d = incomeDocsOf(r);
+            let idx = -1;
+            INCOME_STAGES.forEach((s, i) => { if (d[s.key]) idx = i; });
+            return idx;
+        }
+        function incomeStatusChip(r) {
+            const i = incomeStageIdx(r);
+            const box = (bg, c, txt) => `<span style="background:${bg};color:${c};padding:3px 11px;border-radius:20px;font-size:0.78rem;white-space:nowrap;">${txt}</span>`;
+            if (i < 0) return box('rgba(148,163,184,0.15)', '#94a3b8', '＋ פרופורמה');
+            const label = INCOME_STAGES[i].label;
+            if (i === INCOME_STAGES.length - 1) return box('rgba(16,185,129,0.15)', '#10b981', '✓ ' + label);
+            if (i === 0) return box('rgba(37,99,235,0.20)', '#60a5fa', '📄 ' + label);
+            return box('rgba(245,158,11,0.15)', '#f59e0b', '⏳ ' + label);
+        }
+
+        let _incomeDossierId = null;
+        let _incomeAttachStage = null;
+        function openIncomeDossier(id) {
+            _incomeDossierId = id;
+            renderIncomeDossier();
+            openModal('incomeDossierModal');
+        }
+        function renderIncomeDossier() {
+            const r = active(getYearData().selfEmployed).find(x => x.id === _incomeDossierId);
+            if (!r) return;
+            const docs = incomeDocsOf(r);
+            document.getElementById('incomeDossierTitle').textContent = '📂 תיק הכנסה · ' + MONTHS[r.month] + ' · ' + (r.description || 'הכנסה');
+            document.getElementById('incomeDossierSub').textContent = formatCurrency(r.amount);
+            const body = INCOME_STAGES.map(s => {
+                const d = docs[s.key];
+                if (d) {
+                    return `<div style="display:flex;align-items:center;gap:12px;padding:11px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;">
+                        <span style="color:var(--success);font-size:1.1rem;">✓</span>
+                        <div style="flex:1;"><div>${s.label}</div><div style="font-size:0.78rem;color:var(--text-muted);">${d.fileName || 'מסמך מצורף'}</div></div>
+                        <button class="btn btn-sm" style="width:auto;" onclick="viewIncomeDoc('${s.key}')">👁️ צפה</button>
+                        <button class="btn btn-icon btn-sm" title="הסר מסמך" onclick="removeIncomeDoc('${s.key}')">🗑️</button>
+                    </div>`;
+                }
+                return `<div style="display:flex;align-items:center;gap:12px;padding:11px 12px;border:1px dashed var(--border);border-radius:8px;margin-bottom:8px;opacity:0.75;">
+                    <span style="color:var(--text-muted);font-size:1.1rem;">○</span>
+                    <div style="flex:1;"><div>${s.label}</div><div style="font-size:0.78rem;color:var(--text-muted);">עדיין לא צורף</div></div>
+                    <button class="btn btn-sm" style="width:auto;" onclick="pickIncomeDoc('${s.key}')">➕ צרף</button>
+                </div>`;
+            }).join('');
+            document.getElementById('incomeDossierBody').innerHTML = body;
+            document.getElementById('incomeDossierStatus').textContent = '';
+        }
+        function pickIncomeDoc(stageKey) {
+            _incomeAttachStage = stageKey;
+            document.getElementById('incomeDocFile').click();
+        }
+        async function onIncomeDocPicked(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const yd = getYearData();
+            const r = active(yd.selfEmployed).find(x => x.id === _incomeDossierId);
+            if (!r) { input.value = ''; return; }
+            const stage = INCOME_STAGES.find(s => s.key === _incomeAttachStage);
+            const st = document.getElementById('incomeDossierStatus');
+            st.textContent = '⏳ מעלה...';
+            const subFolder = 'חשבוניות-עצמאי/' + String(r.description || 'הכנסה').replace(/[\/\\"]/g, ' ').trim();
+            const results = await requireDriveUpload(file, subFolder, 'selfEmployed', r.id, {
+                month: r.month, description: (r.description || 'הכנסה') + ' — ' + stage.label, amount: r.amount
+            });
+            if (!results) { st.textContent = '❌ ההעלאה נכשלה'; input.value = ''; return; }
+            if (!r.incomeDocs) r.incomeDocs = incomeDocsOf(r);   // preserve any legacy attachment
+            r.incomeDocs[_incomeAttachStage] = {
+                driveLink: results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view'),
+                driveId: results.drive.id, fileName: file.name, localPath: results.local,
+                date: new Date().toISOString().slice(0, 10)
+            };
+            saveData();
+            input.value = '';
+            renderIncomeDossier();
+            renderAll();
+        }
+        function viewIncomeDoc(stageKey) {
+            const r = active(getYearData().selfEmployed).find(x => x.id === _incomeDossierId);
+            if (!r) return;
+            const d = incomeDocsOf(r)[stageKey];
+            if (d && (d.driveLink || d.driveId)) window.open(d.driveLink || ('https://drive.google.com/file/d/' + d.driveId + '/view'), '_blank');
+        }
+        async function removeIncomeDoc(stageKey) {
+            const r = active(getYearData().selfEmployed).find(x => x.id === _incomeDossierId);
+            if (!r) return;
+            const ok = await popupConfirm('הסרת מסמך', 'להסיר את המסמך של "' + (INCOME_STAGES.find(s => s.key === stageKey) || {}).label + '"?\n\nהקובץ יעבור לפח ב־Google Drive (ניתן לשחזור).', 'הסר', 'ביטול');
+            if (!ok) return;
+            if (!r.incomeDocs) r.incomeDocs = incomeDocsOf(r);
+            const d = r.incomeDocs[stageKey];
+            if (d && d.driveId) deleteDriveFile(d.driveId).catch(e => console.warn('[drive] income doc remove failed', e));
+            delete r.incomeDocs[stageKey];
+            // if we just removed a legacy-mapped invoice, also clear the legacy fields
+            if (stageKey === 'invoice') { delete r.driveLink; delete r.driveId; }
+            saveData();
+            renderIncomeDossier();
+            renderAll();
+        }
+
         function renderSelfEmployedTable() {
             const yd = getYearData();
             const tbody = document.getElementById('selfEmployedTable');
@@ -8922,15 +9057,16 @@
             document.getElementById('selfEmployedWarning').style.display = selfItems.length > 0 ? 'block' : 'none';
 
             if (selfItems.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" class="empty-state"><div class="icon">💰</div><p>לחץ + להוסיף</p></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><div class="icon">💰</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
             tbody.innerHTML = [...selfItems].sort((a, b) => a.month - b.month).map(s => `<tr class="row-click"
-                    ondblclick="openIncomeDoc('selfEmployed',${s.id})"
+                    ondblclick="openIncomeDossier(${s.id})"
                     oncontextmenu="showRowMenu(event,'selfEmployed',${s.id})"
                     ontouchstart="rowTouchStart(event,'selfEmployed',${s.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td>${MONTHS[s.month]}</td>
-                <td>${(s.driveLink || s.driveId) ? '<span title="מצורף מסמך — דאבל-קליק לפתיחה" style="margin-inline-end:4px;">📄</span>' : ''}${s.description || '-'} ${s.notes ? '<span data-tip="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
+                <td onclick="event.stopPropagation();openIncomeDossier(${s.id})" style="cursor:pointer;">${incomeStatusChip(s)}</td>
+                <td>${s.description || '-'} ${s.notes ? '<span data-tip="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${formatCurrency(s.amount)}</td>
             </tr>`).join('');
         }
@@ -11197,7 +11333,11 @@
                 if (!r) return;
                 const editName = kind === 'selfEmployed' ? 'editSelfEmployed' : kind === 'taxAdvance' ? 'editTaxAdvance' : 'editBLAdvance';
                 const delCall = kind === 'selfEmployed' ? `deleteItem('selfEmployed',${id})` : kind === 'taxAdvance' ? `deleteTaxAdvance(${id})` : `deleteBLAdvance(${id})`;
-                if (r.driveLink || r.driveId) html += `<button onclick="hideRowMenu();openIncomeDoc('${kind}',${id})">👁️ צפייה במסמך</button>`;
+                if (kind === 'selfEmployed') {
+                    html += `<button onclick="hideRowMenu();openIncomeDossier(${id})">📂 פתח תיק מסמכים</button>`;
+                } else if (r.driveLink || r.driveId) {
+                    html += `<button onclick="hideRowMenu();openIncomeDoc('${kind}',${id})">👁️ צפייה במסמך</button>`;
+                }
                 html += `<button onclick="hideRowMenu();${editName}(${id})">✏️ עריכה</button>`;
                 html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();${delCall}">✕ מחיקה</button>`;
             }
