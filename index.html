@@ -11360,6 +11360,9 @@
             const real = payment && payment.id ? payment : null;   // a manual mark has no record
             const amount = real ? real.amount : item.amount;
             const effPct = real ? (real.recognition ?? 100) : pct;
+            // A non-deductible bill is tracked but never recognized — show "—" like a regular
+            // non-deductible expense, not 100% + a recognized amount.
+            const deduct = real ? isDeductible(real) : isDeductible(item);
             const menuExtra = `{monthKey:'${monthKey}',paymentId:${real ? real.id : 'null'}}`;
             const rowClick = real ? `openRecordFile(${real.id})` : `payRecurring('${monthKey}','${item.id}')`;
             // State icon: unpaid → 🪙, paid → how it was paid. Collect lines carry no money out.
@@ -11376,8 +11379,8 @@
                 <td>${categoryLabel(item.category)}</td>
                 <td>${item.description}</td>
                 <td style="color:${collect ? 'var(--text-muted)' : 'var(--danger)'}">${collect ? '—' : formatCurrency(amount)}</td>
-                <td class="col-pct" style="text-align:center;${!collect && effPct < 100 ? 'color:var(--warning)' : ''}">${collect ? '—' : effPct + '%'}</td>
-                <td class="col-net" style="color:${collect ? 'var(--text-muted)' : 'var(--success)'}">${collect ? '—' : formatCurrency(amount * (effPct / 100))}</td>
+                <td class="col-pct" style="text-align:center;${!collect && deduct && effPct < 100 ? 'color:var(--warning)' : ''}">${collect || !deduct ? '—' : effPct + '%'}</td>
+                <td class="col-net" style="color:${collect || !deduct ? 'var(--text-muted)' : 'var(--success)'}">${collect || !deduct ? '—' : formatCurrency(amount * (effPct / 100))}</td>
             </tr>`;
         }
 
