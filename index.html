@@ -5324,7 +5324,17 @@
                 active(yd.salary).forEach(r => push(r, 'שכיר', { month: r.month, description: r.employer || 'תלוש', amount: r.gross }));
                 active(yd.unemployment).forEach(r => push(r, 'אבטלה', { month: r.month, description: 'אבטלה', amount: r.gross }));
                 active(yd.miluim).forEach(r => push(r, 'מילואים', { date: r.from, description: 'מילואים', amount: r.amount }));
-                active(yd.selfEmployed).forEach(r => push(r, 'חשבוניות-עצמאי', { month: r.month, description: r.description || 'הכנסה', amount: r.amount }));
+                active(yd.selfEmployed).forEach(r => {
+                    push(r, 'חשבוניות-עצמאי', { month: r.month, description: r.description || 'הכנסה', amount: r.amount });
+                    // Income stage documents (proforma/SWIFT/conversion/invoice) each get
+                    // filed flat in the month folder too, so a whole income sits in one place.
+                    if (r.incomeDocs) {
+                        const SL = { proforma: 'פרופורמה', swift: 'סוויפט', conversion: 'המרה לש"ח', invoice: 'חשבונית קבלה' };
+                        Object.keys(r.incomeDocs).forEach(k => {
+                            push(r.incomeDocs[k], 'חשבוניות-עצמאי', { month: r.month, description: (r.description || 'הכנסה') + ' ' + (SL[k] || ''), amount: r.amount });
+                        });
+                    }
+                });
                 active(yd.expenses).forEach(r => push(r, 'הוצאות-מוכרות', { date: r.date, category: r.category, description: r.description, amount: r.amount }));
                 active(yd.taxAdvances).forEach(r => push(r, 'מקדמות-מס', { month: r.month, description: 'מקדמת מס', amount: r.amount }));
                 active(yd.blAdvances).forEach(r => push(r, 'ביטוח-לאומי', { month: r.month, description: 'מקדמת ביטוח לאומי', amount: r.amount }));
