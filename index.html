@@ -1797,8 +1797,8 @@
                     <div class="export-dropdown">
                         <button class="btn btn-sm" onclick="toggleExportMenu(this)">🖨️ הדפסה</button>
                         <div class="export-dropdown-content">
-                            <button onclick="exportPageExcel('selfEmployed')">📊 Excel</button>
-                            <button onclick="exportPagePDF('selfEmployed')">📄 PDF</button>
+                            <button onclick="openIncomeExport('excel')">📊 Excel</button>
+                            <button onclick="openIncomeExport('pdf')">📄 PDF</button>
                         </div>
                     </div>
                 </div>
@@ -3154,6 +3154,30 @@
             </div>
             <div class="modal-footer">
                 <button class="btn" onclick="closeModal('incomeDossierModal')">סגור</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="incomeExportModal">
+        <div class="modal" style="max-width:440px;">
+            <div class="modal-header">
+                <h3>🖨️ מה לייצא?</h3>
+                <button class="btn-icon" onclick="closeModal('incomeExportModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">מה להדפיס:</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+                    <button type="button" id="incomeDS_selfEmployed" class="btn btn-sm btn-primary" onclick="setIncomeDataset('selfEmployed')">💰 הכנסה כעצמאי</button>
+                    <button type="button" id="incomeDS_taxAdvance" class="btn btn-sm" onclick="setIncomeDataset('taxAdvance')">🏛️ מס הכנסה</button>
+                    <button type="button" id="incomeDS_blAdvance" class="btn btn-sm" onclick="setIncomeDataset('blAdvance')">🏥 ביטוח לאומי</button>
+                    <button type="button" id="incomeDS_all" class="btn btn-sm" onclick="setIncomeDataset('all')">📚 הכל ביחד</button>
+                </div>
+                <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">פילוג:</div>
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    <button class="btn btn-primary" id="incomeExportByMonthBtn" onclick="runIncomeExport('year')" style="width:100%;">📄 לפי חודשים</button>
+                    <button class="btn" id="incomeExportFlatBtn" onclick="runIncomeExport('flat')" style="width:100%;">📄 הכל ביחד</button>
+                    <button class="btn" onclick="closeModal('incomeExportModal')" style="width:100%;">ביטול</button>
+                </div>
             </div>
         </div>
     </div>
@@ -6669,7 +6693,7 @@
         // Helper modals that open ON TOP of a record modal (e.g. "new category" while
         // editing an expense). Closing one must NOT forget which record is being edited —
         // otherwise saving creates a duplicate instead of updating.
-        const AUX_MODALS = ['categoryModal', 'recurringScopeModal', 'exportScopeModal'];
+        const AUX_MODALS = ['categoryModal', 'recurringScopeModal', 'exportScopeModal', 'incomeExportModal'];
 
         function closeModal(id) {
             document.getElementById(id).classList.remove('active');
@@ -9050,6 +9074,88 @@
             saveData();
             renderIncomeDossier();
             renderAll();
+        }
+
+        // ===== Income / advances export (PDF + Excel), like the expenses module =====
+        let incomeExportScope = null;   // { dataset, mode }
+        let _incomeExportKind = 'pdf';
+        let _incomeDataset = 'selfEmployed';
+        const INCOME_DATASETS = {
+            selfEmployed: { title: 'הכנסה כעצמאי', get: () => active(getYearData().selfEmployed) },
+            taxAdvance:   { title: 'מקדמות מס הכנסה', get: () => active(getYearData().taxAdvances) },
+            blAdvance:    { title: 'ביטוח לאומי + מס בריאות', get: () => active(getYearData().blAdvances) },
+        };
+        function incomeMissingStages(r) { const d = incomeDocsOf(r); return INCOME_STAGES.filter(s => !d[s.key]); }
+        function incomeSelectedDatasets() {
+            const ds = (incomeExportScope || {}).dataset || 'selfEmployed';
+            return ds === 'all' ? ['selfEmployed', 'taxAdvance', 'blAdvance'] : [ds];
+        }
+        function openIncomeExport(kind) {
+            _incomeExportKind = kind;
+            document.querySelectorAll('.export-dropdown-content.show').forEach(d => d.classList.remove('show'));
+            setIncomeDataset(_incomeDataset || 'selfEmployed');
+            const icon = kind === 'excel' ? '📊' : '📄';
+            document.getElementById('incomeExportByMonthBtn').textContent = icon + ' לפי חודשים';
+            document.getElementById('incomeExportFlatBtn').textContent = icon + ' הכל ביחד';
+            openModal('incomeExportModal');
+        }
+        function setIncomeDataset(ds) {
+            _incomeDataset = ds;
+            ['selfEmployed', 'taxAdvance', 'blAdvance', 'all'].forEach(k => {
+                const b = document.getElementById('incomeDS_' + k);
+                if (b) b.classList.toggle('btn-primary', k === ds);
+            });
+        }
+        async function runIncomeExport(mode) {
+            incomeExportScope = { dataset: _incomeDataset, mode };
+            closeModal('incomeExportModal');
+            if (_incomeExportKind === 'excel') exportPageExcel('income');
+            else exportPagePDF('income');
+        }
+        // Per-stage ✓ / ✗ (missing in red) for the report table.
+        function incomeDocsCellHtml(r) {
+            const d = incomeDocsOf(r);
+            return INCOME_STAGES.map(s => d[s.key]
+                ? '<span style="color:#059669;">✓' + s.label + '</span>'
+                : '<span style="color:#dc2626;">✗' + s.label + '</span>').join(' ');
+        }
+        // Builds the PDF report body for the chosen datasets + split.
+        function incomeReportBodyHTML(fmtNum) {
+            const mode = (incomeExportScope || {}).mode || 'flat';
+            const h3 = (t, red) => '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:' + (red ? '#dc2626' : '#1e293b') + ';">' + t + '</h3>';
+            const sub = (label, val) => '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>' + label + '</span><span>' + fmtNum(val) + '</span></div>';
+            let html = '';
+            incomeSelectedDatasets().forEach(dsKey => {
+                const ds = INCOME_DATASETS[dsKey];
+                const items = ds.get();
+                const isSelf = dsKey === 'selfEmployed';
+                let missingTotal = 0;
+                if (isSelf) items.forEach(r => { missingTotal += incomeMissingStages(r).length; });
+                html += h3(ds.title + (isSelf && missingTotal ? ' — ⚠ חסרים ' + missingTotal + ' מסמכים' : ''), isSelf && missingTotal > 0);
+                const openTbl = isSelf
+                    ? '<table><thead><tr><th>חודש</th><th>מסמכים</th><th>תיאור</th><th>סכום</th></tr></thead><tbody>'
+                    : '<table><thead><tr><th>חודש</th><th>סכום</th><th>מסמך</th></tr></thead><tbody>';
+                const rowHtml = r => isSelf
+                    ? '<tr><td>' + MONTHS[r.month] + '</td><td style="font-size:8px;">' + incomeDocsCellHtml(r) + '</td><td>' + (r.description || '-') + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(r.amount) + '</td></tr>'
+                    : '<tr><td>' + MONTHS[r.month] + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(r.amount) + '</td><td>' + ((r.driveLink || r.driveId) ? '✓' : '—') + '</td></tr>';
+                const total = items.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+                if (mode === 'year') {
+                    const byM = {};
+                    items.forEach(r => { (byM[r.month] = byM[r.month] || []).push(r); });
+                    Object.keys(byM).map(Number).sort((a, b) => a - b).forEach(m => {
+                        const list = byM[m];
+                        html += '<div style="font-weight:bold;font-size:11px;margin:10px 0 4px;">' + MONTHS[m] + '</div>' + openTbl;
+                        list.forEach(r => html += rowHtml(r));
+                        html += '</tbody></table>' + sub('סה"כ ' + MONTHS[m] + ' (' + list.length + ')', list.reduce((s, r) => s + (Number(r.amount) || 0), 0));
+                    });
+                } else {
+                    html += openTbl;
+                    [...items].sort((a, b) => a.month - b.month).forEach(r => html += rowHtml(r));
+                    html += '</tbody></table>';
+                }
+                html += '<div style="overflow:hidden;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:8px;margin-bottom:16px;"><span>סה"כ ' + ds.title + '</span><span>' + fmtNum(total) + '</span></div>';
+            });
+            return html;
         }
 
         function renderSelfEmployedTable() {
@@ -11766,6 +11872,12 @@
                     };
                     break;
                 }
+                case 'income': {
+                    const ids = (incomeExportScope || {}).dataset || 'selfEmployed';
+                    title = ids === 'all' ? 'דוח עצמאי — הכל' : (INCOME_DATASETS[ids] ? INCOME_DATASETS[ids].title : 'הכנסה כעצמאי');
+                    headers = []; rows = [];
+                    break;
+                }
                 case 'expenses':
                     headers = ['תאריך', 'תיאור', 'קטגוריה', 'סכום', '% הכרה', 'סכום מוכר', 'הערות'];
                     rows = active(yd.expenses).map(e => {
@@ -11962,7 +12074,42 @@
             }
 
             // === Build per page ===
-            if (page === 'expenses' && getScopedExpenses().length > 0) {
+            if (page === 'income') {
+                const S = 4;
+                addTitle(S); addInfo(S); ws.addRow([]);
+                ws.getColumn(1).width = 14; ws.getColumn(2).width = 40; ws.getColumn(3).width = 16; ws.getColumn(4).width = 30;
+                const mode = (incomeExportScope || {}).mode || 'flat';
+                const redFont = { size: 10, color: { argb: 'FFDC2626' }, name: 'Segoe UI' };
+                incomeSelectedDatasets().forEach(dsKey => {
+                    const ds = INCOME_DATASETS[dsKey];
+                    const items = ds.get();
+                    const isSelf = dsKey === 'selfEmployed';
+                    addSection(ds.title, S);
+                    addHdr(isSelf ? ['חודש', 'תיאור', 'סכום', 'מסמכים חסרים'] : ['חודש', 'סכום', 'מסמך', '']);
+                    const total = items.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+                    const rowVals = r => {
+                        if (isSelf) {
+                            const miss = incomeMissingStages(r).map(s => s.label);
+                            return { vals: [MONTHS[r.month], r.description || '', r.amount, miss.length ? miss.join(', ') : '✓ הכל'], missing: miss.length > 0 };
+                        }
+                        return { vals: [MONTHS[r.month], r.amount, (r.driveLink || r.driveId) ? '✓' : '—', ''], missing: false };
+                    };
+                    const emit = (r, i) => { const rv = rowVals(r); addDR(rv.vals, i); if (rv.missing) ws.lastRow.getCell(4).font = redFont; };
+                    if (mode === 'year') {
+                        const byM = {};
+                        items.forEach(r => { (byM[r.month] = byM[r.month] || []).push(r); });
+                        Object.keys(byM).map(Number).sort((a, b) => a - b).forEach(m => {
+                            const list = byM[m];
+                            list.forEach((r, i) => emit(r, i));
+                            addSub(isSelf ? ['סה"כ ' + MONTHS[m], '', list.reduce((s, r) => s + r.amount, 0), ''] : ['סה"כ ' + MONTHS[m], list.reduce((s, r) => s + r.amount, 0), '', '']);
+                        });
+                    } else {
+                        [...items].sort((a, b) => a.month - b.month).forEach((r, i) => emit(r, i));
+                    }
+                    addGrand(isSelf ? ['סה"כ ' + ds.title, '', total, ''] : ['סה"כ ' + ds.title, total, '', '']);
+                });
+                addFooter(S);
+            } else if (page === 'expenses' && getScopedExpenses().length > 0) {
                 const mode = (expenseExportScope || {}).mode || 'year';
                 const scoped = getScopedExpenses();
                 const byDate = (a, b) => (a.date || '').localeCompare(b.date || '');
@@ -12223,6 +12370,9 @@
                          : _m === 'flat' ? 'כל שנת ' + year + ' (ללא חלוקה)'
                          : 'כל שנת ' + year;
             }
+            if (page === 'income' && incomeExportScope) {
+                _xlScope = (incomeExportScope.mode === 'year' ? 'כל שנת ' + year + ' לפי חודשים' : 'כל שנת ' + year + ' ביחד');
+            }
             const _cleanXlScope = _xlScope.replace(/[^֐-׿a-zA-Z0-9 ]/g, '').trim();
             a.href = url; a.download = `${title.replace(/[^֐-׿a-zA-Z0-9 ]/g, '').trim()} - ${_cleanXlScope}.xlsx`;
             document.body.appendChild(a); a.click();
@@ -12261,6 +12411,26 @@
                 addRecordDocs(yd.expenses, 'הוצאות');
                 addRecordDocs(yd.taxAdvances, 'מקדמות מס');
                 addRecordDocs(yd.blAdvances, 'מקדמות ביט"ל');
+            } else if (page === 'income') {
+                const datasets = incomeSelectedDatasets();
+                if (datasets.includes('selfEmployed')) {
+                    active(yd.selfEmployed).forEach(r => {
+                        const d = incomeDocsOf(r);
+                        INCOME_STAGES.forEach(s => {
+                            const doc = d[s.key];
+                            if (doc && (doc.driveLink || doc.driveId)) {
+                                records.push({
+                                    fileName: doc.fileName, driveLink: doc.driveLink, driveId: doc.driveId,
+                                    type: 'עצמאי · ' + s.label,
+                                    description: (r.description || '') + ' · ' + MONTHS[r.month],
+                                    date: '', amount: r.amount
+                                });
+                            }
+                        });
+                    });
+                }
+                if (datasets.includes('taxAdvance')) addRecordDocs(yd.taxAdvances, 'מקדמות מס');
+                if (datasets.includes('blAdvance')) addRecordDocs(yd.blAdvances, 'ביטוח לאומי');
             } else if (page === 'expenses') {
                 // Only attach receipts belonging to the exported scope (month/year + category filter)
                 addRecordDocs(getScopedExpenses(), 'הוצאות');
@@ -12450,6 +12620,8 @@
                 if (grandTotal !== grandRecognized) {
                     bodyContent += '<div style="text-align:left;color:#94a3b8;font-size:9px;margin-top:5px;">סה"כ לפני הכרה: ' + fmtNum(grandTotal) + '</div>';
                 }
+            } else if (page === 'income') {
+                bodyContent += incomeReportBodyHTML(fmtNum);
             } else if (page === 'selfEmployed') {
                 // Self-employed full report
                 const extras = rows._extras || {};
@@ -12760,6 +12932,9 @@
                 _scopeName = m === 'month' ? monthLabelFromKey(expenseExportScope.monthKey)
                     : m === 'flat' ? 'כל שנת ' + year + ' (ללא חלוקה)'
                     : 'כל שנת ' + year;
+            }
+            if (page === 'income' && incomeExportScope) {
+                _scopeName = (incomeExportScope.mode === 'year' ? 'כל שנת ' + year + ' לפי חודשים' : 'כל שנת ' + year + ' ביחד');
             }
             // Build report HTML for pdf conversion (all inline styles - html2canvas ignores CSS classes)
             const titleLine = title + ' — ' + _scopeName;
