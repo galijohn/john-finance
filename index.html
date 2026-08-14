@@ -1550,7 +1550,7 @@
                     <span class="fav-icon">🌐</span>
                     <span class="fav-name">אתר...</span>
                 </button>
-                <button class="btn btn-icon btn-sm" onclick="openModal('favoritesModal')" title="ערוך מועדפים" style="margin-right:auto;">✏️</button>
+                <button class="btn btn-icon btn-sm" onclick="openModal('favoritesModal');renderFavoritesEditor()" title="ערוך מועדפים" style="margin-right:auto;">✏️</button>
             </div>
 
             <div id="docReminders" style="display:none;margin-bottom:20px;padding:12px 15px;border-radius:10px;background:rgba(239,68,68,0.10);border:1px solid var(--danger);"></div>
@@ -4690,7 +4690,7 @@
             
             if (!fav.url) {
                 openModal('favoritesModal');
-                renderFavoritesEditor();
+                renderFavoritesEditor(index);
                 return;
             }
             
@@ -4701,7 +4701,7 @@
         function editFavorite(event, index) {
             event.preventDefault();
             openModal('favoritesModal');
-            renderFavoritesEditor();
+            renderFavoritesEditor(index);
             // Focus on the specific favorite
             setTimeout(() => {
                 const input = document.getElementById('favName' + index);
@@ -4709,11 +4709,13 @@
             }, 100);
         }
         
-        function renderFavoritesEditor() {
+        function renderFavoritesEditor(onlyIdx) {
             const favorites = getFavorites();
             const container = document.getElementById('favoritesEditor');
-            
-            container.innerHTML = favorites.map((fav, idx) => `
+            const titleEl = document.querySelector('#favoritesModal .modal-header h3');
+            if (titleEl) titleEl.textContent = onlyIdx ? '⭐ עריכת מועדף' : '⭐ עריכת מועדפים';
+
+            container.innerHTML = favorites.map((fav, idx) => (onlyIdx && (idx + 1) !== onlyIdx) ? '' : `
                 <div style="margin-bottom:15px;padding:15px;background:var(--bg-input);border-radius:8px;">
                     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
                         <span style="font-size:1.2rem;">${idx + 1}.</span>
@@ -4729,16 +4731,20 @@
         }
         
         function saveFavorites() {
-            const favorites = [];
-            
+            // Start from existing favorites, override only the rows currently rendered
+            // (single-edit renders one row; edit-all renders all five).
+            const favorites = getFavorites();
+
             for (let i = 1; i <= 5; i++) {
-                favorites.push({
-                    icon: document.getElementById('favIcon' + i).value || '🔗',
+                const iconEl = document.getElementById('favIcon' + i);
+                if (!iconEl) continue; // this favorite wasn't in the editor this time
+                favorites[i - 1] = {
+                    icon: iconEl.value || '🔗',
                     name: document.getElementById('favName' + i).value || 'מועדף ' + i,
                     url: document.getElementById('favUrl' + i).value || ''
-                });
+                };
             }
-            
+
             localStorage.setItem('johnFinanceFavorites', JSON.stringify(favorites));
             loadFavorites();
             closeModal('favoritesModal');
