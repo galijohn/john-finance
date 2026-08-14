@@ -7511,7 +7511,9 @@
             setExpenseDeductible(item.deductible !== false);
             setExpensePayment(item.payMethod || '', item.assetId || '');
             const ks = document.getElementById('expenseKindGroup');
-            if (ks) ks.style.display = 'none';   // editing an existing expense — no type switch
+            if (ks) ks.style.display = '';   // type is visible/editable in the unified edit box
+            const kSel = document.getElementById('expenseKind');
+            if (kSel) kSel.value = 'once';
             document.getElementById('expenseModalTitle').textContent = '🧾 עריכת הוצאה';
             openModal('expenseModal');
         }
@@ -11470,8 +11472,7 @@
                 const e = active(getYearData().expenses).find(x => x.id === id);
                 if (!e) return;
                 html += `<button onclick="hideRowMenu();openRecordFile(${id})">👁️ פתח מסמך</button>`;
-                html += `<button onclick="hideRowMenu();editExpense(${id})">✏️ עריכה</button>`;
-                html += `<button onclick="hideRowMenu();quickChangeCategory('expense',${id})">🏷️ שינוי סיווג</button>`;
+                html += `<button onclick="hideRowMenu();editExpense(${id})">✏️ ערוך</button>`;
                 if (e.driveId || e.fileName) html += `<button onclick="hideRowMenu();removeExpenseFile(${id})">📎 הסר קובץ בלבד</button>`;
                 // Word the action for what this expense is actually linked to —
                 // a bill and a collection are not the same thing.
@@ -11514,20 +11515,17 @@
                     } else {
                         html += `<button onclick="hideRowMenu();setCollected('${monthKey}','${id}',true)">✓ סמן כנאסף</button>`;
                     }
-                    html += `<button onclick="hideRowMenu();openRecurringEdit('${monthKey}','${id}')">✏️ ערוך פריט איסוף</button>`;
-                    html += `<button onclick="hideRowMenu();quickChangeCategory('bill','${id}','${monthKey}')">🏷️ שינוי סיווג</button>`;
+                    html += `<button onclick="hideRowMenu();openRecurringEdit('${monthKey}','${id}')">✏️ ערוך</button>`;
                     html += `<div class="sep"></div>`;
                     html += `<button class="danger" onclick="hideRowMenu();deleteRecurring('${monthKey}','${id}')">✕ הסר מרשימת האיסוף</button>`;
                 } else {
                     if (payment) {
                         html += `<button onclick="hideRowMenu();openRecordFile(${payment.id})">👁️ פתח מסמך</button>`;
-                        html += `<button onclick="hideRowMenu();editExpense(${payment.id})">✏️ ערוך תשלום</button>`;
                         html += `<button onclick="hideRowMenu();revertRecurringPayment('${monthKey}','${id}')">↩️ בטל תשלום (מחזיר ל"לתשלום", מוחק קובץ)</button>`;
                     } else {
                         html += `<button onclick="hideRowMenu();payRecurring('${monthKey}','${id}')">💳 סמן כשולם</button>`;
                     }
-                    html += `<button onclick="hideRowMenu();openRecurringEdit('${monthKey}','${id}')">🔁 ערוך הגדרה קבועה</button>`;
-                    html += `<button onclick="hideRowMenu();quickChangeCategory('bill','${id}','${monthKey}')">🏷️ שינוי סיווג</button>`;
+                    html += `<button onclick="hideRowMenu();openRecurringEdit('${monthKey}','${id}')">✏️ ערוך</button>`;
                     html += `<div class="sep"></div>`;
                     html += `<button class="danger" onclick="hideRowMenu();deleteRecurring('${monthKey}','${id}')">✕ מחק שורה קבועה</button>`;
                 }
