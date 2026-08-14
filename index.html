@@ -11144,7 +11144,7 @@
             const hasPendingCollects = expenseGrouped && expenseMonth !== 'all' && expenseFilter === 'all' &&
                 active(getRecurring().months[expenseMonth] || []).some(i => isCollect(i) && !lineDone(expenseMonth, i));
             const hasNonDeductBills = expenseGrouped && expenseMonth !== 'all' && expenseFilter === 'all' &&
-                active(getRecurring().months[expenseMonth] || []).some(i => isBill(i) && !isDeductible(i));
+                active(getRecurring().months[expenseMonth] || []).some(i => isBill(i) && !billIsDeductible(expenseMonth, i));
             if (expenseItems.length === 0 && !hasPendingCollects && !hasNonDeductBills) {
                 if (billsHtmlEarly) { tbody.innerHTML = billsHtmlEarly; return; }
                 const msg = expenseMonth === 'all' ? 'לחץ + להוסיף' : 'אין הוצאות ב' + monthLabelFromKey(expenseMonth);
@@ -11256,6 +11256,14 @@
 
         // The 'לא מוכר' section: a header, the non-deductible rows, and a subtotal —
         // always below the deductible expenses.
+        // A bill's placement follows the EFFECTIVE deductible: once paid, the payment
+        // record decides (same as the totals) — so editing a payment to מוכר/לא מוכר
+        // moves the row to the right section. Unpaid → the recurring item decides.
+        function billIsDeductible(monthKey, item) {
+            const pay = lineDone(monthKey, item);
+            return (pay && pay.id) ? isDeductible(pay) : isDeductible(item);
+        }
+
         function nonDeductibleSectionHtml(items) {
             // Non-deductible bills of the shown month (paid or not) belong here too.
             let billRows = '';
@@ -11263,7 +11271,7 @@
             if (expenseGrouped && expenseMonth !== 'all' && expenseFilter === 'all') {
                 const rec = getRecurring();
                 active(rec.months[expenseMonth] || []).forEach(i => {
-                    if (isBill(i) && !isDeductible(i)) {
+                    if (isBill(i) && !billIsDeductible(expenseMonth, i)) {
                         billRows += billRowHtml(expenseMonth, i, false);
                         const pay = lineDone(expenseMonth, i);
                         billTotal += Number((pay && pay.amount) || i.amount) || 0;
@@ -11293,12 +11301,12 @@
             const rec = getRecurring();
             // Only deductible bills belong in the top section; non-deductible ones are
             // shown in the 'לא מוכר' section at the bottom.
-            const items = active(rec.months[monthKey] || []).filter(i => isBill(i) && isDeductible(i));
+            const items = active(rec.months[monthKey] || []).filter(i => isBill(i) && billIsDeductible(monthKey, i));
             const carry = [];
             Object.keys(rec.months).sort().forEach(k => {
                 if (k >= monthKey) return;
                 active(rec.months[k]).forEach(i => {
-                    if (isBill(i) && isDeductible(i) && !lineDone(k, i)) carry.push({ k, i });
+                    if (isBill(i) && billIsDeductible(k, i) && !lineDone(k, i)) carry.push({ k, i });
                 });
             });
             if (!items.length && !carry.length) return '';
@@ -11371,7 +11379,7 @@
                         ontouchstart="rowTouchStart(event,'bill','${item.id}',${menuExtra})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td style="white-space:nowrap;">${payIcon}${status}</td>
                 <td>${categoryLabel(item.category)}</td>
-                <td>${(real && real.description) ? real.description : item.description}${real && real.notes ? ' <span data-tip="' + escapeFormHtml(real.notes) + '" style="cursor:help;">📎</span>' : ''}</td>
+                <td>${(real && real.description) ? real.description : item.description}${real && (real.driveLink || real.driveId) ? ' <span data-tip="יש מסמך — לחץ לצפייה" style="color:#38bdf8;cursor:pointer;">📄</span>' : ''}${real && real.notes ? ' <span data-tip="' + escapeFormHtml(real.notes) + '" style="cursor:help;">📎</span>' : ''}</td>
                 <td style="color:${collect ? 'var(--text-muted)' : 'var(--danger)'}">${collect ? '—' : formatCurrency(amount)}</td>
                 <td class="col-pct" style="text-align:center;${!collect && deduct && effPct < 100 ? 'color:var(--warning)' : ''}">${collect || !deduct ? '—' : effPct + '%'}</td>
                 <td class="col-net" style="color:${collect || !deduct ? 'var(--text-muted)' : 'var(--success)'}">${collect || !deduct ? '—' : formatCurrency(amount * (effPct / 100))}</td>
@@ -11643,9 +11651,9 @@
             return `<tr class="row-click"${deduct ? '' : ' style="opacity:0.75;"'} onclick="openRecordFile(${e.id})"
                         oncontextmenu="showRowMenu(event,'expense',${e.id})"
                         ontouchstart="rowTouchStart(event,'expense',${e.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
-                <td style="white-space:nowrap;"><span class="pay-tip" data-tip="${escapeFormHtml(pi.tip)}" style="font-size:0.8rem;margin-inline-end:4px;cursor:help;">${pi.icon}</span>${formatDate(e.date)}</td>
+                <td style="white-space:nowrap;"><span class="pay-tip" data-tip="${escapeFormHtml(pi.tip)}" style="font-size:0.8rem;margin-inline-end:4px;cursor:help;">${pi.icon}</span><span class="rec-paid-chip">✓ שולם ${formatDate(e.date)}</span></td>
                 <td>${categoryLabel(e.category)}</td>
-                <td>${_collectedExpenseIds.has(e.id) ? '<span title="נאסף — מופיע ברשימת האיסוף" style="color:#a78bfa;margin-inline-end:4px;">📄✓</span>' : ''}${e.description || '-'}${tag} ${e.notes ? '<span data-tip="'+e.notes+'" style="cursor:help;">📎</span>' : ''}</td>
+                <td>${_collectedExpenseIds.has(e.id) ? '<span title="נאסף — מופיע ברשימת האיסוף" style="color:#a78bfa;margin-inline-end:4px;">📄✓</span>' : ''}${e.description || '-'}${tag}${(e.driveLink || e.driveId) ? ' <span data-tip="יש מסמך — לחץ לצפייה" style="color:#38bdf8;cursor:pointer;">📄</span>' : ''}${e.notes ? ' <span data-tip="'+escapeFormHtml(e.notes)+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
                 <td class="col-pct" style="text-align:center;${deduct ? (pct < 100 ? 'color:var(--warning)' : '') : 'color:var(--text-muted)'}">${deduct ? pct + '%' : '—'}</td>
                 <td class="col-net" style="color:${deduct ? 'var(--success)' : 'var(--text-muted)'}">${deduct ? formatCurrency(recognized) : '—'}</td>
