@@ -39,6 +39,21 @@
             --text-muted: #66718a;
             --border: #e6e9f0;
         }
+        :root[data-theme="dark"] {
+            --primary: #2dd4bf;
+            --primary-dark: #14b8a6;
+            --success: #2dd4bf;
+            --warning: #f59e0b;
+            --danger: #f87171;
+            --purple: #a78bfa;
+            --cyan: #2dd4bf;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
         
         body {
             background: var(--bg-dark);
@@ -1432,6 +1447,7 @@
                 <select id="currentYear" onchange="changeYearFromSelect(this)"></select>
                 <button class="btn btn-sm" onclick="openModal('yearModal')" title="נהל שנים">⚙️</button>
             </div>
+            <button class="btn btn-sm" id="themeToggle" onclick="toggleTheme()" title="בהיר / כהה" style="margin-top:10px;width:100%;">🌙 מצב כהה</button>
         </div>
         <div class="nav-item active" onclick="showPage('dashboard')">
             <span class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/home.png" alt="" onerror="this.replaceWith(document.createTextNode('🏠'))"></span>
@@ -2033,7 +2049,7 @@
             <div class="card">
                 <h3 style="margin:0 0 20px;">בחר את נקודות הזיכוי שמגיעות לך:</h3>
                 
-                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">🏠 בסיס</div>
+                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">🏠 בסיס</div>
                 <div class="credit-points-grid">
                     <div class="credit-item">
                         <input type="checkbox" id="credit_resident" checked disabled>
@@ -2047,7 +2063,7 @@
                     </div>
                 </div>
 
-                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">👨‍👩‍👧‍👦 משפחה</div>
+                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">👨‍👩‍👧‍👦 משפחה</div>
                 <div class="credit-points-grid">
                     <div class="credit-item" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);">
                         <input type="checkbox" id="credit_divorced_alimony" onchange="updateCredits()">
@@ -2073,7 +2089,7 @@
                     </div>
                 </div>
 
-                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">🎖️ שירות</div>
+                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">🎖️ שירות</div>
                 <div class="credit-points-grid">
                     <div class="credit-item">
                         <input type="checkbox" id="credit_army" onchange="updateCredits()">
@@ -2082,7 +2098,7 @@
                     </div>
                 </div>
 
-                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">🎓 השכלה</div>
+                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">🎓 השכלה</div>
                 <div class="credit-points-grid">
                     <div class="credit-item">
                         <input type="checkbox" id="credit_degree" onchange="updateCredits()">
@@ -2096,7 +2112,7 @@
                     </div>
                 </div>
 
-                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">🌍 אחר</div>
+                <div style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">🌍 אחר</div>
                 <div class="credit-points-grid">
                     <div class="credit-item">
                         <input type="checkbox" id="credit_oleh" onchange="updateCredits()">
@@ -6403,6 +6419,33 @@
             document.getElementById('headerClock').innerHTML = `יום ${day} | ${date}<br>${time}`;
         }
 
+        function updateThemeToggleLabel() {
+            const btn = document.getElementById('themeToggle');
+            if (!btn) return;
+            const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+            btn.textContent = dark ? '☀️ מצב בהיר' : '🌙 מצב כהה';
+        }
+        function applyStoredTheme() {
+            if (localStorage.getItem('themeMode') === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+            updateThemeToggleLabel();
+        }
+        function toggleTheme() {
+            const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+            if (dark) {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('themeMode', 'light');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('themeMode', 'dark');
+            }
+            updateThemeToggleLabel();
+        }
+        applyStoredTheme();
+
         async function init() {
             const hasLocalData = loadData();
             
@@ -9216,7 +9259,7 @@
         // Builds the PDF report body for the chosen datasets + split.
         function incomeReportBodyHTML(fmtNum) {
             const mode = (incomeExportScope || {}).mode || 'flat';
-            const h3 = (t, red) => '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:' + (red ? '#dc2626' : '#1e293b') + ';">' + t + '</h3>';
+            const h3 = (t, red) => '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:' + (red ? '#dc2626' : '#1e293b') + ';">' + t + '</h3>';
             const sub = (label, val) => '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>' + label + '</span><span>' + fmtNum(val) + '</span></div>';
             let html = '';
             incomeSelectedDatasets().forEach(dsKey => {
@@ -12680,8 +12723,8 @@
                 const grandTotal = scoped.reduce((s, e) => s + e.amount, 0);
                 const grandRecognized = scoped.reduce((s, e) => s + recOf(e), 0);
 
-                bodyContent += '<div style="font-size:11px;font-weight:bold;color:#475569;margin-bottom:10px;">' + expenseScopeSubtitle() + '</div>';
-                const h3 = t => '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">' + t + '</h3>';
+                bodyContent += '<div style="font-size:11px;font-weight:bold;color:var(--text-muted);margin-bottom:10px;">' + expenseScopeSubtitle() + '</div>';
+                const h3 = t => '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">' + t + '</h3>';
                 const subTotal = (label, val) => '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>' + label + '</span><span>' + fmtNum(val) + '</span></div>';
                 const tableOpen6 = '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>קטגוריה</th><th>סכום</th><th>% הכרה</th><th>מוכר</th><th>אמצעי תשלום</th></tr></thead><tbody>';
                 const rowHtml6 = e => {
@@ -12690,7 +12733,7 @@
                         '<td style="text-align:left;direction:ltr;">' + fmtNum(e.amount) + '</td>' +
                         '<td style="text-align:left;direction:ltr;' + (pct < 100 ? 'color:#d97706;' : '') + '">' + pct + '%</td>' +
                         '<td style="text-align:left;direction:ltr;">' + fmtNum(recOf(e)) + '</td>' +
-                        '<td style="font-size:10px;color:#475569;">' + (payMethodText(e) || '—') + '</td></tr>';
+                        '<td style="font-size:10px;color:var(--text-muted);">' + (payMethodText(e) || '—') + '</td></tr>';
                 };
 
                 if (mode === 'flat') {
@@ -12726,7 +12769,7 @@
                             bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(e.amount) + '</td>';
                             bodyContent += '<td style="text-align:left;direction:ltr;' + (pct < 100 ? 'color:#d97706;' : '') + '">' + pct + '%</td>';
                             bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(recOf(e)) + '</td>';
-                            bodyContent += '<td style="font-size:10px;color:#475569;">' + (payMethodText(e) || '—') + '</td></tr>';
+                            bodyContent += '<td style="font-size:10px;color:var(--text-muted);">' + (payMethodText(e) || '—') + '</td></tr>';
                         });
                         bodyContent += '</tbody></table>' + subTotal('סה"כ ' + categoryLabel(cat) + ' (' + items.length + ' פריטים)', items.reduce((s, e) => s + recOf(e), 0));
                     });
@@ -12743,7 +12786,7 @@
                 const extras = rows._extras || {};
 
                 // Income table
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">א. הכנסות כעצמאי</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">א. הכנסות כעצמאי</h3>';
                 bodyContent += '<table><thead><tr><th>חודש</th><th>תיאור</th><th>סכום</th></tr></thead><tbody>';
                 rows.forEach(r => {
                     bodyContent += '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(r[2]) + '</td></tr>';
@@ -12752,7 +12795,7 @@
                 bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ הכנסות (' + rows.length + ')</span><span>' + fmtNum(extras.totalIncome || 0) + '</span></div>';
 
                 // Expenses summary
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ב. הוצאות מוכרות</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">ב. הוצאות מוכרות</h3>';
                 bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ הוצאות מוכרות</span><span>' + fmtNum(extras.expenses || 0) + '</span></div>';
 
                 // Net income
@@ -12760,7 +12803,7 @@
 
                 // Tax advances
                 if (extras.taxAdvances && extras.taxAdvances.length > 0) {
-                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ג. מקדמות מס הכנסה</h3>';
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">ג. מקדמות מס הכנסה</h3>';
                     bodyContent += '<table><thead><tr><th>חודש</th><th>סכום</th><th>הערות</th></tr></thead><tbody>';
                     extras.taxAdvances.forEach(t => {
                         bodyContent += '<tr><td>' + MONTHS[t.month] + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.amount) + '</td><td>' + (t.notes || '') + '</td></tr>';
@@ -12771,7 +12814,7 @@
 
                 // BL advances
                 if (extras.blAdvances && extras.blAdvances.length > 0) {
-                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ד. מקדמות ביטוח לאומי</h3>';
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">ד. מקדמות ביטוח לאומי</h3>';
                     bodyContent += '<table><thead><tr><th>חודש</th><th>סכום</th><th>הערות</th></tr></thead><tbody>';
                     extras.blAdvances.forEach(b => {
                         bodyContent += '<tr><td>' + MONTHS[b.month] + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(b.amount) + '</td><td>' + (b.notes || '') + '</td></tr>';
@@ -12799,7 +12842,7 @@
                 if (show('selfemployed')) incomeCards.push(['💰 הכנסה כעצמאי', d.totals.selfEmployed]);
                 if (show('expenses')) incomeCards.push(['🧾 הוצאות מוכרות', d.totals.expenses]);
                 if (incomeCards.length > 0) {
-                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">' + nextLetter() + '. הכנסות</h3>';
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">' + nextLetter() + '. הכנסות</h3>';
                     bodyContent += '<table><thead><tr><th>מקור</th><th>סכום</th></tr></thead><tbody>';
                     incomeCards.forEach(r => {
                         bodyContent += '<tr><td>' + r[0] + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(r[1]) + '</td></tr>';
@@ -12816,7 +12859,7 @@
                 if (show('blDue')) summaryCards.push(['🏥 ביט"ל + בריאות (עצמאי)', fmtNum(d.bl.total)]);
                 if (show('blPaid')) summaryCards.push(['💳 ביט"ל ששולם (מקדמות)', fmtNum(d.totals.totalBLPaid)]);
                 if (summaryCards.length > 0) {
-                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">' + nextLetter() + '. סיכום מס וביטוח לאומי</h3>';
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">' + nextLetter() + '. סיכום מס וביטוח לאומי</h3>';
                     bodyContent += '<table><thead><tr><th>פריט</th><th>ערך</th></tr></thead><tbody>';
                     summaryCards.forEach(r => {
                         bodyContent += '<tr><td>' + r[0] + '</td><td style="text-align:left;direction:ltr;">' + r[1] + '</td></tr>';
@@ -12843,7 +12886,7 @@
                         blResultText = '✓ מאוזן'; blResultAmount = fmtNum(0);
                     }
 
-                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">' + nextLetter() + '. תוצאה</h3>';
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">' + nextLetter() + '. תוצאה</h3>';
                     bodyContent += '<table><thead><tr><th>קטגוריה</th><th>סטטוס</th><th>סכום</th></tr></thead><tbody>';
                     bodyContent += '<tr><td>🏛️ מס הכנסה</td><td>' + taxResultText + '</td><td style="text-align:left;direction:ltr;font-weight:bold;">' + taxResultAmount + '</td></tr>';
                     bodyContent += '<tr><td>🏥 ביטוח לאומי + בריאות</td><td>' + blResultText + '</td><td style="text-align:left;direction:ltr;font-weight:bold;">' + blResultAmount + '</td></tr>';
@@ -12852,7 +12895,7 @@
 
                 // ===== Section: Payments breakdown (matches the dashboard's פירוט תשלומים card) =====
                 if (show('paymentsSummary')) {
-                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">' + nextLetter() + '. פירוט תשלומים שנוכו/שולמו</h3>';
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">' + nextLetter() + '. פירוט תשלומים שנוכו/שולמו</h3>';
                     bodyContent += '<table><thead><tr><th>מקור</th><th>סכום</th></tr></thead><tbody>';
                     bodyContent += '<tr><td>מס הכנסה שנוכה מהמשכורת</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.taxFromSalary) + '</td></tr>';
                     bodyContent += '<tr><td>מס הכנסה שנוכה מדמי אבטלה</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.totals.taxFromUnemployment) + '</td></tr>';
@@ -12861,12 +12904,12 @@
                     bodyContent += '</tbody></table>';
                     bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ מס הכנסה ששולם</span><span>' + fmtNum(d.totals.totalTaxPaid) + '</span></div>';
                     // Match the dashboard exactly: dashTotalBLPaid is set from totals.totalBLPaid
-                    bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px dashed #cbd5e1;margin-bottom:10px;font-size:11px;"><span>מקדמות ביט"ל + בריאות (עצמאי)</span><span>' + fmtNum(d.totals.totalBLPaid) + '</span></div>';
+                    bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px dashed var(--border);margin-bottom:10px;font-size:11px;"><span>מקדמות ביט"ל + בריאות (עצמאי)</span><span>' + fmtNum(d.totals.totalBLPaid) + '</span></div>';
                 }
 
             } else if (rows._custom === 'taxCalc') {
                 const t = rows._data;
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">א. סיכום הכנסות</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">א. סיכום הכנסות</h3>';
                 bodyContent += '<table><thead><tr><th>מקור</th><th>סכום</th></tr></thead><tbody>';
                 bodyContent += '<tr><td>הכנסה כשכיר</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.salary) + '</td></tr>';
                 bodyContent += '<tr><td>דמי אבטלה</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.unemployment) + '</td></tr>';
@@ -12876,7 +12919,7 @@
                 bodyContent += '</tbody></table>';
                 bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>הכנסה חייבת</span><span>' + fmtNum(t.totals.taxableIncome) + '</span></div>';
 
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ב. חישוב מס הכנסה - מדרגות מס</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">ב. חישוב מס הכנסה - מדרגות מס</h3>';
                 bodyContent += '<table><thead><tr><th>מדרגה</th><th>שיעור</th><th>הכנסה במדרגה</th><th>מס</th></tr></thead><tbody>';
                 t.taxDetails.forEach(d => {
                     bodyContent += '<tr><td>' + fmtNum(d.min) + ' - ' + fmtNum(d.max) + '</td><td style="text-align:left;direction:ltr;">' + d.rate + '%</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.amount) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.tax) + '</td></tr>';
@@ -12889,7 +12932,7 @@
                 bodyContent += '</tbody></table>';
                 bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:15px;"><span>מס הכנסה נטו</span><span>' + fmtNum(t.netTax) + '</span></div>';
 
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ג. ביטוח לאומי - עצמאי</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">ג. ביטוח לאומי - עצמאי</h3>';
                 bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
                 bodyContent += '<tr><td>הכנסה כעצמאי (נטו)</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.selfEmployedNet) + '</td></tr>';
                 bodyContent += '<tr><td>שיעור מופחת 7.70% (עד ' + fmtNum(t.bl.reducedThreshold) + ')</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.bl.reduced) + '</td></tr>';
@@ -12897,7 +12940,7 @@
                 bodyContent += '</tbody></table>';
                 bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ ביטוח לאומי</span><span>' + fmtNum(t.bl.total) + '</span></div>';
 
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ד. מס ששולם / נוכה</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">ד. מס ששולם / נוכה</h3>';
                 bodyContent += '<table><thead><tr><th>מקור</th><th>מס הכנסה</th><th>ביט"ל</th></tr></thead><tbody>';
                 bodyContent += '<tr><td>שכיר</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.taxFromSalary) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.blFromSalary) + '</td></tr>';
                 bodyContent += '<tr><td>אבטלה</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.taxFromUnemployment) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.blFromUnemployment) + '</td></tr>';
@@ -12906,7 +12949,7 @@
                 bodyContent += '</tbody></table>';
                 bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ ששולם</span><span>מס: ' + fmtNum(t.totals.totalTaxPaid) + ' | ביט"ל: ' + fmtNum(t.totals.totalBLPaid) + '</span></div>';
 
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ה. תוצאה</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">ה. תוצאה</h3>';
                 bodyContent += '<table><thead><tr><th>פריט</th><th>חייב</th><th>שולם</th><th>הפרש</th></tr></thead><tbody>';
                 bodyContent += '<tr><td>מס הכנסה</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.netTax) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.totalTaxPaid) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.taxDiff) + '</td></tr>';
                 bodyContent += '<tr><td>ביטוח לאומי</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.bl.total) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.totals.blFromSelf) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(t.blDiff) + '</td></tr>';
@@ -12916,7 +12959,7 @@
 
             } else if (rows._custom === 'forecast') {
                 const f = rows._data;
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">א. נתוני תחזית</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">א. נתוני תחזית</h3>';
                 bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
                 bodyContent += '<tr><td>הכנסה כעצמאי (צפי)</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.income) + '</td></tr>';
                 bodyContent += '<tr><td>(-) הוצאות מוכרות (צפי)</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.expenses) + '</td></tr>';
@@ -12925,7 +12968,7 @@
                 bodyContent += '<tr><td>הכנסה חייבת כוללת</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.taxableIncome) + '</td></tr>';
                 bodyContent += '</tbody></table>';
 
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ב. חישוב מס צפוי</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">ב. חישוב מס צפוי</h3>';
                 bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
                 bodyContent += '<tr><td>מס ברוטו</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.grossTax) + '</td></tr>';
                 bodyContent += '<tr><td>נקודות זיכוי: ' + f.credits.toFixed(2) + '</td><td style="text-align:left;direction:ltr;">-' + fmtNum(Math.min(f.creditValue, f.grossTax)) + '</td></tr>';
@@ -12934,12 +12977,12 @@
                 bodyContent += '<tr><td>מס כעצמאי לתשלום</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.selfTax) + '</td></tr>';
                 bodyContent += '</tbody></table>';
 
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ג. ביטוח לאומי צפוי</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">ג. ביטוח לאומי צפוי</h3>';
                 bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ ביטוח לאומי</span><span>' + fmtNum(f.bl.total) + '</span></div>';
 
                 bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:15px;"><span>סה"כ לתשלום שנתי (מס + ביט"ל)</span><span>' + fmtNum(f.totalDue) + '</span></div>';
 
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ד. המלצה לתשלום חודשי</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">ד. המלצה לתשלום חודשי</h3>';
                 bodyContent += '<table><thead><tr><th>חודש</th><th>מס הכנסה</th><th>ביט"ל</th><th>סה"כ חודשי</th><th>מצטבר</th></tr></thead><tbody>';
                 let cumulative = 0;
                 for (let i = 1; i <= 12; i++) {
@@ -12976,13 +13019,13 @@
 
             } else if (rows._custom === 'settings') {
                 const s = rows._data;
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">א. מעמד עסקי</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">א. מעמד עסקי</h3>';
                 bodyContent += '<table><thead><tr><th>פריט</th><th>ערך</th></tr></thead><tbody>';
                 bodyContent += '<tr><td>סוג עוסק</td><td>' + s.businessStatus + '</td></tr>';
                 bodyContent += '<tr><td>חודשים כעצמאי</td><td>' + s.selfMonths + '</td></tr>';
                 bodyContent += '</tbody></table>';
 
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ב. מדרגות מס הכנסה</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">ב. מדרגות מס הכנסה</h3>';
                 bodyContent += '<table><thead><tr><th>מדרגה</th><th>מ-סכום</th><th>עד-סכום</th><th>שיעור</th></tr></thead><tbody>';
                 s.taxBrackets.forEach((b, i) => {
                     const isLast = i === s.taxBrackets.length - 1;
@@ -12991,7 +13034,7 @@
                 bodyContent += '</tbody></table>';
 
                 if (s.blBrackets.length > 0) {
-                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ג. ביטוח לאומי + בריאות לעצמאים</h3>';
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">ג. ביטוח לאומי + בריאות לעצמאים</h3>';
                     bodyContent += '<table><thead><tr><th>מדרגה</th><th>מ-סכום</th><th>עד-סכום</th><th>ביט"ל %</th><th>בריאות %</th><th>סה"כ %</th></tr></thead><tbody>';
                     s.blBrackets.forEach(b => {
                         bodyContent += '<tr><td>' + (b.label || '') + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(b.min) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(b.max) + '</td><td style="text-align:left;direction:ltr;">' + b.blRate + '%</td><td style="text-align:left;direction:ltr;">' + b.healthRate + '%</td><td style="text-align:left;direction:ltr;">' + b.totalRate.toFixed(2) + '%</td></tr>';
@@ -12999,7 +13042,7 @@
                     bodyContent += '</tbody></table>';
                 }
 
-                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid #cbd5e1;color:#1e293b;">ד. נקודות זיכוי</h3>';
+                bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">ד. נקודות זיכוי</h3>';
                 bodyContent += '<table><thead><tr><th>פריט</th><th>ערך</th></tr></thead><tbody>';
                 bodyContent += '<tr><td>תושב ישראל (בסיס)</td><td style="text-align:left;direction:ltr;">2.25</td></tr>';
                 if (s.credits.woman) bodyContent += '<tr><td>אישה</td><td style="text-align:left;direction:ltr;">0.5</td></tr>';
@@ -13054,10 +13097,10 @@
             }
             // Build report HTML for pdf conversion (all inline styles - html2canvas ignores CSS classes)
             const titleLine = title + ' — ' + _scopeName;
-            const reportHTML = '<div dir="rtl" style="font-family:Segoe UI,Tahoma,Arial,sans-serif; color:#1e293b; padding:20px 25px; font-size:11px; width:700px; background:white;">' +
+            const reportHTML = '<div dir="rtl" style="font-family:Segoe UI,Tahoma,Arial,sans-serif; color:var(--text); padding:20px 25px; font-size:11px; width:700px; background:white;">' +
                 '<div style="border-top:3px double #1e293b; border-bottom:3px double #1e293b; padding:15px 0; margin-bottom:5px; text-align:center;">' +
                 '<h1 style="font-size:20px; margin:0 0 5px;">' + titleLine + '</h1></div>' +
-                '<table style="width:100%; margin-bottom:20px; border-bottom:1px solid #cbd5e1;"><tr>' +
+                '<table style="width:100%; margin-bottom:20px; border-bottom:1px solid var(--border);"><tr>' +
                 '<td style="padding:8px 0; font-size:10px; color:#64748b; text-align:right;">שם: John Levy</td>' +
                 '<td style="padding:8px 0; font-size:10px; color:#64748b; text-align:center;">סוג עוסק: עוסק מורשה</td>' +
                 '<td style="padding:8px 0; font-size:10px; color:#64748b; text-align:left;">תאריך הפקה: ' + dateStr + '</td>' +
