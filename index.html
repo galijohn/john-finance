@@ -11334,6 +11334,14 @@
             return html;
         }
 
+        // Small colored pill marking the row's TYPE (kind), so you see at a glance
+        // whether it's a fixed bill / running category / collect / one-off.
+        function typeBadge(kind) {
+            const m = { bill: ['קבוע', '#3b82f6'], category: ['שוטף', '#10b981'], collect: ['לאיסוף', '#8b5cf6'], once: ['חד־פעמי', '#64748b'] }[kind];
+            if (!m) return '';
+            return `<span style="background:${m[1]}22;color:${m[1]};padding:2px 8px;border-radius:20px;font-size:0.66rem;font-weight:600;margin-inline-end:7px;white-space:nowrap;">${m[0]}</span>`;
+        }
+
         function billRowHtml(monthKey, item, isCarry) {
             const payment = lineDone(monthKey, item);
             const rk = realMonthKey();
@@ -11379,7 +11387,7 @@
                         ontouchstart="rowTouchStart(event,'bill','${item.id}',${menuExtra})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td style="white-space:nowrap;">${payIcon}${status}</td>
                 <td>${categoryLabel(item.category)}</td>
-                <td>${(real && real.description) ? real.description : item.description}${real && (real.driveLink || real.driveId) ? ' <span data-tip="יש מסמך — לחץ לצפייה" style="color:#38bdf8;cursor:pointer;">📄</span>' : ''}${real && real.notes ? ' <span data-tip="' + escapeFormHtml(real.notes) + '" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--bg-input);color:var(--text-muted);font-size:0.62rem;font-style:italic;font-weight:bold;vertical-align:middle;">i</span>' : ''}</td>
+                <td>${typeBadge(item.kind)}${(real && real.description) ? real.description : item.description}${real && (real.driveLink || real.driveId) ? ' <span data-tip="יש מסמך — לחץ לצפייה" style="color:#38bdf8;cursor:pointer;">📄</span>' : ''}${real && real.notes ? ' <span data-tip="' + escapeFormHtml(real.notes) + '" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--bg-input);color:var(--text-muted);font-size:0.62rem;font-style:italic;font-weight:bold;vertical-align:middle;">i</span>' : ''}</td>
                 <td style="color:${collect ? 'var(--text-muted)' : 'var(--danger)'}">${collect ? '—' : formatCurrency(amount)}</td>
                 <td class="col-pct" style="text-align:center;${!collect && deduct && effPct < 100 ? 'color:var(--warning)' : ''}">${collect || !deduct ? '—' : effPct + '%'}</td>
                 <td class="col-net" style="color:${collect || !deduct ? 'var(--text-muted)' : 'var(--success)'}">${collect || !deduct ? '—' : formatCurrency(amount * (effPct / 100))}</td>
@@ -11653,7 +11661,7 @@
                         ontouchstart="rowTouchStart(event,'expense',${e.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td style="white-space:nowrap;"><span class="pay-tip" data-tip="${escapeFormHtml(pi.tip)}" style="font-size:0.8rem;margin-inline-end:4px;cursor:help;">${pi.icon}</span><span class="rec-paid-chip">✓ שולם ${formatDate(e.date)}</span></td>
                 <td>${categoryLabel(e.category)}</td>
-                <td>${_collectedExpenseIds.has(e.id) ? '<span title="נאסף — מופיע ברשימת האיסוף" style="color:#a78bfa;margin-inline-end:4px;">📄✓</span>' : ''}${e.description || '-'}${tag}${(e.driveLink || e.driveId) ? ' <span data-tip="יש מסמך — לחץ לצפייה" style="color:#38bdf8;cursor:pointer;">📄</span>' : ''}${e.notes ? ' <span data-tip="'+escapeFormHtml(e.notes)+'" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--bg-input);color:var(--text-muted);font-size:0.62rem;font-style:italic;font-weight:bold;vertical-align:middle;">i</span>' : ''}</td>
+                <td>${typeBadge('once')}${_collectedExpenseIds.has(e.id) ? '<span title="נאסף — מופיע ברשימת האיסוף" style="color:#a78bfa;margin-inline-end:4px;">📄✓</span>' : ''}${e.description || '-'}${tag}${(e.driveLink || e.driveId) ? ' <span data-tip="יש מסמך — לחץ לצפייה" style="color:#38bdf8;cursor:pointer;">📄</span>' : ''}${e.notes ? ' <span data-tip="'+escapeFormHtml(e.notes)+'" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--bg-input);color:var(--text-muted);font-size:0.62rem;font-style:italic;font-weight:bold;vertical-align:middle;">i</span>' : ''}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
                 <td class="col-pct" style="text-align:center;${deduct ? (pct < 100 ? 'color:var(--warning)' : '') : 'color:var(--text-muted)'}">${deduct ? pct + '%' : '—'}</td>
                 <td class="col-net" style="color:${deduct ? 'var(--success)' : 'var(--text-muted)'}">${deduct ? formatCurrency(recognized) : '—'}</td>
