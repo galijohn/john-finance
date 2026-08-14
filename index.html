@@ -1838,6 +1838,7 @@
                             <th>סטטוס</th>
                             <th>תיאור</th>
                             <th>סכום</th>
+                            <th>מצטבר</th>
                         </tr>
                     </thead>
                     <tbody id="selfEmployedTable"></tbody>
@@ -9308,10 +9309,13 @@
             document.getElementById('selfEmployedWarning').style.display = selfItems.length > 0 ? 'block' : 'none';
 
             if (selfItems.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><div class="icon">💰</div><p>לחץ + להוסיף</p></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">💰</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = [...selfItems].sort((a, b) => a.month - b.month).map(s => `<tr class="row-click"
+            let cumulative = 0;
+            tbody.innerHTML = [...selfItems].sort((a, b) => a.month - b.month).map(s => {
+                cumulative += s.amount;
+                return `<tr class="row-click"
                     ondblclick="openIncomeDossier(${s.id})"
                     oncontextmenu="showRowMenu(event,'selfEmployed',${s.id})"
                     ontouchstart="rowTouchStart(event,'selfEmployed',${s.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
@@ -9319,7 +9323,9 @@
                 <td onclick="event.stopPropagation();openIncomeDossier(${s.id})" style="cursor:pointer;">${incomeStatusCell(s)}</td>
                 <td>${s.description || '-'} ${s.notes ? '<span data-tip="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${formatCurrency(s.amount)}</td>
-            </tr>`).join('');
+                <td style="color:var(--primary)">${formatCurrency(cumulative)}</td>
+            </tr>`;
+            }).join('');
         }
 
         function renderDashExpenses() {
