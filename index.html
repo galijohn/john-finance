@@ -7073,6 +7073,15 @@
             }
             
             saveData();
+            // Single source of truth: a recurring-bill payment keeps its recurring item's
+            // deductible + category in sync, so changing מוכר/לא מוכר here moves the row
+            // to the right section (placement follows the effective deductible).
+            const _savedExp = yd.expenses.find(x => x.id === recordId);
+            if (_savedExp && _savedExp.recurringKey) {
+                const parts = String(_savedExp.recurringKey).split(':');
+                const it = (getRecurring().months[parts[0]] || []).find(i => String(i.id) === String(parts[1]));
+                if (it) { it.deductible = _savedExp.deductible; it.category = _savedExp.category; saveData(); }
+            }
             autoRefile('expenses', yd.expenses.find(x => x.id === recordId), currentYear);
             if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('expenseModal');
