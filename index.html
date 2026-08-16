@@ -12701,6 +12701,27 @@
             ctx.fillText(text, x, hPx / 2);
             return { dataUrl: c.toDataURL('image/jpeg', 0.9), hPt };
         }
+        // Shrink + recompress an attachment image before embedding, so a phone photo
+        // of an invoice (often 5-7MB) becomes a few hundred KB. Capped at maxDim on the
+        // long edge (~150+ DPI for A4) and re-encoded as JPEG — keeps the whole PDF light.
+        function _loadImg(src) {
+            return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
+        }
+        async function recompressImageForPdf(dataUrl, maxDim, quality) {
+            try {
+                const im = await _loadImg(dataUrl);
+                let w = im.naturalWidth, h = im.naturalHeight;
+                if (!w || !h) return dataUrl;
+                const s = Math.min(1, maxDim / Math.max(w, h));
+                w = Math.round(w * s); h = Math.round(h * s);
+                const c = document.createElement('canvas');
+                c.width = w; c.height = h;
+                const ctx = c.getContext('2d');
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(im, 0, 0, w, h);
+                return c.toDataURL('image/jpeg', quality);
+            } catch (e) { return dataUrl; }
+        }
         async function drawCaption(finalPdf, pdfPage, doc) {
             try {
                 const w = pdfPage.getWidth();
@@ -13292,14 +13313,10 @@
                         // Add image attachments as PDF pages, with a caption strip on top.
                         for (const imgAtt of attachments.images) {
                             try {
-                                const imgDataUrl = imgAtt.data;
-                                const imgBytes = Uint8Array.from(atob(imgDataUrl.split(',')[1]), c => c.charCodeAt(0));
-                                let img;
-                                if (imgAtt.type.includes('png')) {
-                                    img = await finalPdf.embedPng(imgBytes);
-                                } else {
-                                    img = await finalPdf.embedJpg(imgBytes);
-                                }
+                                // Downscale + recompress to keep the PDF light (full-res photos are huge).
+                                const compressed = await recompressImageForPdf(imgAtt.data, 1800, 0.82);
+                                const imgBytes = Uint8Array.from(atob(compressed.split(',')[1]), c => c.charCodeAt(0));
+                                const img = await finalPdf.embedJpg(imgBytes);
                                 const page = finalPdf.addPage([595.28, 841.89]); // A4
                                 const capH = 30;
                                 // Fit each document to the full usable page area (no max-1 cap),
