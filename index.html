@@ -12680,6 +12680,27 @@
             ctx.fillText(text, wPx - 12 * scale, hPx / 2);
             return { dataUrl: c.toDataURL('image/jpeg', 0.85), hPt: 26 };
         }
+        // Small centered/aligned text strip (used for page numbers + the header count).
+        // Hebrew is rendered via canvas (same technique as the caption) then embedded.
+        function makeTextStripImage(text, widthPt, opts) {
+            opts = opts || {};
+            const scale = 2;
+            const hPt = opts.hPt || 14;
+            const wPx = Math.round(widthPt * scale);
+            const hPx = Math.round(hPt * scale);
+            const c = document.createElement('canvas');
+            c.width = wPx; c.height = hPx;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = opts.bg || '#ffffff'; ctx.fillRect(0, 0, wPx, hPx);
+            ctx.fillStyle = opts.color || '#64748b';
+            ctx.font = '500 ' + ((opts.size || 9) * scale) + 'px Segoe UI, Arial, sans-serif';
+            ctx.direction = 'rtl';
+            ctx.textAlign = opts.align || 'center';
+            ctx.textBaseline = 'middle';
+            const x = opts.align === 'right' ? wPx - 8 * scale : (opts.align === 'left' ? 8 * scale : wPx / 2);
+            ctx.fillText(text, x, hPx / 2);
+            return { dataUrl: c.toDataURL('image/jpeg', 0.9), hPt };
+        }
         async function drawCaption(finalPdf, pdfPage, doc) {
             try {
                 const w = pdfPage.getWidth();
@@ -13232,9 +13253,11 @@
                     // Report pages already added above via canvas splitting
 
                     // Step 2: Fetch and merge attachments (skip for dashboard — it's a summary view, not a backup of source documents)
+                    let mergedAtt = { images: [], pdfs: [] };
                     if (page !== 'dashboard' && pageDocs.length > 0) {
                         document.getElementById('pdfDetail').textContent = 'טוען ' + pageDocs.length + ' נספחים מ-Google Drive...';
                         const attachments = await fetchAttachments(pageDocs);
+                        mergedAtt = attachments;
 
                         // Merge PDF attachments — each preceded by a caption strip on a
                         // thin banner drawn over the top of its first page.
@@ -13297,6 +13320,32 @@
                             }
                         }
                     }
+
+                    // ===== Continuous page numbering + header count (system-defined, spans the whole export) =====
+                    try {
+                        const allPages = finalPdf.getPages();
+                        const totalPages = allPages.length;
+                        const attCount = mergedAtt.images.length + mergedAtt.pdfs.length;
+                        const numW = 220;
+                        for (let i = 0; i < allPages.length; i++) {
+                            const pg = allPages[i];
+                            const pw = pg.getWidth();
+                            const strip = makeTextStripImage('עמוד ' + (i + 1) + ' מתוך ' + totalPages, numW, { hPt: 12, size: 8, color: '#64748b', bg: '#ffffff', align: 'center' });
+                            const nb = Uint8Array.from(atob(strip.dataUrl.split(',')[1]), ch => ch.charCodeAt(0));
+                            const nimg = await finalPdf.embedJpg(nb);
+                            pg.drawImage(nimg, { x: (pw - numW) / 2, y: 6, width: numW, height: strip.hPt });
+                        }
+                        // Header banner on page 1 — tells you exactly how much the report contains.
+                        if (allPages.length > 0) {
+                            const p1 = allPages[0];
+                            const pw = p1.getWidth();
+                            const bannerTxt = 'הדוח מכיל ' + totalPages + ' עמודים' + (attCount > 0 ? '  ·  כולל ' + attCount + ' נספחים' : '');
+                            const cap = makeCaptionImage(bannerTxt, pw);
+                            const bb = Uint8Array.from(atob(cap.dataUrl.split(',')[1]), ch => ch.charCodeAt(0));
+                            const bimg = await finalPdf.embedJpg(bb);
+                            p1.drawImage(bimg, { x: 0, y: p1.getHeight() - cap.hPt, width: pw, height: cap.hPt });
+                        }
+                    } catch (e) { console.warn('page numbering failed', e); }
 
                     // Step 3: Save and display PDF
                     document.getElementById('pdfDetail').textContent = 'פותח PDF...';
