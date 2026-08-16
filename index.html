@@ -9254,7 +9254,72 @@
             incomeExportScope = { dataset: _incomeDataset, mode };
             closeModal('incomeExportModal');
             if (_incomeExportKind === 'excel') exportPageExcel('income');
-            else exportPagePDF('income');
+            else printIncomeReport();
+        }
+        // Build the income report as a clean HTML page (the browser renders Hebrew
+        // perfectly) and hand it to the browser's own Print → Save as PDF. Real
+        // vector text, light file, no external library mangling the Hebrew.
+        function buildIncomeReportHTML() {
+            const year = document.getElementById('currentYear').value;
+            const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+            let sections = '';
+            incomeSelectedDatasets().forEach(dsKey => {
+                const ds = INCOME_DATASETS[dsKey];
+                const items = [...ds.get()].sort((a, b) => a.month - b.month);
+                const isSelf = dsKey === 'selfEmployed';
+                let cum = 0, rows = '';
+                items.forEach(r => {
+                    cum += (Number(r.amount) || 0);
+                    if (isSelf) {
+                        const done = incomeMissingStages(r).length === 0;
+                        rows += '<tr><td class="r">' + esc(MONTHS[r.month]) + '</td><td class="r ' + (done ? 'st-done' : 'st-wait') + '">' + (done ? 'הושלם' : 'ממתין') + '</td><td class="r">' + esc(r.description || '-') + '</td><td class="l">' + formatCurrency(r.amount) + '</td><td class="l cum">' + formatCurrency(cum) + '</td></tr>';
+                    } else {
+                        rows += '<tr><td class="r">' + esc(MONTHS[r.month]) + '</td><td class="r">' + ((r.driveLink || r.driveId) ? 'מצורף' : '—') + '</td><td class="l">' + formatCurrency(r.amount) + '</td><td class="l cum">' + formatCurrency(cum) + '</td></tr>';
+                    }
+                });
+                const total = items.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+                const head = isSelf
+                    ? '<tr><th class="r">חודש</th><th class="r">סטטוס</th><th class="r">תיאור</th><th class="l">סכום</th><th class="l">מצטבר</th></tr>'
+                    : '<tr><th class="r">חודש</th><th class="r">מסמך</th><th class="l">סכום</th><th class="l">מצטבר</th></tr>';
+                sections += '<div class="section">' + esc(ds.title) + '</div><table><thead>' + head + '</thead><tbody>' + (rows || '<tr><td colspan="5" style="text-align:center;color:#7c8a99;padding:20px;">אין נתונים</td></tr>') + '</tbody></table><div class="totalbar"><span>סה״כ ' + esc(ds.title) + '</span><span>' + formatCurrency(total) + '</span></div>';
+            });
+            const title = 'דוח הכנסות — ' + esc(year);
+            const dateStr = new Date().toLocaleDateString('he-IL');
+            return '<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>' + title + '</title><style>'
+                + ':root{--teal:#16a99b;--teald:#0f8276;--ink:#0f1f2e;--mut:#7c8a99;--line:#e7edf0;--zebra:#f4f9f8;--amber:#c98a00;}'
+                + '*{box-sizing:border-box;}html,body{margin:0;padding:0;color:var(--ink);font-family:"Segoe UI","Assistant","Arial",sans-serif;}'
+                + '.sheet{padding:6mm 2mm;}'
+                + '.top{display:flex;justify-content:space-between;align-items:flex-start;}'
+                + '.eyebrow{color:var(--teal);font-size:12px;font-weight:700;}'
+                + '.title{font-size:26px;font-weight:800;margin:2px 0 0;}'
+                + '.meta{text-align:left;color:var(--mut);font-size:12px;line-height:1.6;}'
+                + '.rule{height:3px;background:var(--teal);border:0;margin:14px 0 24px;border-radius:2px;}'
+                + '.section{color:var(--teald);font-size:16px;font-weight:800;margin:22px 0 10px;}'
+                + 'table{width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:0;}'
+                + 'thead th{background:var(--teal);color:#fff;font-weight:700;padding:11px 12px;}'
+                + '.r{text-align:right;}.l{text-align:left;}'
+                + 'tbody td{padding:10px 12px;border-bottom:1px solid var(--line);}'
+                + 'tbody tr:nth-child(even){background:var(--zebra);}'
+                + '.st-done{color:var(--teal);font-weight:700;}.st-wait{color:var(--amber);font-weight:700;}.cum{color:var(--teald);font-weight:700;}'
+                + '.totalbar{display:flex;justify-content:space-between;background:var(--teald);color:#fff;font-weight:800;font-size:15px;padding:13px 14px;margin-top:14px;}'
+                + '.foot{margin-top:26px;padding-top:10px;border-top:2px solid var(--teal);display:flex;justify-content:space-between;color:var(--mut);font-size:11px;}'
+                + '@page{size:A4;margin:14mm;}'
+                + '@media print{html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.sheet{padding:0;}thead{display:table-header-group;}tr{break-inside:avoid;}}'
+                + '</style></head><body><div class="sheet">'
+                + '<div class="top"><div><div class="eyebrow">ניהול עוסק · ג׳ון לוי</div><div class="title">' + title + '</div></div>'
+                + '<div class="meta">John Levy<br>עוסק מורשה<br>הופק ' + dateStr + '</div></div><hr class="rule">'
+                + sections
+                + '<div class="foot"><span>Fluenix · מערכת ניהול מס</span><span>מסמך זה אינו מהווה אישור רשמי</span></div>'
+                + '</div></body></html>';
+        }
+        function printIncomeReport() {
+            const html = buildIncomeReportHTML();
+            const w = window.open('', '_blank');
+            if (!w) { showPopup ? showPopup({ type: 'info', title: 'חלון נחסם', message: 'הדפדפן חסם את חלון ההדפסה. אפשר חלונות קופצים לאתר ונסה שוב.' }) : alert('הדפדפן חסם את חלון ההדפסה'); return; }
+            w.document.open();
+            w.document.write(html);
+            w.document.close();
+            w.onload = () => { try { w.focus(); w.print(); } catch (e) {} };
         }
         // Per-stage ✓ / ✗ (missing in red) for the report table.
         function incomeDocsCellHtml(r) {
