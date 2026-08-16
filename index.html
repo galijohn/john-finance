@@ -18,6 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dom-to-image-more@3.4.5/dist/dom-to-image-more.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/pdfmake.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -12755,6 +12756,148 @@
             return { images, pdfs };
         }
 
+        // ============ VECTOR PDF ENGINE (pdfmake + Hebrew) ============
+        // Produces a real vector PDF (selectable text, tiny files) instead of a
+        // rasterized "screenshot". Hebrew renders via an embedded font; pdfmake
+        // reverses digits/latin inside right-aligned RTL text, so we pre-reverse
+        // those runs in text cells. Left-aligned numeric cells are passed raw.
+        let _hebPdfFontReady = null;
+        function ensureHebrewPdfFont() {
+            if (_hebPdfFontReady) return _hebPdfFontReady;
+            _hebPdfFontReady = (async () => {
+                async function b64(url) {
+                    const r = await fetch(url);
+                    const buf = await r.arrayBuffer();
+                    const b = new Uint8Array(buf);
+                    let bin = ''; const CH = 0x8000;
+                    for (let i = 0; i < b.length; i += CH) bin += String.fromCharCode.apply(null, b.subarray(i, i + CH));
+                    return btoa(bin);
+                }
+                const [reg, bold] = await Promise.all([
+                    b64('https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf'),
+                    b64('https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans-Bold.ttf')
+                ]);
+                pdfMake.vfs = pdfMake.vfs || {};
+                pdfMake.vfs['DejaVuSans.ttf'] = reg;
+                pdfMake.vfs['DejaVuSans-Bold.ttf'] = bold;
+                pdfMake.fonts = { Heb: { normal: 'DejaVuSans.ttf', bold: 'DejaVuSans-Bold.ttf', italics: 'DejaVuSans.ttf', bolditalics: 'DejaVuSans-Bold.ttf' } };
+            })();
+            return _hebPdfFontReady;
+        }
+        // Hebrew text for right-aligned context: pre-reverse latin/digit runs (pdfmake
+        // will reverse them back), and use NBSP so word gaps survive the bidi pass.
+        function hebT(s) {
+            if (s == null) return '';
+            s = String(s);
+            s = s.replace(/[0-9][0-9.,:\/]*/g, m => m.split('').reverse().join(''));
+            s = s.replace(/ /g, ' ');
+            return s;
+        }
+        // For TABLE cells / labels: keep raw order (pdfmake handles cell RTL) but use
+        // NBSP so multi-word Hebrew keeps its spaces. No digit/latin reversal in cells.
+        function cellT(s) { return s == null ? '' : String(s).replace(/ /g, String.fromCharCode(160)); }
+        const _PM_ACCENT = '#0f8276', _PM_DARK = '#1e293b';
+        function pmSection(t, red) { return { text: hebT(t), fontSize: 12, bold: true, color: red ? '#dc2626' : _PM_ACCENT, margin: [0, 14, 0, 4] }; }
+        // table: headers (Hebrew), rows = array of cell-arrays. numericCols = set of
+        // column indexes rendered raw+left (amounts). Others are Hebrew text (hebT+right).
+        function pmTable(headers, rows, numericCols, widths) {
+            numericCols = numericCols || {};
+            const body = [];
+            body.push(headers.map((h, i) => ({ text: cellT(h), bold: true, color: 'white', fillColor: _PM_DARK, alignment: numericCols[i] ? 'left' : 'right', margin: [4, 3, 4, 3] })));
+            rows.forEach(r => {
+                body.push(r.map((c, i) => numericCols[i]
+                    ? { text: String(c), alignment: 'left', margin: [4, 2, 4, 2] }
+                    : { text: cellT(c), alignment: 'right', margin: [4, 2, 4, 2] }));
+            });
+            return { table: { headerRows: 1, widths: widths || headers.map(() => '*'), body }, layout: {
+                hLineWidth: () => 0.5, vLineWidth: () => 0, hLineColor: () => '#e2e8f0',
+                paddingTop: () => 2, paddingBottom: () => 2
+            }, margin: [0, 0, 0, 8] };
+        }
+        function pmTotalBar(label, valStr) {
+            return { table: { widths: ['*', 'auto'], body: [[
+                { text: cellT(label), color: 'white', fillColor: _PM_DARK, bold: true, alignment: 'right', margin: [8, 6, 8, 6] },
+                { text: String(valStr), color: 'white', fillColor: _PM_DARK, bold: true, alignment: 'left', margin: [8, 6, 8, 6] }
+            ]]}, layout: 'noBorders', margin: [0, 4, 0, 12] };
+        }
+        function pmSubTotal(label, valStr) {
+            return { table: { widths: ['*', 'auto'], body: [[
+                { text: cellT(label), bold: true, alignment: 'right', border: [false, true, false, false], borderColor: ['', '#94a3b8', '', ''], margin: [6, 4, 6, 4] },
+                { text: String(valStr), bold: true, alignment: 'left', border: [false, true, false, false], borderColor: ['', '#94a3b8', '', ''], margin: [6, 4, 6, 4] }
+            ]]}, layout: { hLineWidth: (i) => i === 0 ? 0.7 : 0, vLineWidth: () => 0, hLineColor: () => '#94a3b8' }, margin: [0, 0, 0, 10] };
+        }
+        // Assemble a full report document and return PDF bytes (Uint8Array).
+        async function generateVectorReportBytes(titleLine, dateStr, contentBody) {
+            await ensureHebrewPdfFont();
+            const docDef = {
+                pageSize: 'A4',
+                pageMargins: [40, 46, 40, 46],
+                defaultStyle: { font: 'Heb', fontSize: 10, alignment: 'right', color: _PM_DARK },
+                content: [
+                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 2, lineColor: _PM_DARK }], margin: [0, 0, 0, 6] },
+                    { text: hebT(titleLine), fontSize: 18, bold: true, alignment: 'center', margin: [0, 0, 0, 6] },
+                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 2, lineColor: _PM_DARK }], margin: [0, 0, 0, 12] },
+                    // Info row — label and value kept in separate isolated fragments so
+                    // the name/date (latin/number) don't get bidi-reversed next to Hebrew.
+                    { columns: [
+                        { columns: [ { width: 'auto', text: 'John Levy', fontSize: 9, color: '#64748b', alignment: 'left' }, { width: '*', text: cellT('שם:'), fontSize: 9, color: '#64748b', alignment: 'right' } ] },
+                        { columns: [ { width: 'auto', text: cellT('עוסק מורשה'), fontSize: 9, color: '#64748b', alignment: 'left' }, { width: '*', text: cellT('סוג עוסק:'), fontSize: 9, color: '#64748b', alignment: 'right' } ] },
+                        { columns: [ { width: 'auto', text: dateStr, fontSize: 9, color: '#64748b', alignment: 'left' }, { width: '*', text: cellT('תאריך הפקה:'), fontSize: 9, color: '#64748b', alignment: 'right' } ] }
+                    ], columnGap: 14, margin: [0, 0, 0, 6] },
+                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.5, lineColor: '#e2e8f0' }], margin: [0, 0, 0, 14] }
+                ].concat(contentBody).concat([
+                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 2, lineColor: _PM_DARK }], margin: [0, 24, 0, 4] },
+                    { columns: [
+                        { text: hebT('John Finance - מערכת ניהול מס'), fontSize: 8, color: '#94a3b8', alignment: 'right' },
+                        { text: hebT('מסמך זה אינו מהווה אישור רשמי'), fontSize: 8, color: '#94a3b8', alignment: 'left' }
+                    ] }
+                ])
+            };
+            return await new Promise((resolve, reject) => {
+                try { pdfMake.createPdf(docDef).getBuffer(buf => resolve(new Uint8Array(buf))); }
+                catch (e) { reject(e); }
+            });
+        }
+        // Build the income report body as pdfmake content (mirrors incomeReportBodyHTML).
+        function buildIncomePdfBody(fmtNum) {
+            const mode = (incomeExportScope || {}).mode || 'flat';
+            const out = [];
+            incomeSelectedDatasets().forEach(dsKey => {
+                const ds = INCOME_DATASETS[dsKey];
+                const items = ds.get();
+                const isSelf = dsKey === 'selfEmployed';
+                let missingTotal = 0;
+                if (isSelf) items.forEach(r => { missingTotal += incomeMissingStages(r).length; });
+                out.push(pmSection(ds.title + (isSelf && missingTotal ? ' — ⚠ חסרים ' + missingTotal + ' מסמכים' : ''), isSelf && missingTotal > 0));
+                const headers = isSelf ? ['חודש', 'מסמכים', 'תיאור', 'סכום'] : ['חודש', 'סכום', 'מסמך'];
+                const numCols = isSelf ? { 3: true } : { 1: true };
+                const widths = isSelf ? ['auto', 'auto', '*', 'auto'] : ['*', 'auto', 'auto'];
+                const rowOf = r => {
+                    if (isSelf) {
+                        const miss = incomeMissingStages(r);
+                        const docCell = miss.length ? ('⚠ חסר ' + miss.length) : '✓';
+                        return [MONTHS[r.month], docCell, (r.description || '-'), fmtNum(r.amount)];
+                    }
+                    return [MONTHS[r.month], fmtNum(r.amount), ((r.driveLink || r.driveId) ? '✓' : '—')];
+                };
+                const total = items.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+                if (mode === 'year') {
+                    const byM = {};
+                    items.forEach(r => { (byM[r.month] = byM[r.month] || []).push(r); });
+                    Object.keys(byM).map(Number).sort((a, b) => a - b).forEach(m => {
+                        const list = byM[m];
+                        out.push({ text: hebT(MONTHS[m]), bold: true, fontSize: 11, margin: [0, 8, 0, 3] });
+                        out.push(pmTable(headers, list.map(rowOf), numCols, widths));
+                        out.push(pmSubTotal('סה"כ ' + MONTHS[m] + ' (' + list.length + ')', fmtNum(list.reduce((s, r) => s + (Number(r.amount) || 0), 0))));
+                    });
+                } else {
+                    out.push(pmTable(headers, [...items].sort((a, b) => a.month - b.month).map(rowOf), numCols, widths));
+                }
+                out.push(pmTotalBar('סה"כ ' + ds.title, fmtNum(total)));
+            });
+            return out;
+        }
+
         function exportPagePDF(page) {
             const { headers, rows, title, year } = getPageData(page);
             const yd = getYearData();
@@ -13203,6 +13346,16 @@
 
             (async function() {
                 try {
+                    const { PDFDocument } = PDFLib;
+                    let finalPdf;
+                    // Reports converted to the vector engine render as real, light PDFs.
+                    const _useVector = (page === 'income');
+                    if (_useVector) {
+                    document.getElementById('pdfDetail').textContent = 'מייצר PDF...';
+                    try { document.body.removeChild(container); } catch (e) {}
+                    const _vecBytes = await generateVectorReportBytes(titleLine, dateStr, buildIncomePdfBody(fmtNum));
+                    finalPdf = await PDFDocument.load(_vecBytes);
+                    } else {
                     // Step 1: Convert report to image using dom-to-image (uses browser's native text rendering)
                     // NOTE: do NOT use {transform:scale, width, height} for retina — it produces a blank canvas
                     // in dom-to-image-more 3.4.5. Use the built-in `scale` option instead.
@@ -13229,8 +13382,7 @@
                     document.body.removeChild(container);
 
                     // Split canvas into A4 pages
-                    const { PDFDocument } = PDFLib;
-                    const finalPdf = await PDFDocument.create();
+                    finalPdf = await PDFDocument.create();
                     const a4W = 595.28, a4H = 841.89, pdfMargin = 30;
                     const usableW = a4W - 2 * pdfMargin;
                     const usableH = a4H - 2 * pdfMargin;
@@ -13272,6 +13424,7 @@
                     }
 
                     // Report pages already added above via canvas splitting
+                    } // end raster branch
 
                     // Step 2: Fetch and merge attachments (skip for dashboard — it's a summary view, not a backup of source documents)
                     let mergedAtt = { images: [], pdfs: [] };
