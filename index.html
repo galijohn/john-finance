@@ -12774,13 +12774,13 @@
                     return btoa(bin);
                 }
                 const [reg, bold] = await Promise.all([
-                    b64('https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf'),
-                    b64('https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans-Bold.ttf')
+                    b64('https://raw.githubusercontent.com/google/fonts/main/ofl/alef/Alef-Regular.ttf'),
+                    b64('https://raw.githubusercontent.com/google/fonts/main/ofl/alef/Alef-Bold.ttf')
                 ]);
                 pdfMake.vfs = pdfMake.vfs || {};
-                pdfMake.vfs['DejaVuSans.ttf'] = reg;
-                pdfMake.vfs['DejaVuSans-Bold.ttf'] = bold;
-                pdfMake.fonts = { Heb: { normal: 'DejaVuSans.ttf', bold: 'DejaVuSans-Bold.ttf', italics: 'DejaVuSans.ttf', bolditalics: 'DejaVuSans-Bold.ttf' } };
+                pdfMake.vfs['Alef-Regular.ttf'] = reg;
+                pdfMake.vfs['Alef-Bold.ttf'] = bold;
+                pdfMake.fonts = { Heb: { normal: 'Alef-Regular.ttf', bold: 'Alef-Bold.ttf', italics: 'Alef-Regular.ttf', bolditalics: 'Alef-Bold.ttf' } };
             })();
             return _hebPdfFontReady;
         }
@@ -12796,61 +12796,65 @@
         // For TABLE cells / labels: keep raw order (pdfmake handles cell RTL) but use
         // NBSP so multi-word Hebrew keeps its spaces. No digit/latin reversal in cells.
         function cellT(s) { return s == null ? '' : String(s).replace(/ /g, String.fromCharCode(160)); }
-        const _PM_ACCENT = '#0f8276', _PM_DARK = '#1e293b';
-        function pmSection(t, red) { return { text: hebT(t), fontSize: 12, bold: true, color: red ? '#dc2626' : _PM_ACCENT, margin: [0, 14, 0, 4] }; }
-        // table: headers (Hebrew), rows = array of cell-arrays. numericCols = set of
-        // column indexes rendered raw+left (amounts). Others are Hebrew text (hebT+right).
-        function pmTable(headers, rows, numericCols, widths) {
-            numericCols = numericCols || {};
-            const body = [];
-            body.push(headers.map((h, i) => ({ text: cellT(h), bold: true, color: 'white', fillColor: _PM_DARK, alignment: numericCols[i] ? 'left' : 'right', margin: [4, 3, 4, 3] })));
+        const _TEAL = '#16a99b', _TEALD = '#0f8276', _INK = '#0f1f2e', _MUT = '#7c8a99', _LINE = '#e7edf0', _ZEBRA = '#f4f9f8', _AMBER = '#d9a400';
+        function pmSection(t, red) { return { text: hebT(t), fontSize: 13, bold: true, color: red ? '#dc2626' : _TEALD, alignment: 'right', margin: [0, 6, 0, 8] }; }
+        // Modern zebra table. `cols` = [{title, key, align, num, color, bold}]; rows = data objects.
+        function pmDataTable(cols, rows) {
+            const head = cols.map(c => ({ text: cellT(c.title), color: 'white', bold: true, alignment: c.num ? 'left' : 'right', fontSize: 10 }));
+            const body = [head];
             rows.forEach(r => {
-                body.push(r.map((c, i) => numericCols[i]
-                    ? { text: String(c), alignment: 'left', margin: [4, 2, 4, 2] }
-                    : { text: cellT(c), alignment: 'right', margin: [4, 2, 4, 2] }));
+                body.push(cols.map(c => {
+                    const raw = r[c.key];
+                    const cell = { text: c.num ? String(raw) : cellT(raw), alignment: c.num ? 'left' : 'right' };
+                    if (typeof c.color === 'function') cell.color = c.color(r); else if (c.color) cell.color = c.color;
+                    if (c.bold) cell.bold = true;
+                    if (c.fontSize) cell.fontSize = c.fontSize;
+                    return cell;
+                }));
             });
-            return { table: { headerRows: 1, widths: widths || headers.map(() => '*'), body }, layout: {
-                hLineWidth: () => 0.5, vLineWidth: () => 0, hLineColor: () => '#e2e8f0',
-                paddingTop: () => 2, paddingBottom: () => 2
-            }, margin: [0, 0, 0, 8] };
+            return { table: { headerRows: 1, widths: cols.map(c => c.width || (c.num ? 'auto' : '*')), body }, layout: {
+                fillColor: (ri) => ri === 0 ? _TEAL : (ri % 2 === 0 ? _ZEBRA : null),
+                hLineWidth: (i, node) => (i === 0 || i === 1 || i === node.table.body.length) ? 0 : 0.6,
+                vLineWidth: () => 0, hLineColor: () => _LINE,
+                paddingTop: () => 7, paddingBottom: () => 7, paddingLeft: () => 10, paddingRight: () => 10
+            }, margin: [0, 0, 0, 4] };
         }
         function pmTotalBar(label, valStr) {
             return { table: { widths: ['*', 'auto'], body: [[
-                { text: cellT(label), color: 'white', fillColor: _PM_DARK, bold: true, alignment: 'right', margin: [8, 6, 8, 6] },
-                { text: String(valStr), color: 'white', fillColor: _PM_DARK, bold: true, alignment: 'left', margin: [8, 6, 8, 6] }
-            ]]}, layout: 'noBorders', margin: [0, 4, 0, 12] };
+                { text: cellT(label), color: 'white', fillColor: _TEALD, bold: true, alignment: 'right', fontSize: 12, margin: [12, 9, 12, 9] },
+                { text: String(valStr), color: 'white', fillColor: _TEALD, bold: true, alignment: 'left', fontSize: 12, margin: [12, 9, 12, 9] }
+            ]]}, layout: 'noBorders', margin: [0, 10, 0, 14] };
         }
         function pmSubTotal(label, valStr) {
             return { table: { widths: ['*', 'auto'], body: [[
-                { text: cellT(label), bold: true, alignment: 'right', border: [false, true, false, false], borderColor: ['', '#94a3b8', '', ''], margin: [6, 4, 6, 4] },
-                { text: String(valStr), bold: true, alignment: 'left', border: [false, true, false, false], borderColor: ['', '#94a3b8', '', ''], margin: [6, 4, 6, 4] }
-            ]]}, layout: { hLineWidth: (i) => i === 0 ? 0.7 : 0, vLineWidth: () => 0, hLineColor: () => '#94a3b8' }, margin: [0, 0, 0, 10] };
+                { text: cellT(label), bold: true, alignment: 'right', color: _MUT, margin: [10, 5, 10, 5] },
+                { text: String(valStr), bold: true, alignment: 'left', color: _INK, margin: [10, 5, 10, 5] }
+            ]]}, layout: { hLineWidth: (i) => i === 0 ? 0.8 : 0, vLineWidth: () => 0, hLineColor: () => _LINE }, margin: [0, 0, 0, 12] };
         }
-        // Assemble a full report document and return PDF bytes (Uint8Array).
+        // Assemble the full report (modern branded design) and return PDF bytes.
         async function generateVectorReportBytes(titleLine, dateStr, contentBody) {
             await ensureHebrewPdfFont();
             const docDef = {
                 pageSize: 'A4',
-                pageMargins: [40, 46, 40, 46],
-                defaultStyle: { font: 'Heb', fontSize: 10, alignment: 'right', color: _PM_DARK },
-                content: [
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 2, lineColor: _PM_DARK }], margin: [0, 0, 0, 6] },
-                    { text: hebT(titleLine), fontSize: 18, bold: true, alignment: 'center', margin: [0, 0, 0, 6] },
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 2, lineColor: _PM_DARK }], margin: [0, 0, 0, 12] },
-                    // Info row — label and value kept in separate isolated fragments so
-                    // the name/date (latin/number) don't get bidi-reversed next to Hebrew.
-                    { columns: [
-                        { columns: [ { width: 'auto', text: 'John Levy', fontSize: 9, color: '#64748b', alignment: 'left' }, { width: '*', text: cellT('שם:'), fontSize: 9, color: '#64748b', alignment: 'right' } ] },
-                        { columns: [ { width: 'auto', text: cellT('עוסק מורשה'), fontSize: 9, color: '#64748b', alignment: 'left' }, { width: '*', text: cellT('סוג עוסק:'), fontSize: 9, color: '#64748b', alignment: 'right' } ] },
-                        { columns: [ { width: 'auto', text: dateStr, fontSize: 9, color: '#64748b', alignment: 'left' }, { width: '*', text: cellT('תאריך הפקה:'), fontSize: 9, color: '#64748b', alignment: 'right' } ] }
-                    ], columnGap: 14, margin: [0, 0, 0, 6] },
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.5, lineColor: '#e2e8f0' }], margin: [0, 0, 0, 14] }
-                ].concat(contentBody).concat([
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 2, lineColor: _PM_DARK }], margin: [0, 24, 0, 4] },
-                    { columns: [
-                        { text: hebT('John Finance - מערכת ניהול מס'), fontSize: 8, color: '#94a3b8', alignment: 'right' },
-                        { text: hebT('מסמך זה אינו מהווה אישור רשמי'), fontSize: 8, color: '#94a3b8', alignment: 'left' }
-                    ] }
+                pageMargins: [44, 116, 44, 54],
+                defaultStyle: { font: 'Heb', fontSize: 10, alignment: 'right', color: _INK },
+                header: function () {
+                    return { margin: [44, 28, 44, 0], stack: [
+                        { columns: [
+                            { width: '*', stack: [
+                                { text: cellT('ניהול עוסק · ג׳ון לוי'), color: _TEAL, fontSize: 9, bold: true, alignment: 'right' },
+                                { text: hebT(titleLine), fontSize: 20, bold: true, color: _INK, alignment: 'right', margin: [0, 2, 0, 0] }
+                            ] },
+                            { width: 'auto', stack: [
+                                { text: cellT('עוסק מורשה · John Levy'), color: _MUT, fontSize: 9, alignment: 'left', margin: [0, 6, 0, 0] },
+                                { text: hebT('הופק ' + dateStr), color: _MUT, fontSize: 9, alignment: 'left' }
+                            ] }
+                        ] },
+                        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 507, y2: 0, lineWidth: 2.5, lineColor: _TEAL }], margin: [0, 12, 0, 0] }
+                    ] };
+                },
+                content: contentBody.concat([
+                    { text: cellT('Fluenix · מערכת ניהול מס · מסמך זה אינו מהווה אישור רשמי'), color: _MUT, fontSize: 8, alignment: 'center', margin: [0, 20, 0, 0] }
                 ])
             };
             return await new Promise((resolve, reject) => {
@@ -12858,7 +12862,8 @@
                 catch (e) { reject(e); }
             });
         }
-        // Build the income report body as pdfmake content (mirrors incomeReportBodyHTML).
+        // Income report body — mirrors the on-screen table exactly (month · status ·
+        // description · amount · cumulative). No logic changed, just presented.
         function buildIncomePdfBody(fmtNum) {
             const mode = (incomeExportScope || {}).mode || 'flat';
             const out = [];
@@ -12866,34 +12871,51 @@
                 const ds = INCOME_DATASETS[dsKey];
                 const items = ds.get();
                 const isSelf = dsKey === 'selfEmployed';
-                let missingTotal = 0;
-                if (isSelf) items.forEach(r => { missingTotal += incomeMissingStages(r).length; });
-                out.push(pmSection(ds.title + (isSelf && missingTotal ? ' — ⚠ חסרים ' + missingTotal + ' מסמכים' : ''), isSelf && missingTotal > 0));
-                const headers = isSelf ? ['חודש', 'מסמכים', 'תיאור', 'סכום'] : ['חודש', 'סכום', 'מסמך'];
-                const numCols = isSelf ? { 3: true } : { 1: true };
-                const widths = isSelf ? ['auto', 'auto', '*', 'auto'] : ['*', 'auto', 'auto'];
-                const rowOf = r => {
-                    if (isSelf) {
-                        const miss = incomeMissingStages(r);
-                        const docCell = miss.length ? ('⚠ חסר ' + miss.length) : '✓';
-                        return [MONTHS[r.month], docCell, (r.description || '-'), fmtNum(r.amount)];
-                    }
-                    return [MONTHS[r.month], fmtNum(r.amount), ((r.driveLink || r.driveId) ? '✓' : '—')];
-                };
+                out.push(pmSection(ds.title));
                 const total = items.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+                const renderChunk = (list) => {
+                    let cum = 0;
+                    if (isSelf) {
+                        const cols = [
+                            { title: 'חודש', key: 'month', width: 'auto' },
+                            { title: 'סטטוס', key: 'status', width: 'auto', fontSize: 9, bold: true, color: (r) => r._done ? _TEAL : _AMBER },
+                            { title: 'תיאור', key: 'desc' },
+                            { title: 'סכום', key: 'amount', num: true, width: 'auto' },
+                            { title: 'מצטבר', key: 'cum', num: true, width: 'auto', color: _TEALD, bold: true }
+                        ];
+                        const rows = [...list].sort((a, b) => a.month - b.month).map(r => {
+                            cum += (Number(r.amount) || 0);
+                            const done = incomeMissingStages(r).length === 0;
+                            return { month: MONTHS[r.month], status: done ? 'הושלם' : 'ממתין', _done: done, desc: (r.description || '-'), amount: fmtNum(r.amount), cum: fmtNum(cum) };
+                        });
+                        out.push(pmDataTable(cols, rows));
+                    } else {
+                        const cols = [
+                            { title: 'חודש', key: 'month', width: 'auto' },
+                            { title: 'מסמך', key: 'doc' },
+                            { title: 'סכום', key: 'amount', num: true, width: 'auto' },
+                            { title: 'מצטבר', key: 'cum', num: true, width: 'auto', color: _TEALD, bold: true }
+                        ];
+                        const rows = [...list].sort((a, b) => a.month - b.month).map(r => {
+                            cum += (Number(r.amount) || 0);
+                            return { month: MONTHS[r.month], doc: ((r.driveLink || r.driveId) ? 'מצורף' : '—'), amount: fmtNum(r.amount), cum: fmtNum(cum) };
+                        });
+                        out.push(pmDataTable(cols, rows));
+                    }
+                };
                 if (mode === 'year') {
                     const byM = {};
                     items.forEach(r => { (byM[r.month] = byM[r.month] || []).push(r); });
                     Object.keys(byM).map(Number).sort((a, b) => a - b).forEach(m => {
                         const list = byM[m];
-                        out.push({ text: hebT(MONTHS[m]), bold: true, fontSize: 11, margin: [0, 8, 0, 3] });
-                        out.push(pmTable(headers, list.map(rowOf), numCols, widths));
-                        out.push(pmSubTotal('סה"כ ' + MONTHS[m] + ' (' + list.length + ')', fmtNum(list.reduce((s, r) => s + (Number(r.amount) || 0), 0))));
+                        out.push({ text: hebT(MONTHS[m]), bold: true, fontSize: 11, alignment: 'right', color: _INK, margin: [0, 10, 0, 4] });
+                        renderChunk(list);
+                        out.push(pmSubTotal('סה״כ ' + MONTHS[m] + ' (' + list.length + ')', fmtNum(list.reduce((s, r) => s + (Number(r.amount) || 0), 0))));
                     });
                 } else {
-                    out.push(pmTable(headers, [...items].sort((a, b) => a.month - b.month).map(rowOf), numCols, widths));
+                    renderChunk(items);
                 }
-                out.push(pmTotalBar('סה"כ ' + ds.title, fmtNum(total)));
+                out.push(pmTotalBar('סה״כ ' + ds.title, fmtNum(total)));
             });
             return out;
         }
@@ -13506,7 +13528,8 @@
                             pg.drawImage(nimg, { x: (pw - numW) / 2, y: 6, width: numW, height: strip.hPt });
                         }
                         // Header banner on page 1 — tells you exactly how much the report contains.
-                        if (allPages.length > 0) {
+                        // Skip for the vector report: it has its own branded header already.
+                        if (!_useVector && allPages.length > 0) {
                             const p1 = allPages[0];
                             const pw = p1.getWidth();
                             const bannerTxt = 'הדוח מכיל ' + totalPages + ' עמודים' + (attCount > 0 ? '  ·  כולל ' + attCount + ' נספחים' : '');
