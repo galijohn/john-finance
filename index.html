@@ -18,7 +18,6 @@
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dom-to-image-more@3.4.5/dist/dom-to-image-more.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/pdfmake.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -12681,48 +12680,6 @@
             ctx.fillText(text, wPx - 12 * scale, hPx / 2);
             return { dataUrl: c.toDataURL('image/jpeg', 0.85), hPt: 26 };
         }
-        // Small centered/aligned text strip (used for page numbers + the header count).
-        // Hebrew is rendered via canvas (same technique as the caption) then embedded.
-        function makeTextStripImage(text, widthPt, opts) {
-            opts = opts || {};
-            const scale = 2;
-            const hPt = opts.hPt || 14;
-            const wPx = Math.round(widthPt * scale);
-            const hPx = Math.round(hPt * scale);
-            const c = document.createElement('canvas');
-            c.width = wPx; c.height = hPx;
-            const ctx = c.getContext('2d');
-            ctx.fillStyle = opts.bg || '#ffffff'; ctx.fillRect(0, 0, wPx, hPx);
-            ctx.fillStyle = opts.color || '#64748b';
-            ctx.font = '500 ' + ((opts.size || 9) * scale) + 'px Segoe UI, Arial, sans-serif';
-            ctx.direction = 'rtl';
-            ctx.textAlign = opts.align || 'center';
-            ctx.textBaseline = 'middle';
-            const x = opts.align === 'right' ? wPx - 8 * scale : (opts.align === 'left' ? 8 * scale : wPx / 2);
-            ctx.fillText(text, x, hPx / 2);
-            return { dataUrl: c.toDataURL('image/jpeg', 0.9), hPt };
-        }
-        // Shrink + recompress an attachment image before embedding, so a phone photo
-        // of an invoice (often 5-7MB) becomes a few hundred KB. Capped at maxDim on the
-        // long edge (~150+ DPI for A4) and re-encoded as JPEG — keeps the whole PDF light.
-        function _loadImg(src) {
-            return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
-        }
-        async function recompressImageForPdf(dataUrl, maxDim, quality) {
-            try {
-                const im = await _loadImg(dataUrl);
-                let w = im.naturalWidth, h = im.naturalHeight;
-                if (!w || !h) return dataUrl;
-                const s = Math.min(1, maxDim / Math.max(w, h));
-                w = Math.round(w * s); h = Math.round(h * s);
-                const c = document.createElement('canvas');
-                c.width = w; c.height = h;
-                const ctx = c.getContext('2d');
-                ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
-                ctx.drawImage(im, 0, 0, w, h);
-                return c.toDataURL('image/jpeg', quality);
-            } catch (e) { return dataUrl; }
-        }
         async function drawCaption(finalPdf, pdfPage, doc) {
             try {
                 const w = pdfPage.getWidth();
@@ -12754,170 +12711,6 @@
                 }
             });
             return { images, pdfs };
-        }
-
-        // ============ VECTOR PDF ENGINE (pdfmake + Hebrew) ============
-        // Produces a real vector PDF (selectable text, tiny files) instead of a
-        // rasterized "screenshot". Hebrew renders via an embedded font; pdfmake
-        // reverses digits/latin inside right-aligned RTL text, so we pre-reverse
-        // those runs in text cells. Left-aligned numeric cells are passed raw.
-        let _hebPdfFontReady = null;
-        function ensureHebrewPdfFont() {
-            if (_hebPdfFontReady) return _hebPdfFontReady;
-            _hebPdfFontReady = (async () => {
-                async function b64(url) {
-                    const r = await fetch(url);
-                    const buf = await r.arrayBuffer();
-                    const b = new Uint8Array(buf);
-                    let bin = ''; const CH = 0x8000;
-                    for (let i = 0; i < b.length; i += CH) bin += String.fromCharCode.apply(null, b.subarray(i, i + CH));
-                    return btoa(bin);
-                }
-                const [reg, bold] = await Promise.all([
-                    b64('https://raw.githubusercontent.com/google/fonts/main/ofl/alef/Alef-Regular.ttf'),
-                    b64('https://raw.githubusercontent.com/google/fonts/main/ofl/alef/Alef-Bold.ttf')
-                ]);
-                pdfMake.vfs = pdfMake.vfs || {};
-                pdfMake.vfs['Alef-Regular.ttf'] = reg;
-                pdfMake.vfs['Alef-Bold.ttf'] = bold;
-                pdfMake.fonts = { Heb: { normal: 'Alef-Regular.ttf', bold: 'Alef-Bold.ttf', italics: 'Alef-Regular.ttf', bolditalics: 'Alef-Bold.ttf' } };
-            })();
-            return _hebPdfFontReady;
-        }
-        // Hebrew text for right-aligned context: pre-reverse latin/digit runs (pdfmake
-        // will reverse them back), and use NBSP so word gaps survive the bidi pass.
-        function hebT(s) {
-            if (s == null) return '';
-            s = String(s);
-            s = s.replace(/[0-9][0-9.,:\/]*/g, m => m.split('').reverse().join(''));
-            s = s.replace(/ /g, ' ');
-            return s;
-        }
-        // For TABLE cells / labels: keep raw order (pdfmake handles cell RTL) but use
-        // NBSP so multi-word Hebrew keeps its spaces. No digit/latin reversal in cells.
-        function cellT(s) { return s == null ? '' : String(s).replace(/ /g, String.fromCharCode(160)); }
-        const _TEAL = '#16a99b', _TEALD = '#0f8276', _INK = '#0f1f2e', _MUT = '#7c8a99', _LINE = '#e7edf0', _ZEBRA = '#f4f9f8', _AMBER = '#d9a400';
-        function pmSection(t, red) { return { text: hebT(t), fontSize: 13, bold: true, color: red ? '#dc2626' : _TEALD, alignment: 'right', margin: [0, 6, 0, 8] }; }
-        // Modern zebra table. `cols` = [{title, key, align, num, color, bold}]; rows = data objects.
-        function pmDataTable(cols, rows) {
-            const head = cols.map(c => ({ text: cellT(c.title), color: 'white', bold: true, alignment: c.num ? 'left' : 'right', fontSize: 10 }));
-            const body = [head];
-            rows.forEach(r => {
-                body.push(cols.map(c => {
-                    const raw = r[c.key];
-                    const cell = { text: c.num ? String(raw) : cellT(raw), alignment: c.num ? 'left' : 'right' };
-                    if (typeof c.color === 'function') cell.color = c.color(r); else if (c.color) cell.color = c.color;
-                    if (c.bold) cell.bold = true;
-                    if (c.fontSize) cell.fontSize = c.fontSize;
-                    return cell;
-                }));
-            });
-            return { table: { headerRows: 1, widths: cols.map(c => c.width || (c.num ? 'auto' : '*')), body }, layout: {
-                fillColor: (ri) => ri === 0 ? _TEAL : (ri % 2 === 0 ? _ZEBRA : null),
-                hLineWidth: (i, node) => (i === 0 || i === 1 || i === node.table.body.length) ? 0 : 0.6,
-                vLineWidth: () => 0, hLineColor: () => _LINE,
-                paddingTop: () => 7, paddingBottom: () => 7, paddingLeft: () => 10, paddingRight: () => 10
-            }, margin: [0, 0, 0, 4] };
-        }
-        function pmTotalBar(label, valStr) {
-            return { table: { widths: ['*', 'auto'], body: [[
-                { text: cellT(label), color: 'white', fillColor: _TEALD, bold: true, alignment: 'right', fontSize: 12, margin: [12, 9, 12, 9] },
-                { text: String(valStr), color: 'white', fillColor: _TEALD, bold: true, alignment: 'left', fontSize: 12, margin: [12, 9, 12, 9] }
-            ]]}, layout: 'noBorders', margin: [0, 10, 0, 14] };
-        }
-        function pmSubTotal(label, valStr) {
-            return { table: { widths: ['*', 'auto'], body: [[
-                { text: cellT(label), bold: true, alignment: 'right', color: _MUT, margin: [10, 5, 10, 5] },
-                { text: String(valStr), bold: true, alignment: 'left', color: _INK, margin: [10, 5, 10, 5] }
-            ]]}, layout: { hLineWidth: (i) => i === 0 ? 0.8 : 0, vLineWidth: () => 0, hLineColor: () => _LINE }, margin: [0, 0, 0, 12] };
-        }
-        // Assemble the full report (modern branded design) and return PDF bytes.
-        async function generateVectorReportBytes(titleLine, dateStr, contentBody) {
-            await ensureHebrewPdfFont();
-            const docDef = {
-                pageSize: 'A4',
-                pageMargins: [44, 116, 44, 54],
-                defaultStyle: { font: 'Heb', fontSize: 10, alignment: 'right', color: _INK },
-                header: function () {
-                    return { margin: [44, 28, 44, 0], stack: [
-                        { columns: [
-                            { width: '*', stack: [
-                                { text: cellT('ניהול עוסק · ג׳ון לוי'), color: _TEAL, fontSize: 9, bold: true, alignment: 'right' },
-                                { text: hebT(titleLine), fontSize: 20, bold: true, color: _INK, alignment: 'right', margin: [0, 2, 0, 0] }
-                            ] },
-                            { width: 'auto', stack: [
-                                { text: cellT('עוסק מורשה · John Levy'), color: _MUT, fontSize: 9, alignment: 'left', margin: [0, 6, 0, 0] },
-                                { text: hebT('הופק ' + dateStr), color: _MUT, fontSize: 9, alignment: 'left' }
-                            ] }
-                        ] },
-                        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 507, y2: 0, lineWidth: 2.5, lineColor: _TEAL }], margin: [0, 12, 0, 0] }
-                    ] };
-                },
-                content: contentBody.concat([
-                    { text: cellT('Fluenix · מערכת ניהול מס · מסמך זה אינו מהווה אישור רשמי'), color: _MUT, fontSize: 8, alignment: 'center', margin: [0, 20, 0, 0] }
-                ])
-            };
-            return await new Promise((resolve, reject) => {
-                try { pdfMake.createPdf(docDef).getBuffer(buf => resolve(new Uint8Array(buf))); }
-                catch (e) { reject(e); }
-            });
-        }
-        // Income report body — mirrors the on-screen table exactly (month · status ·
-        // description · amount · cumulative). No logic changed, just presented.
-        function buildIncomePdfBody(fmtNum) {
-            const mode = (incomeExportScope || {}).mode || 'flat';
-            const out = [];
-            incomeSelectedDatasets().forEach(dsKey => {
-                const ds = INCOME_DATASETS[dsKey];
-                const items = ds.get();
-                const isSelf = dsKey === 'selfEmployed';
-                out.push(pmSection(ds.title));
-                const total = items.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-                const renderChunk = (list) => {
-                    let cum = 0;
-                    if (isSelf) {
-                        const cols = [
-                            { title: 'חודש', key: 'month', width: 'auto' },
-                            { title: 'סטטוס', key: 'status', width: 'auto', fontSize: 9, bold: true, color: (r) => r._done ? _TEAL : _AMBER },
-                            { title: 'תיאור', key: 'desc' },
-                            { title: 'סכום', key: 'amount', num: true, width: 'auto' },
-                            { title: 'מצטבר', key: 'cum', num: true, width: 'auto', color: _TEALD, bold: true }
-                        ];
-                        const rows = [...list].sort((a, b) => a.month - b.month).map(r => {
-                            cum += (Number(r.amount) || 0);
-                            const done = incomeMissingStages(r).length === 0;
-                            return { month: MONTHS[r.month], status: done ? 'הושלם' : 'ממתין', _done: done, desc: (r.description || '-'), amount: fmtNum(r.amount), cum: fmtNum(cum) };
-                        });
-                        out.push(pmDataTable(cols, rows));
-                    } else {
-                        const cols = [
-                            { title: 'חודש', key: 'month', width: 'auto' },
-                            { title: 'מסמך', key: 'doc' },
-                            { title: 'סכום', key: 'amount', num: true, width: 'auto' },
-                            { title: 'מצטבר', key: 'cum', num: true, width: 'auto', color: _TEALD, bold: true }
-                        ];
-                        const rows = [...list].sort((a, b) => a.month - b.month).map(r => {
-                            cum += (Number(r.amount) || 0);
-                            return { month: MONTHS[r.month], doc: ((r.driveLink || r.driveId) ? 'מצורף' : '—'), amount: fmtNum(r.amount), cum: fmtNum(cum) };
-                        });
-                        out.push(pmDataTable(cols, rows));
-                    }
-                };
-                if (mode === 'year') {
-                    const byM = {};
-                    items.forEach(r => { (byM[r.month] = byM[r.month] || []).push(r); });
-                    Object.keys(byM).map(Number).sort((a, b) => a - b).forEach(m => {
-                        const list = byM[m];
-                        out.push({ text: hebT(MONTHS[m]), bold: true, fontSize: 11, alignment: 'right', color: _INK, margin: [0, 10, 0, 4] });
-                        renderChunk(list);
-                        out.push(pmSubTotal('סה״כ ' + MONTHS[m] + ' (' + list.length + ')', fmtNum(list.reduce((s, r) => s + (Number(r.amount) || 0), 0))));
-                    });
-                } else {
-                    renderChunk(items);
-                }
-                out.push(pmTotalBar('סה״כ ' + ds.title, fmtNum(total)));
-            });
-            return out;
         }
 
         function exportPagePDF(page) {
@@ -13316,7 +13109,7 @@
             }
             // Build report HTML for pdf conversion (all inline styles - html2canvas ignores CSS classes)
             const titleLine = title + ' — ' + _scopeName;
-            const reportHTML = '<div dir="rtl" style="--text:#1e293b; --text-muted:#64748b; --border:#e2e8f0; --primary:#0f8276; font-family:Segoe UI,Tahoma,Arial,sans-serif; color:#1e293b; padding:20px 25px; font-size:11px; width:700px; background:white;">' +
+            const reportHTML = '<div dir="rtl" style="font-family:Segoe UI,Tahoma,Arial,sans-serif; color:var(--text); padding:20px 25px; font-size:11px; width:700px; background:white;">' +
                 '<div style="border-top:3px double #1e293b; border-bottom:3px double #1e293b; padding:15px 0; margin-bottom:5px; text-align:center;">' +
                 '<h1 style="font-size:20px; margin:0 0 5px;">' + titleLine + '</h1></div>' +
                 '<table style="width:100%; margin-bottom:20px; border-bottom:1px solid var(--border);"><tr>' +
@@ -13368,16 +13161,6 @@
 
             (async function() {
                 try {
-                    const { PDFDocument } = PDFLib;
-                    let finalPdf;
-                    // Reports converted to the vector engine render as real, light PDFs.
-                    const _useVector = (page === 'income');
-                    if (_useVector) {
-                    document.getElementById('pdfDetail').textContent = 'מייצר PDF...';
-                    try { document.body.removeChild(container); } catch (e) {}
-                    const _vecBytes = await generateVectorReportBytes(titleLine, dateStr, buildIncomePdfBody(fmtNum));
-                    finalPdf = await PDFDocument.load(_vecBytes);
-                    } else {
                     // Step 1: Convert report to image using dom-to-image (uses browser's native text rendering)
                     // NOTE: do NOT use {transform:scale, width, height} for retina — it produces a blank canvas
                     // in dom-to-image-more 3.4.5. Use the built-in `scale` option instead.
@@ -13404,7 +13187,8 @@
                     document.body.removeChild(container);
 
                     // Split canvas into A4 pages
-                    finalPdf = await PDFDocument.create();
+                    const { PDFDocument } = PDFLib;
+                    const finalPdf = await PDFDocument.create();
                     const a4W = 595.28, a4H = 841.89, pdfMargin = 30;
                     const usableW = a4W - 2 * pdfMargin;
                     const usableH = a4H - 2 * pdfMargin;
@@ -13446,39 +13230,21 @@
                     }
 
                     // Report pages already added above via canvas splitting
-                    } // end raster branch
 
                     // Step 2: Fetch and merge attachments (skip for dashboard — it's a summary view, not a backup of source documents)
-                    let mergedAtt = { images: [], pdfs: [] };
                     if (page !== 'dashboard' && pageDocs.length > 0) {
                         document.getElementById('pdfDetail').textContent = 'טוען ' + pageDocs.length + ' נספחים מ-Google Drive...';
                         const attachments = await fetchAttachments(pageDocs);
-                        mergedAtt = attachments;
 
                         // Merge PDF attachments — each preceded by a caption strip on a
                         // thin banner drawn over the top of its first page.
                         for (const pdfAtt of attachments.pdfs) {
                             try {
                                 const attDoc = await PDFDocument.load(pdfAtt.bytes);
-                                // Same display rule as the report and image attachments:
-                                // every source page is re-framed onto a fresh A4 page and
-                                // scaled to fill it. The uploaded file's own page size is
-                                // irrelevant — the system defines the display size, so all
-                                // pages in the export come out identical.
-                                const embedded = await finalPdf.embedPdf(attDoc, attDoc.getPageIndices());
-                                embedded.forEach((emb, idx) => {
-                                    const a4 = finalPdf.addPage([595.28, 841.89]);
-                                    const capH = 30;
-                                    const scale = Math.min((595.28 - 40) / emb.width, (841.89 - 40 - capH) / emb.height);
-                                    const w = emb.width * scale;
-                                    const h = emb.height * scale;
-                                    a4.drawPage(emb, {
-                                        x: (595.28 - w) / 2,
-                                        y: (841.89 - capH - h) / 2,
-                                        width: w,
-                                        height: h
-                                    });
-                                    if (idx === 0) drawCaption(finalPdf, a4, pdfAtt.doc);
+                                const attPages = await finalPdf.copyPages(attDoc, attDoc.getPageIndices());
+                                attPages.forEach((p, idx) => {
+                                    finalPdf.addPage(p);
+                                    if (idx === 0) drawCaption(finalPdf, p, pdfAtt.doc);
                                 });
                             } catch(e) {
                                 console.warn('Failed to merge PDF:', pdfAtt.doc.fileName, e);
@@ -13488,16 +13254,17 @@
                         // Add image attachments as PDF pages, with a caption strip on top.
                         for (const imgAtt of attachments.images) {
                             try {
-                                // Downscale + recompress to keep the PDF light (full-res photos are huge).
-                                const compressed = await recompressImageForPdf(imgAtt.data, 1800, 0.82);
-                                const imgBytes = Uint8Array.from(atob(compressed.split(',')[1]), c => c.charCodeAt(0));
-                                const img = await finalPdf.embedJpg(imgBytes);
+                                const imgDataUrl = imgAtt.data;
+                                const imgBytes = Uint8Array.from(atob(imgDataUrl.split(',')[1]), c => c.charCodeAt(0));
+                                let img;
+                                if (imgAtt.type.includes('png')) {
+                                    img = await finalPdf.embedPng(imgBytes);
+                                } else {
+                                    img = await finalPdf.embedJpg(imgBytes);
+                                }
                                 const page = finalPdf.addPage([595.28, 841.89]); // A4
                                 const capH = 30;
-                                // Fit each document to the full usable page area (no max-1 cap),
-                                // so every attachment fills the page consistently — small/low-res
-                                // scans are scaled UP too, giving a uniform size across all docs.
-                                const scale = Math.min((595.28 - 40) / img.width, (841.89 - 40 - capH) / img.height);
+                                const scale = Math.min((595.28 - 40) / img.width, (841.89 - 40 - capH) / img.height, 1);
                                 const w = img.width * scale;
                                 const h = img.height * scale;
                                 page.drawImage(img, {
@@ -13513,48 +13280,8 @@
                         }
                     }
 
-                    // ===== Continuous page numbering + header count (system-defined, spans the whole export) =====
-                    try {
-                        const allPages = finalPdf.getPages();
-                        const totalPages = allPages.length;
-                        const attCount = mergedAtt.images.length + mergedAtt.pdfs.length;
-                        const numW = 220;
-                        for (let i = 0; i < allPages.length; i++) {
-                            const pg = allPages[i];
-                            const pw = pg.getWidth();
-                            const strip = makeTextStripImage('עמוד ' + (i + 1) + ' מתוך ' + totalPages, numW, { hPt: 12, size: 8, color: '#64748b', bg: '#ffffff', align: 'center' });
-                            const nb = Uint8Array.from(atob(strip.dataUrl.split(',')[1]), ch => ch.charCodeAt(0));
-                            const nimg = await finalPdf.embedJpg(nb);
-                            pg.drawImage(nimg, { x: (pw - numW) / 2, y: 6, width: numW, height: strip.hPt });
-                        }
-                        // Header banner on page 1 — tells you exactly how much the report contains.
-                        // Skip for the vector report: it has its own branded header already.
-                        if (!_useVector && allPages.length > 0) {
-                            const p1 = allPages[0];
-                            const pw = p1.getWidth();
-                            const bannerTxt = 'הדוח מכיל ' + totalPages + ' עמודים' + (attCount > 0 ? '  ·  כולל ' + attCount + ' נספחים' : '');
-                            const cap = makeCaptionImage(bannerTxt, pw);
-                            const bb = Uint8Array.from(atob(cap.dataUrl.split(',')[1]), ch => ch.charCodeAt(0));
-                            const bimg = await finalPdf.embedJpg(bb);
-                            p1.drawImage(bimg, { x: 0, y: p1.getHeight() - cap.hPt, width: pw, height: cap.hPt });
-                        }
-                    } catch (e) { console.warn('page numbering failed', e); }
-
                     // Step 3: Save and display PDF
                     document.getElementById('pdfDetail').textContent = 'פותח PDF...';
-                    // Embed the report name in the PDF metadata BEFORE saving. The browser's
-                    // built-in PDF viewer uses the document Title as the default "Save as"
-                    // filename, so saving from the viewer's own button gives a proper name
-                    // instead of the random blob id.
-                    try {
-                        const _p = n => String(n).padStart(2, '0');
-                        const _d = new Date();
-                        const _ds = _p(_d.getDate()) + '-' + _p(_d.getMonth() + 1) + '-' + _d.getFullYear();
-                        const _t = title.replace(/[^֐-׿a-zA-Z0-9 ]/g, '') + ' - ' + _scopeName.replace(/[^֐-׿a-zA-Z0-9 ]/g, '').trim() + ' - ' + _ds;
-                        finalPdf.setTitle(_t);
-                        finalPdf.setCreator('John Finance');
-                        finalPdf.setProducer('John Finance');
-                    } catch (e) { console.warn('setTitle failed', e); }
                     const finalBytes = await finalPdf.save();
                     const blob = new Blob([finalBytes], { type: 'application/pdf' });
                     const url = URL.createObjectURL(blob);
