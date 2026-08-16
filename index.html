@@ -9261,27 +9261,39 @@
         // vector text, light file, no external library mangling the Hebrew.
         function buildIncomeReportHTML() {
             const year = document.getElementById('currentYear').value;
+            const mode = (incomeExportScope || {}).mode || 'flat';   // 'year' = split by month, 'flat' = together
             const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
             let sections = '';
             incomeSelectedDatasets().forEach(dsKey => {
                 const ds = INCOME_DATASETS[dsKey];
                 const items = [...ds.get()].sort((a, b) => a.month - b.month);
                 const isSelf = dsKey === 'selfEmployed';
-                let cum = 0, rows = '';
-                items.forEach(r => {
-                    cum += (Number(r.amount) || 0);
-                    if (isSelf) {
-                        const done = incomeMissingStages(r).length === 0;
-                        rows += '<tr><td class="r">' + esc(MONTHS[r.month]) + '</td><td class="r ' + (done ? 'st-done' : 'st-wait') + '">' + (done ? 'הושלם' : 'ממתין') + '</td><td class="r">' + esc(r.description || '-') + '</td><td class="l">' + formatCurrency(r.amount) + '</td><td class="l cum">' + formatCurrency(cum) + '</td></tr>';
-                    } else {
-                        rows += '<tr><td class="r">' + esc(MONTHS[r.month]) + '</td><td class="r">' + ((r.driveLink || r.driveId) ? 'מצורף' : '—') + '</td><td class="l">' + formatCurrency(r.amount) + '</td><td class="l cum">' + formatCurrency(cum) + '</td></tr>';
-                    }
-                });
-                const total = items.reduce((s, r) => s + (Number(r.amount) || 0), 0);
                 const head = isSelf
                     ? '<tr><th class="r">חודש</th><th class="r">סטטוס</th><th class="r">תיאור</th><th class="l">סכום</th><th class="l">מצטבר</th></tr>'
                     : '<tr><th class="r">חודש</th><th class="r">מסמך</th><th class="l">סכום</th><th class="l">מצטבר</th></tr>';
-                sections += '<div class="section">' + esc(ds.title) + '</div><table><thead>' + head + '</thead><tbody>' + (rows || '<tr><td colspan="5" style="text-align:center;color:#7c8a99;padding:20px;">אין נתונים</td></tr>') + '</tbody></table><div class="totalbar"><span>סה״כ ' + esc(ds.title) + '</span><span>' + formatCurrency(total) + '</span></div>';
+                const rowHtml = (r, cum) => isSelf
+                    ? ('<tr><td class="r">' + esc(MONTHS[r.month]) + '</td><td class="r ' + (incomeMissingStages(r).length === 0 ? 'st-done">הושלם' : 'st-wait">ממתין') + '</td><td class="r">' + esc(r.description || '-') + '</td><td class="l">' + formatCurrency(r.amount) + '</td><td class="l cum">' + formatCurrency(cum) + '</td></tr>')
+                    : ('<tr><td class="r">' + esc(MONTHS[r.month]) + '</td><td class="r">' + ((r.driveLink || r.driveId) ? 'מצורף' : '—') + '</td><td class="l">' + formatCurrency(r.amount) + '</td><td class="l cum">' + formatCurrency(cum) + '</td></tr>');
+                const total = items.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+                sections += '<div class="section">' + esc(ds.title) + '</div>';
+                let cum = 0;
+                if (!items.length) {
+                    sections += '<table><thead>' + head + '</thead><tbody><tr><td colspan="5" style="text-align:center;color:#7c8a99;padding:20px;">אין נתונים</td></tr></tbody></table>';
+                } else if (mode === 'year') {
+                    const byM = {};
+                    items.forEach(r => { (byM[r.month] = byM[r.month] || []).push(r); });
+                    Object.keys(byM).map(Number).sort((a, b) => a - b).forEach(m => {
+                        const list = byM[m];
+                        let sub = 0, rows = '';
+                        list.forEach(r => { cum += (Number(r.amount) || 0); sub += (Number(r.amount) || 0); rows += rowHtml(r, cum); });
+                        sections += '<div class="monthhead">' + esc(MONTHS[m]) + '</div><table><thead>' + head + '</thead><tbody>' + rows + '</tbody></table><div class="subtotal"><span>סה״כ ' + esc(MONTHS[m]) + ' (' + list.length + ')</span><span>' + formatCurrency(sub) + '</span></div>';
+                    });
+                } else {
+                    let rows = '';
+                    items.forEach(r => { cum += (Number(r.amount) || 0); rows += rowHtml(r, cum); });
+                    sections += '<table><thead>' + head + '</thead><tbody>' + rows + '</tbody></table>';
+                }
+                sections += '<div class="totalbar"><span>סה״כ ' + esc(ds.title) + '</span><span>' + formatCurrency(total) + '</span></div>';
             });
             const title = 'דוח הכנסות — ' + esc(year);
             const dateStr = new Date().toLocaleDateString('he-IL');
@@ -9295,6 +9307,8 @@
                 + '.meta{text-align:left;color:var(--mut);font-size:12px;line-height:1.6;}'
                 + '.rule{height:3px;background:var(--teal);border:0;margin:14px 0 24px;border-radius:2px;}'
                 + '.section{color:var(--teald);font-size:16px;font-weight:800;margin:22px 0 10px;}'
+                + '.monthhead{font-size:13px;font-weight:800;color:var(--ink);margin:14px 0 4px;}'
+                + '.subtotal{display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;color:var(--mut);border-top:1px solid var(--line);padding:6px 12px;margin-bottom:6px;}'
                 + 'table{width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:0;}'
                 + 'thead th{background:var(--teal);color:#fff;font-weight:700;padding:11px 12px;}'
                 + '.r{text-align:right;}.l{text-align:left;}'
