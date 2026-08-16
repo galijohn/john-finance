@@ -13349,6 +13349,19 @@
 
                     // Step 3: Save and display PDF
                     document.getElementById('pdfDetail').textContent = 'פותח PDF...';
+                    // Embed the report name in the PDF metadata BEFORE saving. The browser's
+                    // built-in PDF viewer uses the document Title as the default "Save as"
+                    // filename, so saving from the viewer's own button gives a proper name
+                    // instead of the random blob id.
+                    try {
+                        const _p = n => String(n).padStart(2, '0');
+                        const _d = new Date();
+                        const _ds = _p(_d.getDate()) + '-' + _p(_d.getMonth() + 1) + '-' + _d.getFullYear();
+                        const _t = title.replace(/[^֐-׿a-zA-Z0-9 ]/g, '') + ' - ' + _scopeName.replace(/[^֐-׿a-zA-Z0-9 ]/g, '').trim() + ' - ' + _ds;
+                        finalPdf.setTitle(_t);
+                        finalPdf.setCreator('John Finance');
+                        finalPdf.setProducer('John Finance');
+                    } catch (e) { console.warn('setTitle failed', e); }
                     const finalBytes = await finalPdf.save();
                     const blob = new Blob([finalBytes], { type: 'application/pdf' });
                     const url = URL.createObjectURL(blob);
