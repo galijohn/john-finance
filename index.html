@@ -13264,7 +13264,10 @@
                                 }
                                 const page = finalPdf.addPage([595.28, 841.89]); // A4
                                 const capH = 30;
-                                const scale = Math.min((595.28 - 40) / img.width, (841.89 - 40 - capH) / img.height, 1);
+                                // Fit each document to the full usable page area (no max-1 cap),
+                                // so every attachment fills the page consistently — small/low-res
+                                // scans are scaled UP too, giving a uniform size across all docs.
+                                const scale = Math.min((595.28 - 40) / img.width, (841.89 - 40 - capH) / img.height);
                                 const w = img.width * scale;
                                 const h = img.height * scale;
                                 page.drawImage(img, {
