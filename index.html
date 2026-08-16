@@ -13241,10 +13241,25 @@
                         for (const pdfAtt of attachments.pdfs) {
                             try {
                                 const attDoc = await PDFDocument.load(pdfAtt.bytes);
-                                const attPages = await finalPdf.copyPages(attDoc, attDoc.getPageIndices());
-                                attPages.forEach((p, idx) => {
-                                    finalPdf.addPage(p);
-                                    if (idx === 0) drawCaption(finalPdf, p, pdfAtt.doc);
+                                // Same display rule as the report and image attachments:
+                                // every source page is re-framed onto a fresh A4 page and
+                                // scaled to fill it. The uploaded file's own page size is
+                                // irrelevant — the system defines the display size, so all
+                                // pages in the export come out identical.
+                                const embedded = await finalPdf.embedPdf(attDoc, attDoc.getPageIndices());
+                                embedded.forEach((emb, idx) => {
+                                    const a4 = finalPdf.addPage([595.28, 841.89]);
+                                    const capH = 30;
+                                    const scale = Math.min((595.28 - 40) / emb.width, (841.89 - 40 - capH) / emb.height);
+                                    const w = emb.width * scale;
+                                    const h = emb.height * scale;
+                                    a4.drawPage(emb, {
+                                        x: (595.28 - w) / 2,
+                                        y: (841.89 - capH - h) / 2,
+                                        width: w,
+                                        height: h
+                                    });
+                                    if (idx === 0) drawCaption(finalPdf, a4, pdfAtt.doc);
                                 });
                             } catch(e) {
                                 console.warn('Failed to merge PDF:', pdfAtt.doc.fileName, e);
