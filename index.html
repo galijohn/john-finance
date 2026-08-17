@@ -11202,8 +11202,13 @@
 
             // On first render, collapse all categories
             if (expenseFirstRender && expenseGrouped) {
-                const cats = [...new Set(allItems.map(e => e.category))];
+                const rec2 = getRecurring();
+                const recCats = expenseMonth === 'all'
+                    ? Object.values(rec2.months || {}).flatMap(m => active(m).map(i => i.category))
+                    : active(rec2.months[expenseMonth] || []).map(i => i.category);
+                const cats = [...new Set([...allItems.map(e => e.category), ...recCats])];
                 cats.forEach(c => { collapsedCategories[c] = true; });
+                collapsedCategories['__nondeduct__'] = true;
                 expenseFirstRender = false;
             }
 
@@ -11321,7 +11326,7 @@
 
                 let html = '';
                 // One header for the whole recognized section (parallel to the לא-מוכר header).
-                html += `<tr class="category-group-header"><td colspan="6" style="color:var(--success);font-weight:700;">💳 הוצאות מוכרות</td></tr>`;
+                html += `<tr class="category-group-header" style="background:rgba(148,163,184,0.10);"><td colspan="4" style="color:var(--text-muted);">💳 הוצאות מוכרות</td><td class="col-pct"></td><td class="col-net"></td></tr>`;
                 // Cross-month "unpaid from earlier months" summary — belongs to no single category.
                 if (inMonth) html += carryBillsSummaryHtml(expenseMonth);
 
@@ -11398,13 +11403,16 @@
             if (!items.length && !billCount) return '';
             const total = items.reduce((s, e) => s + (Number(e.amount) || 0), 0) + billTotal;
             const count = items.length + billCount;
-            let html = `<tr class="category-group-header" style="background:rgba(148,163,184,0.10);">
-                <td colspan="4" style="color:var(--text-muted);">🔒 הוצאות לא מוכרות — מעקב בלבד (${count})</td>
+            const ndCollapsed = collapsedCategories['__nondeduct__'];
+            let html = `<tr class="category-group-header row-click" style="background:rgba(148,163,184,0.10);" onclick="toggleCategoryCollapse('__nondeduct__')">
+                <td colspan="4" style="color:var(--text-muted);">${ndCollapsed ? '▶' : '▼'} 🔒 הוצאות לא מוכרות — מעקב בלבד (${count})</td>
                 <td class="col-pct"></td>
                 <td class="col-net"></td>
             </tr>`;
-            html += billRows;
-            html += [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(e => renderExpenseRow(e)).join('');
+            if (!ndCollapsed) {
+                html += billRows;
+                html += [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(e => renderExpenseRow(e)).join('');
+            }
             return html;
         }
 
