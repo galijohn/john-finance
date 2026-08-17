@@ -7574,7 +7574,17 @@
             const ks = document.getElementById('expenseKindGroup');
             if (ks) ks.style.display = '';   // type is visible/editable in the unified edit box
             const kSel = document.getElementById('expenseKind');
-            if (kSel) kSel.value = 'once';
+            if (kSel) {
+                // Show the item's REAL type — a payment linked to a recurring item takes
+                // that item's kind (bill/category/collect); otherwise it's a one-time expense.
+                let k = 'once';
+                if (item.recurringKey) {
+                    const parts = String(item.recurringKey).split(':');
+                    const it = (getRecurring().months[parts[0]] || []).find(i => String(i.id) === String(parts[1]));
+                    if (it) k = it.kind || 'bill';
+                }
+                kSel.value = k;
+            }
             document.getElementById('expenseModalTitle').textContent = '🧾 עריכת הוצאה';
             openModal('expenseModal');
         }
@@ -9983,9 +9993,24 @@
         // to the recurring dialog preset to that kind.
         function onExpenseKindChange(kind) {
             if (kind === 'once') return;
+            // Carry the current data over to the recurring form so nothing is wiped
+            // when switching type — the user is editing, not starting from scratch.
+            const carry = {
+                desc: document.getElementById('expenseDesc').value,
+                category: document.getElementById('expenseCategory').value,
+                amount: document.getElementById('expenseAmount').value,
+                recognition: document.getElementById('expenseRecognition').value,
+                deductible: document.getElementById('expenseDeductible').value === '1'
+            };
             closeModal('expenseModal');
             openRecurringAdd();
             document.getElementById('recKind').value = kind;
+            onRecKindChange();
+            if (carry.desc) document.getElementById('recDesc').value = carry.desc;
+            if (carry.category) document.getElementById('recCategory').value = carry.category;
+            if (carry.amount) document.getElementById('recAmount').value = carry.amount;
+            if (carry.recognition) document.getElementById('recRecognition').value = carry.recognition;
+            setRecDeductible(carry.deductible);
             onRecKindChange();
         }
 
