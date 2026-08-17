@@ -11238,8 +11238,7 @@
                 active(getRecurring().months[expenseMonth] || []).some(i => isCollect(i) && !lineDone(expenseMonth, i));
             const hasNonDeductBills = expenseGrouped && expenseMonth !== 'all' && expenseFilter === 'all' &&
                 active(getRecurring().months[expenseMonth] || []).some(i => isBill(i) && !billIsDeductible(expenseMonth, i));
-            if (expenseItems.length === 0 && !hasPendingCollects && !hasNonDeductBills) {
-                if (billsHtmlEarly) { tbody.innerHTML = billsHtmlEarly; return; }
+            if (expenseItems.length === 0 && !hasPendingCollects && !hasNonDeductBills && !billsHtmlEarly) {
                 const msg = expenseMonth === 'all' ? 'לחץ + להוסיף' : 'אין הוצאות ב' + monthLabelFromKey(expenseMonth);
                 tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">🧾</div><p>' + msg + '</p></td></tr>';
                 return;
@@ -11268,47 +11267,70 @@
             filtered = filtered.filter(isDeductible);
 
             if (expenseGrouped) {
-                // Group by category
+                const rec = getRecurring();
+                const inMonth = expenseMonth !== 'all' && expenseFilter === 'all';
+
+                // Group regular expenses by category
                 const groups = {};
                 filtered.forEach(e => {
                     if (!groups[e.category]) groups[e.category] = [];
                     groups[e.category].push(e);
                 });
 
-                let html = '';
-
-                // Bills for this month live in the same list, above the categories —
-                // each with its own paid/unpaid state. No separate panel.
-                html += billsHtmlEarly;
+                // Deductible fixed bills of the month — now shown INSIDE their category
+                // (no separate block on top), each with its own type badge + paid/unpaid state.
+                const billsByCat = {};
+                if (inMonth) {
+                    active(rec.months[expenseMonth] || []).forEach(i => {
+                        if (isBill(i) && billIsDeductible(expenseMonth, i)) {
+                            (billsByCat[i.category] = billsByCat[i.category] || []).push(i);
+                        }
+                    });
+                }
 
                 // Budgets defined for running categories, so a group header can show them
                 const budgets = {};
                 if (expenseMonth !== 'all') {
-                    const rec = getRecurring();
                     active(rec.months[expenseMonth] || []).forEach(i => {
-                        // A category line with no budget says nothing the group row
-                        // doesn't already show — skip it.
                         if (isCategory(i) && Number(i.amount) > 0) budgets[i.category] = i;
                     });
                 }
 
-                // Invoices still to collect live INSIDE their category, at the bottom of
-                // the group — never as rows above the table.
+                // Invoices still to collect live INSIDE their category
                 const pendingCollects = {};
                 if (expenseMonth !== 'all') {
-                    const rec = getRecurring();
                     active(rec.months[expenseMonth] || []).forEach(i => {
                         if (isCollect(i) && !lineDone(expenseMonth, i)) {
                             (pendingCollects[i.category] = pendingCollects[i.category] || []).push(i);
                         }
                     });
-                    // a category that only has something to collect still needs its group
-                    Object.keys(pendingCollects).forEach(c => { if (!groups[c]) groups[c] = []; });
                 }
+                // categories that exist only because of bills / collects still need a group
+                Object.keys(billsByCat).forEach(c => { if (!groups[c]) groups[c] = []; });
+                Object.keys(pendingCollects).forEach(c => { if (!groups[c]) groups[c] = []; });
+
+                // Effective gross/recognized for a bill (paid → the payment record decides).
+                const billEff = (i) => {
+                    const p = lineDone(expenseMonth, i);
+                    const r = (p && p.id) ? p : null;
+                    const amt = r ? (Number(r.amount) || 0) : (Number(i.amount) || 0);
+                    const pct = r ? (r.recognition ?? 100) : (i.recognition ?? 100);
+                    const ded = r ? isDeductible(r) : isDeductible(i);
+                    return { gross: amt, recognized: ded ? amt * (pct / 100) : 0 };
+                };
+
+                let html = '';
+                // One header for the whole recognized section (parallel to the לא-מוכר header).
+                html += `<tr class="category-group-header"><td colspan="6" style="color:var(--success);font-weight:700;">💳 הוצאות מוכרות</td></tr>`;
+                // Cross-month "unpaid from earlier months" summary — belongs to no single category.
+                if (inMonth) html += carryBillsSummaryHtml(expenseMonth);
 
                 for (const [cat, items] of Object.entries(groups)) {
-                    const catRecognized = items.reduce((s, e) => s + (isDeductible(e) ? e.amount * ((e.recognition ?? 100) / 100) : 0), 0);
-                    const catGross = items.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+                    const catBills = billsByCat[cat] || [];
+                    const billT = catBills.reduce((a, i) => { const e = billEff(i); a.gross += e.gross; a.recognized += e.recognized; return a; }, { gross: 0, recognized: 0 });
+                    const catRecognized = items.reduce((s, e) => s + (isDeductible(e) ? e.amount * ((e.recognition ?? 100) / 100) : 0), 0) + billT.recognized;
+                    const catGross = items.reduce((s, e) => s + (Number(e.amount) || 0), 0) + billT.gross;
+                    const count = items.length + catBills.length;
                     const isCollapsed = collapsedCategories[cat];
                     const b = budgets[cat];
                     let budgetCell = '<td class="col-pct" colspan="1" style="text-align:center;">—</td>';
@@ -11326,7 +11348,7 @@
                     html += `<tr class="category-group-header row-click" onclick="toggleCategoryCollapse('${cat}')"
                                  oncontextmenu="showRowMenu(event,'category','${cat}',${catExtra})"
                                  ontouchstart="rowTouchStart(event,'category','${cat}',${catExtra})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
-                        <td colspan="4">${isCollapsed ? '▶' : '▼'} ${categoryLabel(cat)} (${items.length})${
+                        <td colspan="4">${isCollapsed ? '▶' : '▼'} ${categoryLabel(cat)} (${count})${
                             (pendingCollects[cat] || []).length
                                 ? ` <span style="color:#a78bfa;font-size:0.78rem;font-weight:400;">📄 ${pendingCollects[cat].length} לאיסוף</span>`
                                 : ''}</td>
@@ -11335,6 +11357,7 @@
                     </tr>`;
                     if (!isCollapsed) {
                         html += items.map(e => renderExpenseRow(e)).join('');
+                        html += [...catBills].sort((a, b) => (a.dueDay || 99) - (b.dueDay || 99)).map(i => billRowHtml(expenseMonth, i, false)).join('');
                         (pendingCollects[cat] || []).forEach(i => { html += collectRowHtml(expenseMonth, i); });
                     }
                 }
@@ -11424,6 +11447,34 @@
             }
             html += [...items].sort((a, b) => (a.dueDay || 99) - (b.dueDay || 99))
                 .map(i => billRowHtml(monthKey, i, false)).join('');
+            return html;
+        }
+
+        // Just the cross-month "unpaid from earlier months" summary line (deductible bills).
+        // Used when bills live inside their categories, so the carry note still shows.
+        function carryBillsSummaryHtml(monthKey) {
+            const rec = getRecurring();
+            const carry = [];
+            Object.keys(rec.months).sort().forEach(k => {
+                if (k >= monthKey) return;
+                active(rec.months[k]).forEach(i => {
+                    if (isBill(i) && billIsDeductible(k, i) && !lineDone(k, i)) carry.push({ k, i });
+                });
+            });
+            if (!carry.length) return '';
+            const months = [...new Set(carry.map(c => c.k))].sort();
+            const total = carry.reduce((s, c) => s + (Number(c.i.amount) || 0), 0);
+            let html = `<tr class="row-click" style="background:rgba(239,68,68,0.12);" onclick="toggleCarryOpen()">
+                <td colspan="4" style="color:var(--danger);font-weight:600;">
+                    ${_carryOpen ? '▼' : '▶'} ⚠️ ${carry.length} חשבונות לא שולמו מחודשים קודמים
+                    <span style="font-weight:400;font-size:0.8rem;color:var(--text-muted);margin-inline-start:6px;">
+                        ${monthLabelFromKey(months[0])}${months.length > 1 ? ' – ' + monthLabelFromKey(months[months.length - 1]) : ''}
+                    </span>
+                </td>
+                <td class="col-pct"></td>
+                <td class="col-net" style="color:var(--danger)">${formatCurrency(total)}</td>
+            </tr>`;
+            if (_carryOpen) html += carry.map(c => billRowHtml(c.k, c.i, true)).join('');
             return html;
         }
 
