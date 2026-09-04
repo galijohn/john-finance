@@ -3165,10 +3165,11 @@
                 <button class="btn-icon" onclick="closeModal('incomeDossierModal')">✕</button>
             </div>
             <div class="modal-body">
-                <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;">שלבי ההכנסה — לחץ "צרף" בכל שלב. הסטטוס מתעדכן לבד לפי המסמך האחרון שצורף.</div>
+                <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;">צרף כמה מסמכים שצריך — לכל מסמך שם משלך. לחץ על השם כדי לשנות אותו.</div>
                 <div id="incomeDossierBody"></div>
-                <div id="incomeDossierStatus" style="font-size:0.85rem;color:var(--text-muted);margin-top:6px;"></div>
-                <input type="file" id="incomeDocFile" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="onIncomeDocPicked(this)">
+                <button class="btn btn-primary btn-sm" style="width:auto;margin-top:6px;" onclick="pickFolderDoc()">➕ הוסף מסמך</button>
+                <div id="incomeDossierStatus" style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;"></div>
+                <input type="file" id="incomeDocFile" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="onFolderDocPicked(this)">
             </div>
             <div class="modal-footer">
                 <button class="btn" onclick="closeModal('incomeDossierModal')">סגור</button>
@@ -5377,22 +5378,21 @@
                 const year = parseInt(yearKey);
                 const push = (rec, baseFolder, meta) => {
                     if (!rec || rec._deleted) return;
-                    if (!rec.driveId && !rec.driveLink) return;
-                    items.push({ rec, year, baseFolder, meta });
+                    const docs = recordDocs(rec);
+                    if (docs.length) {
+                        docs.forEach(d => {
+                            if (!d.driveId && !d.driveLink) return;
+                            items.push({ rec: d, year, baseFolder, meta: { ...meta, description: (meta.description || '') + (d.name ? ' · ' + d.name : '') } });
+                        });
+                    } else if (rec.driveId || rec.driveLink) {
+                        items.push({ rec, year, baseFolder, meta });
+                    }
                 };
                 active(yd.salary).forEach(r => push(r, 'שכיר', { month: r.month, description: r.employer || 'תלוש', amount: r.gross }));
                 active(yd.unemployment).forEach(r => push(r, 'אבטלה', { month: r.month, description: 'אבטלה', amount: r.gross }));
                 active(yd.miluim).forEach(r => push(r, 'מילואים', { date: r.from, description: 'מילואים', amount: r.amount }));
                 active(yd.selfEmployed).forEach(r => {
                     push(r, 'חשבוניות-עצמאי', { month: r.month, description: r.description || 'הכנסה', amount: r.amount });
-                    // Income stage documents (proforma/SWIFT/conversion/invoice) each get
-                    // filed flat in the month folder too, so a whole income sits in one place.
-                    if (r.incomeDocs) {
-                        const SL = { proforma: 'פרופורמה', swift: 'סוויפט', conversion: 'המרה לש"ח', invoice: 'חשבונית קבלה' };
-                        Object.keys(r.incomeDocs).forEach(k => {
-                            push(r.incomeDocs[k], 'חשבוניות-עצמאי', { month: r.month, description: (r.description || 'הכנסה') + ' ' + (SL[k] || ''), amount: r.amount });
-                        });
-                    }
                 });
                 active(yd.expenses).forEach(r => push(r, 'הוצאות-מוכרות', { date: r.date, category: r.category, description: r.description, amount: r.amount }));
                 active(yd.taxAdvances).forEach(r => push(r, 'מקדמות-מס', { month: r.month, description: 'מקדמת מס', amount: r.amount }));
@@ -7092,7 +7092,9 @@
                 itemData.recurringKey = recurringPayContext.monthKey + ':' + recurringPayContext.itemId;
             }
 
-            // Handle file upload — REQUIRES Drive success
+            // Handle file upload — REQUIRES Drive success. The file becomes one document
+            // in the record's folder; add more later from the row's 📂 תיק מסמכים.
+            let _newDoc = null;
             const fileInput = document.getElementById('expenseFile');
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
@@ -7106,11 +7108,12 @@
                     document.getElementById('expenseFileStatus').textContent = '❌ נכשל';
                     return;
                 }
-                itemData.fileName = file.name;
-                itemData.localPath = results.local;
-                itemData.driveId = results.drive.id;
-                if (editingId) _replacedFile = (function(){ const yd2=getYearData(); for (const k of ["salary","unemployment","miluim","selfEmployed","expenses","taxAdvances","blAdvances"]) { const r=(yd2[k]||[]).find(x=>x.id===editingId); if (r && r.driveId && r.driveId!==results.drive.id) return {driveId:r.driveId, localPath:r.localPath}; } return null; })();
-                itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
+                _newDoc = {
+                    id: _newDocId(), name: stripDocExt(file.name), fileName: file.name,
+                    driveId: results.drive.id,
+                    driveLink: results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view'),
+                    localPath: results.local, date: new Date().toISOString().slice(0, 10)
+                };
                 document.getElementById('expenseFileStatus').textContent = '✅ הועלה!';
             }
             
@@ -7128,6 +7131,8 @@
             // Single source of truth: a recurring-bill payment keeps its recurring item's
             // deductible + category in sync, so changing מוכר/לא מוכר here moves the row
             // to the right section (placement follows the effective deductible).
+            const _savedRecDoc = yd.expenses.find(x => x.id === recordId);
+            if (_savedRecDoc && _newDoc) { recordDocs(_savedRecDoc).push(_newDoc); syncPrimaryDoc(_savedRecDoc); saveData(); }
             const _savedExp = yd.expenses.find(x => x.id === recordId);
             if (_savedExp && _savedExp.recurringKey) {
                 const parts = String(_savedExp.recurringKey).split(':');
@@ -9103,6 +9108,150 @@
             { key: 'conversion', label: 'המרה לש"ח' },
             { key: 'invoice',    label: 'חשבונית קבלה' },
         ];
+
+        // ===== Unified document folder (תיק מסמכים) =====
+        // Any record can hold any number of named documents in r.docs = [{id,name,
+        // fileName,driveId,driveLink,localPath,date}]. Legacy single-doc records and the
+        // old fixed income-stage model migrate in on first read — nothing is lost.
+        const _INCOME_STAGE_LABELS = { proforma: 'פרופורמה', swift: 'סוויפט', conversion: 'המרה לש"ח', invoice: 'חשבונית קבלה' };
+        function stripDocExt(n) { return String(n || '').replace(/\.[^.]+$/, ''); }
+        function _newDocId() { return 'd' + Math.random().toString(36).slice(2, 9); }
+        function recordDocs(r) {
+            if (!r) return [];
+            if (Array.isArray(r.docs)) return r.docs;
+            const out = [];
+            if (r.incomeDocs) {
+                ['proforma', 'swift', 'conversion', 'invoice'].forEach(k => {
+                    const d = r.incomeDocs[k];
+                    if (d && (d.driveId || d.driveLink)) out.push({
+                        id: _newDocId(), name: _INCOME_STAGE_LABELS[k] || k,
+                        fileName: d.fileName, driveId: d.driveId, driveLink: d.driveLink,
+                        localPath: d.localPath, date: d.date || ''
+                    });
+                });
+                delete r.incomeDocs;
+            } else if (r.driveId || r.driveLink) {
+                out.push({
+                    id: _newDocId(), name: stripDocExt(r.fileName) || 'מסמך',
+                    fileName: r.fileName, driveId: r.driveId, driveLink: r.driveLink,
+                    localPath: r.localPath, date: r.date || ''
+                });
+            }
+            r.docs = out;
+            return r.docs;
+        }
+        function docCount(r) { return recordDocs(r).length; }
+        // Mirror the first document onto the record's legacy fields, so existing readers
+        // (row icons, quick-open, single-doc export/archive) keep reflecting "has a document".
+        function syncPrimaryDoc(r) {
+            const docs = Array.isArray(r.docs) ? r.docs : [];
+            if (docs.length) {
+                const d = docs[0];
+                r.driveId = d.driveId; r.driveLink = d.driveLink;
+                r.fileName = d.fileName; r.localPath = d.localPath;
+            } else {
+                delete r.driveId; delete r.driveLink; delete r.fileName; delete r.localPath;
+            }
+        }
+
+        let _docFolderKind = null;   // 'income' | 'expense'
+        let _docFolderId = null;
+        function openDocFolder(kind, id) {
+            _docFolderKind = kind; _docFolderId = id;
+            renderDocFolder();
+            openModal('incomeDossierModal');
+        }
+        function _folderRecord() {
+            const yd = getYearData();
+            const arr = _docFolderKind === 'expense' ? yd.expenses : yd.selfEmployed;
+            return active(arr).find(x => x.id === _docFolderId);
+        }
+        function _folderCtx(r) {
+            if (_docFolderKind === 'expense') {
+                return {
+                    base: 'הוצאות-מוכרות', uploadType: 'expense',
+                    title: '📂 תיק מסמכים · ' + (r.description || 'הוצאה'),
+                    sub: (r.date ? formatDate(r.date) + ' · ' : '') + formatCurrency(r.amount || 0),
+                    meta: name => ({ date: r.date, category: r.category, description: (r.description || 'הוצאה') + (name ? ' · ' + name : ''), amount: r.amount })
+                };
+            }
+            return {
+                base: 'חשבוניות-עצמאי', uploadType: 'selfEmployed',
+                title: '📂 תיק הכנסה · ' + MONTHS[r.month] + ' · ' + (r.description || 'הכנסה'),
+                sub: formatCurrency(r.amount || 0),
+                meta: name => ({ month: r.month, description: (r.description || 'הכנסה') + (name ? ' · ' + name : ''), amount: r.amount })
+            };
+        }
+        function renderDocFolder() {
+            const r = _folderRecord(); if (!r) return;
+            const ctx = _folderCtx(r);
+            document.getElementById('incomeDossierTitle').textContent = ctx.title;
+            document.getElementById('incomeDossierSub').textContent = ctx.sub;
+            const docs = recordDocs(r);
+            let body;
+            if (!docs.length) {
+                body = '<div style="padding:16px;border:1px dashed var(--border);border-radius:8px;text-align:center;color:var(--text-muted);">אין עדיין מסמכים — לחץ "הוסף מסמך".</div>';
+            } else {
+                body = docs.map(d => `<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;">
+                        <span style="color:var(--success);font-size:1.05rem;">✓</span>
+                        <input class="form-control" style="flex:1;" value="${escapeFormHtml(d.name || '')}" placeholder="שם המסמך" title="לחץ כדי לשנות את שם המסמך" onchange="renameFolderDoc('${d.id}', this.value)">
+                        <button class="btn btn-sm" style="width:auto;" onclick="viewFolderDoc('${d.id}')">👁️ צפה</button>
+                        <button class="btn btn-icon btn-sm" title="הסר מסמך" onclick="removeFolderDoc('${d.id}')">🗑️</button>
+                    </div>`).join('');
+            }
+            document.getElementById('incomeDossierBody').innerHTML = body;
+            document.getElementById('incomeDossierStatus').textContent = '';
+        }
+        function pickFolderDoc() { document.getElementById('incomeDocFile').click(); }
+        async function onFolderDocPicked(input) {
+            const file = input.files[0]; if (!file) return;
+            const r = _folderRecord(); if (!r) { input.value = ''; return; }
+            const ctx = _folderCtx(r);
+            const st = document.getElementById('incomeDossierStatus');
+            st.textContent = '⏳ מעלה...';
+            const defName = stripDocExt(file.name);
+            const results = await requireDriveUpload(file, ctx.base, ctx.uploadType, r.id, ctx.meta(defName));
+            if (!results) { st.textContent = '❌ ההעלאה נכשלה'; input.value = ''; return; }
+            const docs = recordDocs(r);
+            docs.push({
+                id: _newDocId(), name: defName, fileName: file.name,
+                driveId: results.drive.id,
+                driveLink: results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view'),
+                localPath: results.local, date: new Date().toISOString().slice(0, 10)
+            });
+            syncPrimaryDoc(r);
+            saveData();
+            input.value = '';
+            st.textContent = '✅ נוסף';
+            renderDocFolder();
+            renderAll();
+        }
+        function renameFolderDoc(docId, name) {
+            const r = _folderRecord(); if (!r) return;
+            const d = recordDocs(r).find(x => x.id === docId); if (!d) return;
+            d.name = (name || '').trim();
+            saveData();
+            renderAll();
+        }
+        function viewFolderDoc(docId) {
+            const r = _folderRecord(); if (!r) return;
+            const d = recordDocs(r).find(x => x.id === docId); if (!d) return;
+            if (d.driveLink || d.driveId) window.open(d.driveLink || ('https://drive.google.com/file/d/' + d.driveId + '/view'), '_blank');
+        }
+        async function removeFolderDoc(docId) {
+            const r = _folderRecord(); if (!r) return;
+            const docs = recordDocs(r);
+            const d = docs.find(x => x.id === docId); if (!d) return;
+            const ok = await popupConfirm('הסרת מסמך', 'להסיר את "' + (d.name || d.fileName || 'המסמך') + '"?\n\nהקובץ יעבור לפח ב־Google Drive (ניתן לשחזור).', 'הסר', 'ביטול');
+            if (!ok) return;
+            if (d.driveId) deleteDriveFile(d.driveId).catch(e => console.warn('[folder] remove failed', e));
+            const i = docs.indexOf(d); if (i >= 0) docs.splice(i, 1);
+            syncPrimaryDoc(r);
+            saveData();
+            renderDocFolder();
+            renderAll();
+        }
+
         function incomeDocsOf(r) {
             if (r.incomeDocs) return r.incomeDocs;
             if (r.driveLink || r.driveId) return { invoice: { driveLink: r.driveLink, driveId: r.driveId, fileName: r.fileName, localPath: r.localPath } };
@@ -9126,24 +9275,14 @@
         // Status chip + an explicit red list of which of the 4 documents are still missing.
         function incomeStatusCell(r) {
             const box = (bg, c, txt) => `<span style="background:${bg};color:${c};padding:3px 11px;border-radius:20px;font-size:0.78rem;white-space:nowrap;">${txt}</span>`;
-            const missing = incomeMissingStages(r);
-            // Green only once every document is in.
-            if (missing.length === 0) return box('rgba(16,185,129,0.15)', '#10b981', '✓ הושלם');
-            // Otherwise the status is red, with a warning triangle on its right (hover = what's missing).
-            const idx = incomeStageIdx(r);
-            const label = idx < 0 ? 'טרם החל' : INCOME_STAGES[idx].label;
-            const tip = 'חסר: ' + missing.map(s => s.label).join(', ');
-            const tri = `<span class="pay-tip" data-tip="${escapeFormHtml(tip)}" style="color:#f87171;margin-inline-end:6px;cursor:help;font-size:0.9rem;">⚠</span>`;
-            return tri + box('rgba(239,68,68,0.15)', '#f87171', label);
+            const n = docCount(r);
+            if (!n) return box('rgba(148,163,184,0.15)', '#94a3b8', '＋ צרף מסמך');
+            return box('rgba(16,185,129,0.15)', '#10b981', '📎 ' + n + (n === 1 ? ' מסמך' : ' מסמכים'));
         }
 
         let _incomeDossierId = null;
         let _incomeAttachStage = null;
-        function openIncomeDossier(id) {
-            _incomeDossierId = id;
-            renderIncomeDossier();
-            openModal('incomeDossierModal');
-        }
+        function openIncomeDossier(id) { openDocFolder('income', id); }
         function renderIncomeDossier() {
             const r = active(getYearData().selfEmployed).find(x => x.id === _incomeDossierId);
             if (!r) return;
@@ -9231,7 +9370,7 @@
             taxAdvance:   { title: 'מקדמות מס הכנסה', get: () => active(getYearData().taxAdvances) },
             blAdvance:    { title: 'ביטוח לאומי + מס בריאות', get: () => active(getYearData().blAdvances) },
         };
-        function incomeMissingStages(r) { const d = incomeDocsOf(r); return INCOME_STAGES.filter(s => !d[s.key]); }
+        function incomeMissingStages(r) { return []; }
         function incomeSelectedDatasets() {
             const ds = (incomeExportScope || {}).dataset || 'selfEmployed';
             return ds === 'all' ? ['selfEmployed', 'taxAdvance', 'blAdvance'] : [ds];
@@ -9268,10 +9407,9 @@
         }
         // Per-stage ✓ / ✗ (missing in red) for the report table.
         function incomeDocsCellHtml(r) {
-            const d = incomeDocsOf(r);
-            return INCOME_STAGES.map(s => d[s.key]
-                ? '<span style="color:#059669;">✓' + s.label + '</span>'
-                : '<span style="color:#dc2626;">✗' + s.label + '</span>').join(' ');
+            const docs = recordDocs(r);
+            if (!docs.length) return '<span style="color:#dc2626;">✗ אין מסמכים</span>';
+            return '<span style="color:#059669;">✓ ' + docs.map(d => d.name || 'מסמך').join(', ') + '</span>';
         }
         // Builds the PDF report body for the chosen datasets + split.
         function incomeReportBodyHTML(fmtNum) {
@@ -11526,7 +11664,7 @@
             // non-deductible expense, not 100% + a recognized amount.
             const deduct = real ? isDeductible(real) : isDeductible(item);
             const menuExtra = `{monthKey:'${monthKey}',paymentId:${real ? real.id : 'null'}}`;
-            const rowClick = real ? `openRecordFile(${real.id})` : `payRecurring('${monthKey}','${item.id}')`;
+            const rowClick = real ? `openDocFolder('expense',${real.id})` : `payRecurring('${monthKey}','${item.id}')`;
             // State icon: unpaid → 🪙, paid → how it was paid. Collect lines carry no money out.
             let payIcon = '';
             if (!collect) {
@@ -11808,12 +11946,12 @@
             const recognized = deduct ? e.amount * (pct / 100) : 0;
             const tag = deduct ? '' : ' <span style="font-size:0.72rem;padding:1px 7px;border-radius:8px;background:var(--bg-input);color:var(--text-muted);">לא מוכר</span>';
             const pi = paidPayIcon(e);   // a recorded expense is already paid → show how
-            return `<tr class="row-click"${deduct ? '' : ' style="opacity:0.75;"'} onclick="openRecordFile(${e.id})"
+            return `<tr class="row-click"${deduct ? '' : ' style="opacity:0.75;"'} onclick="openDocFolder('expense',${e.id})"
                         oncontextmenu="showRowMenu(event,'expense',${e.id})"
                         ontouchstart="rowTouchStart(event,'expense',${e.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td style="white-space:nowrap;"><span class="pay-tip" data-tip="${escapeFormHtml(pi.tip)}" style="font-size:0.8rem;margin-inline-end:4px;cursor:help;">${pi.icon}</span><span class="rec-paid-chip">✓ שולם ${formatDate(e.date)}</span></td>
                 <td>${categoryLabel(e.category)}</td>
-                <td>${typeBadge('once')}${e.description || '-'}${(e.driveLink || e.driveId) ? ' <span data-tip="יש מסמך — לחץ לצפייה" style="color:#38bdf8;cursor:pointer;">📄</span>' : ''}${e.notes ? ' <span data-tip="'+escapeFormHtml(e.notes)+'" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--bg-input);color:var(--text-muted);font-size:0.62rem;font-style:italic;font-weight:bold;vertical-align:middle;">i</span>' : ''}</td>
+                <td>${typeBadge('once')}${e.description || '-'}${docCount(e) ? ' <span data-tip="תיק מסמכים — לחץ לפתיחה" style="color:#38bdf8;cursor:pointer;">📄' + (docCount(e) > 1 ? ' ' + docCount(e) : '') + '</span>' : ''}${e.notes ? ' <span data-tip="'+escapeFormHtml(e.notes)+'" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--bg-input);color:var(--text-muted);font-size:0.62rem;font-style:italic;font-weight:bold;vertical-align:middle;">i</span>' : ''}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
                 <td class="col-pct" style="text-align:center;${deduct ? (pct < 100 ? 'color:var(--warning)' : '') : 'color:var(--text-muted)'}">${deduct ? pct + '%' : '—'}</td>
                 <td class="col-net" style="color:${deduct ? 'var(--success)' : 'var(--text-muted)'}">${deduct ? formatCurrency(recognized) : '—'}</td>
@@ -12643,17 +12781,18 @@
 
             function addRecordDocs(items, recordType) {
                 active(items).forEach(item => {
-                    if (item.fileName && (item.driveLink || item.driveId)) {
+                    recordDocs(item).forEach(d => {
+                        if (!d.driveLink && !d.driveId) return;
                         records.push({
-                            fileName: item.fileName,
-                            driveLink: item.driveLink,
-                            driveId: item.driveId,
-                            type: recordType,
+                            fileName: d.fileName,
+                            driveLink: d.driveLink,
+                            driveId: d.driveId,
+                            type: recordType + (d.name ? ' · ' + d.name : ''),
                             description: item.description || item.employer || item.notes || '',
                             date: item.date || (item.month ? MONTHS[item.month] : ''),
                             amount: item.amount || item.gross || 0
                         });
-                    }
+                    });
                 });
             }
 
@@ -12668,22 +12807,7 @@
                 addRecordDocs(yd.blAdvances, 'מקדמות ביט"ל');
             } else if (page === 'income') {
                 const datasets = incomeSelectedDatasets();
-                if (datasets.includes('selfEmployed')) {
-                    active(yd.selfEmployed).forEach(r => {
-                        const d = incomeDocsOf(r);
-                        INCOME_STAGES.forEach(s => {
-                            const doc = d[s.key];
-                            if (doc && (doc.driveLink || doc.driveId)) {
-                                records.push({
-                                    fileName: doc.fileName, driveLink: doc.driveLink, driveId: doc.driveId,
-                                    type: 'עצמאי · ' + s.label,
-                                    description: (r.description || '') + ' · ' + MONTHS[r.month],
-                                    date: '', amount: r.amount
-                                });
-                            }
-                        });
-                    });
-                }
+                if (datasets.includes('selfEmployed')) addRecordDocs(yd.selfEmployed, 'עצמאי');
                 if (datasets.includes('taxAdvance')) addRecordDocs(yd.taxAdvances, 'מקדמות מס');
                 if (datasets.includes('blAdvance')) addRecordDocs(yd.blAdvances, 'ביטוח לאומי');
             } else if (page === 'expenses') {
