@@ -7141,6 +7141,11 @@
             }
             autoRefile('expenses', yd.expenses.find(x => x.id === recordId), currentYear);
             if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
+            // Keep the saved row visible: show its month and open its category
+            // (otherwise a collapsed category or another month hides it → looks deleted).
+            if (itemData.date && expenseMonth !== 'all') expenseMonth = itemData.date.slice(0, 7);
+            if (itemData.category) collapsedCategories[itemData.category] = false;
+            if (itemData.deductible === false) collapsedCategories['__nondeduct__'] = false;
             closeModal('expenseModal');
             clearForm('expenseModal');
             renderAll();
@@ -9221,6 +9226,10 @@
             });
             syncPrimaryDoc(r);
             saveData();
+            if (_docFolderKind === 'expense') {
+                if (r.category) collapsedCategories[r.category] = false;
+                if (isDeductible(r) === false) collapsedCategories['__nondeduct__'] = false;
+            }
             input.value = '';
             st.textContent = '✅ נוסף';
             renderDocFolder();
