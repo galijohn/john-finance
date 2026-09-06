@@ -4030,6 +4030,22 @@
                 return;
             }
 
+            // Connected before (there is a saved token, even if expired) → try to renew
+            // SILENTLY in the background first, so we don't nag with a sign-in popup on
+            // every entry / every hour. Only if the silent renewal genuinely fails do we
+            // fall back to the visible sign-in below (exactly the old behaviour).
+            if (savedToken) {
+                try {
+                    await Promise.race([
+                        renewTokenSilently(),
+                        new Promise((_, rej) => setTimeout(() => rej(new Error('silent-timeout')), 8000))
+                    ]);
+                    return;
+                } catch (e) {
+                    console.warn('Silent token renewal failed, falling back to sign-in:', e && e.message);
+                }
+            }
+
             // Need new token - load GIS and request
             await loadGISClient();
 
