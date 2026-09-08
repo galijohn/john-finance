@@ -3956,6 +3956,11 @@
         // ========== GOOGLE DRIVE INTEGRATION ==========
         const GOOGLE_CLIENT_ID = '831800526620-vrar20hjjjne49jrr6gpv9dmr54224g5.apps.googleusercontent.com';
         const GOOGLE_API_KEY = 'AIzaSyB30a84J6yYYHgRYddgd97vOVIR-r95Z94';
+        // Our own token server (Google Apps Script) — holds the offline refresh key and
+        // returns a fresh Drive access token on demand, so the app never needs to sign in
+        // again. See the john-finance-auth Apps Script project.
+        const DRIVE_TOKEN_URL    = 'https://script.google.com/macros/s/AKfycbwyFK-bMCzOp9CuvYmWx5YhRicLmyvlVQuXk27m1GU2r-bJ7khwasiuPSZdKhpcoD6-Tw/exec';
+        const DRIVE_TOKEN_SECRET = 'jf_9f3k2p7q1x8m4v6b0zt5';
         let googleAccessToken = null;
         let driveFolderId = null;
 
@@ -4030,20 +4035,17 @@
                 return;
             }
 
-            // Connected before (there is a saved token, even if expired) → try to renew
-            // SILENTLY in the background first, so we don't nag with a sign-in popup on
-            // every entry / every hour. Only if the silent renewal genuinely fails do we
-            // fall back to the visible sign-in below (exactly the old behaviour).
-            if (savedToken) {
-                try {
-                    await Promise.race([
-                        renewTokenSilently(),
-                        new Promise((_, rej) => setTimeout(() => rej(new Error('silent-timeout')), 8000))
-                    ]);
-                    return;
-                } catch (e) {
-                    console.warn('Silent token renewal failed, falling back to sign-in:', e && e.message);
-                }
+            // Get a fresh Drive token from our own server (which holds the refresh key).
+            // No sign-in popup, ever. Only if the server is unreachable do we fall back
+            // to Google's visible sign-in below (the old behaviour).
+            try {
+                await Promise.race([
+                    renewTokenSilently(),
+                    new Promise((_, rej) => setTimeout(() => rej(new Error('server-timeout')), 10000))
+                ]);
+                return;
+            } catch (e) {
+                console.warn('Server token fetch failed, falling back to sign-in:', e && e.message);
             }
 
             // Need new token - load GIS and request
@@ -4076,7 +4078,6 @@
         async function ensureValidToken() {
             const expiry = parseInt(localStorage.getItem('googleTokenExpiry') || '0');
             if (googleAccessToken && Date.now() < expiry - 60000) return true;
-            if (!localStorage.getItem('googleAccessToken')) return false;
             try {
                 await renewTokenSilently();
                 return true;
@@ -4116,30 +4117,19 @@
         });
 
         async function renewTokenSilently() {
-            await loadGISClient();
-            return new Promise((resolve, reject) => {
-                const tokenClient = google.accounts.oauth2.initTokenClient({
-                    client_id: GOOGLE_CLIENT_ID,
-                    scope: 'https://www.googleapis.com/auth/drive.file',
-                    prompt: '',
-                    callback: (response) => {
-                        if (response.error) {
-                            reject(new Error(response.error));
-                            return;
-                        }
-                        googleAccessToken = response.access_token;
-                        gapi.client.setToken({ access_token: response.access_token });
-                        localStorage.setItem('googleAccessToken', response.access_token);
-                        localStorage.setItem('googleTokenExpiry', String(Date.now() + 55 * 60 * 1000));
-                        console.log('✅ Token renewed successfully');
-                        updateDriveStatus(true);
-                        scheduleTokenRenewal();
-                        resolve();
-                    },
-                    error_callback: (error) => reject(new Error(error.message || 'Renewal failed'))
-                });
-                tokenClient.requestAccessToken({ prompt: '' });
-            });
+            // Ask our own server for a fresh Drive access token — it holds the refresh key,
+            // so this needs no popup and no user action.
+            const r = await fetch(DRIVE_TOKEN_URL + '?secret=' + encodeURIComponent(DRIVE_TOKEN_SECRET));
+            const d = await r.json();
+            if (!d || !d.access_token) throw new Error((d && d.error) || 'no token from server');
+            googleAccessToken = d.access_token;
+            const ttlMs = (d.expires_in ? Number(d.expires_in) : 3600) * 1000;
+            localStorage.setItem('googleAccessToken', d.access_token);
+            localStorage.setItem('googleTokenExpiry', String(Date.now() + ttlMs));
+            if (window.gapi && gapi.client) gapi.client.setToken({ access_token: d.access_token });
+            console.log('✅ Token fetched from server');
+            updateDriveStatus(true);
+            scheduleTokenRenewal();
         }
 
         function loadGISClient() {
