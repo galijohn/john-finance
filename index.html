@@ -11002,19 +11002,26 @@
 
         // From the dashboard reminder → open מסמכים, land on the row and flash it.
         function gotoDocRow(id) {
+            const hit = findDoc(id);
             showPage('docs');
-            if (typeof setDocTab === 'function') setDocTab('all');
+            docTab = 'all';                              // clear any category filter so the row shows
+            if (hit && hit.year !== currentYear) {       // doc lives in another year → show all years
+                docAllYears = true;
+                const yb = document.getElementById('docYearBtn');
+                if (yb) yb.textContent = '📅 כל השנים';
+            }
+            renderDocs();
             setTimeout(() => {
                 const tb = document.getElementById('docsTable');
                 if (!tb) return;
                 const row = tb.querySelector('tr[data-doc-id="' + id + '"]');
                 if (!row) return;
                 row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                row.style.transition = 'background-color .3s';
+                row.style.transition = 'background-color .35s';
                 const orig = row.style.backgroundColor;
-                row.style.backgroundColor = 'rgba(22,169,155,0.35)';
-                setTimeout(() => { row.style.backgroundColor = orig; }, 1600);
-            }, 150);
+                row.style.backgroundColor = 'rgba(22,169,155,0.55)';
+                setTimeout(() => { row.style.backgroundColor = orig; }, 1900);
+            }, 180);
         }
 
         function showDocMenu(ev, id) {
