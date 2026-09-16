@@ -10840,6 +10840,7 @@
 
         function docStatus(d) {
             const today = localTodayISO();
+            if (d.handled) return { cls: 'ok', text: 'טופל', rank: 4 };
             if (d.actionDue && !d.handled) {
                 if (d.actionDue < today) return { cls: 'late', text: 'באיחור · ' + formatDate(d.actionDue), rank: 0 };
                 return { cls: 'late', text: 'לטיפול עד ' + formatDate(d.actionDue), rank: 1 };
@@ -10885,7 +10886,7 @@
                 active(yd.officialDocs).forEach(d => {
                     if (d.actionDue && !d.handled && daysTo(d.actionDue) <= 30) {
                         due.push({ doc: d, when: d.actionDue, kind: 'action' });
-                    } else if (d.validUntil && daysTo(d.validUntil) <= 30) {
+                    } else if (d.validUntil && !d.handled && daysTo(d.validUntil) <= 30) {
                         due.push({ doc: d, when: d.validUntil, kind: 'validity' });
                     }
                 });
@@ -10909,7 +10910,7 @@
                 const label = x.kind === 'validity'
                     ? (isLate ? 'פג תוקף · ' + formatDate(x.when) : 'תוקף עד ' + formatDate(x.when))
                     : (isLate ? 'באיחור · ' + formatDate(x.when) : 'לטיפול עד ' + formatDate(x.when));
-                html += `<div class="row-click" onclick="openDocFile(${d.id})" style="display:flex;align-items:center;gap:9px;padding:5px 2px;">
+                html += `<div class="row-click" onclick="gotoDocRow(${d.id})" style="display:flex;align-items:center;gap:9px;padding:5px 2px;">
                     <span class="rec-badge ${isLate ? 'late' : 'soon'}">${label}</span>
                     <span style="flex:1;min-width:0;">${d.description || d.docType || ''}</span>
                     <span style="font-size:0.8rem;color:var(--text-muted);">${d.category}</span>
@@ -10943,7 +10944,7 @@
                     : s.cls === 'soon' ? `<span class="rec-badge soon">${s.text}</span>`
                     : s.cls === 'ok' ? `<span class="rec-paid-chip">${s.text}</span>`
                     : `<span style="color:var(--text-muted);">—</span>`;
-                return `<tr class="row-click" onclick="openDocFile(${d.id})"
+                return `<tr class="row-click" data-doc-id="${d.id}" onclick="openDocFile(${d.id})"
                             oncontextmenu="showDocMenu(event,${d.id})"
                             ontouchstart="docTouchStart(event,${d.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                     <td style="white-space:nowrap;">${chip}</td>
@@ -10988,6 +10989,23 @@
             if (ok) openDocModal(id);
         }
 
+        // From the dashboard reminder → open מסמכים, land on the row and flash it.
+        function gotoDocRow(id) {
+            showPage('docs');
+            if (typeof setDocTab === 'function') setDocTab('all');
+            setTimeout(() => {
+                const tb = document.getElementById('docsTable');
+                if (!tb) return;
+                const row = tb.querySelector('tr[data-doc-id="' + id + '"]');
+                if (!row) return;
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                row.style.transition = 'background-color .3s';
+                const orig = row.style.backgroundColor;
+                row.style.backgroundColor = 'rgba(22,169,155,0.35)';
+                setTimeout(() => { row.style.backgroundColor = orig; }, 1600);
+            }, 150);
+        }
+
         function showDocMenu(ev, id) {
             ev.preventDefault(); ev.stopPropagation();
             const hit = findDoc(id);
@@ -10996,7 +11014,7 @@
             const m = document.getElementById('rowMenu');
             let html = `<button onclick="hideRowMenu();openDocFile(${id})">👁️ פתח מסמך</button>`;
             html += `<button onclick="hideRowMenu();openDocModal(${id})">✏️ עריכה</button>`;
-            if (d.actionDue) {
+            if (d.actionDue || d.validUntil) {
                 html += d.handled
                     ? `<button onclick="hideRowMenu();setDocHandled(${id},false)">↩️ סמן כלא טופל</button>`
                     : `<button onclick="hideRowMenu();setDocHandled(${id},true)">✓ סמן כטופל</button>`;
