@@ -11378,12 +11378,12 @@
             const yd = getYearData();
             const tbody = document.getElementById('expenseTable');
 
-            // One-time repair: an expense saved with a blank "% הכרה" used to store NaN,
-            // which showed as "%NaN" and zeroed the recognized total. Reset those to 100%.
-            if (!_recNormalized) {
+            // Repair any expense holding an invalid "% הכרה" (blank field used to store NaN,
+            // which showed as "%NaN" and zeroed the recognized total). Runs every render so
+            // a row created mid-session is fixed too — reset those to 100%.
+            {
                 let _rc = false;
                 Object.values(data.yearData || {}).forEach(y => { if (!y) return; (y.expenses || []).forEach(e => { if (e && e.recognition != null && !Number.isFinite(e.recognition)) { e.recognition = 100; _rc = true; } }); });
-                _recNormalized = true;
                 if (_rc) saveData();
             }
 
@@ -11997,6 +11997,7 @@
             document.getElementById('expenseAmount').value = '';
             document.getElementById('expenseRecognition').value = 100;
             document.getElementById('expenseNotes').value = '';
+            setExpenseDeductible(true);   // default: recognized → button coloured + 100% shown
             openModal('expenseModal');
             setTimeout(() => document.getElementById('expenseDesc').focus(), 100);
         }
