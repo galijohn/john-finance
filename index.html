@@ -7637,8 +7637,8 @@
             const yes = document.getElementById('expDeductibleYes');
             const no = document.getElementById('expDeductibleNo');
             // The ✓ moves to whichever option is selected — that is the visible signal.
-            if (yes) { yes.classList.toggle('btn-primary', v); yes.textContent = (v ? '✓ ' : '') + 'מוכרת'; }
-            if (no) { no.classList.toggle('btn-primary', !v); no.textContent = (!v ? '✓ ' : '') + 'לא מוכרת'; }
+            if (yes) { yes.classList.toggle('active', v); yes.textContent = (v ? '✓ ' : '') + 'מוכרת'; }
+            if (no) { no.classList.toggle('active', !v); no.textContent = (!v ? '✓ ' : '') + 'לא מוכרת'; }
             const rg = document.getElementById('expRecognitionGroup');
             if (rg) rg.style.display = v ? '' : 'none';
             // A recognized expense defaults to 100% — fill it in automatically, unless the
