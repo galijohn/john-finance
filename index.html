@@ -7051,7 +7051,11 @@
             renderAll();
         }
 
+        let _expenseSaving = false;
         async function addExpense() {
+            if (_expenseSaving) return;   // a save is already in flight — ignore the double-click
+            _expenseSaving = true;
+            try {
             const yd = getYearData();
             const recordId = editingId || Date.now();
             
@@ -7155,6 +7159,7 @@
             closeModal('expenseModal');
             clearForm('expenseModal');
             renderAll();
+            } finally { _expenseSaving = false; }
         }
 
         async function addTaxAdvance() {
