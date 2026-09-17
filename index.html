@@ -3634,10 +3634,13 @@
                 </div>
                 <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">תקופה:</div>
                 <div style="display:flex;flex-direction:column;gap:10px;">
-                    <button class="btn btn-primary" id="exportScopeMonthBtn" onclick="runScopedExport('month')" style="width:100%;"></button>
-                    <button class="btn" id="exportScopeYearBtn" onclick="runScopedExport('year')" style="width:100%;"></button>
-                    <button class="btn" id="exportScopeFlatBtn" onclick="runScopedExport('flat')" style="width:100%;"></button>
-                    <button class="btn" onclick="closeModal('exportScopeModal')" style="width:100%;">ביטול</button>
+                    <button class="btn btn-primary" id="exportScopeMonthBtn" onclick="setExportMode('month')" style="width:100%;"></button>
+                    <button class="btn" id="exportScopeYearBtn" onclick="setExportMode('year')" style="width:100%;"></button>
+                    <button class="btn" id="exportScopeFlatBtn" onclick="setExportMode('flat')" style="width:100%;"></button>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:18px;">
+                    <button class="btn btn-primary" onclick="runScopedExport(_exportMode)" style="flex:1;font-size:1rem;padding:12px;">🖨️ הדפס</button>
+                    <button class="btn" onclick="closeModal('exportScopeModal')" style="flex:1;">ביטול</button>
                 </div>
                 <p id="exportScopeCatNote" style="color:var(--text-muted);font-size:0.82rem;margin-top:12px;display:none;"></p>
             </div>
@@ -11428,6 +11431,12 @@
         let _exportKind = 'pdf';
         let _exportIncludeNonDeduct = false;   // default: accountant report = deductible only
 
+        let _exportMode = 'month';
+        function setExportMode(m) {
+            _exportMode = m;
+            const b = { month: 'exportScopeMonthBtn', year: 'exportScopeYearBtn', flat: 'exportScopeFlatBtn' };
+            Object.keys(b).forEach(k => { const el = document.getElementById(b[k]); if (el) el.classList.toggle('btn-primary', k === m); });
+        }
         function setExportInclude(all) {
             _exportIncludeNonDeduct = !!all;
             document.getElementById('exportInclDeductOnly').classList.toggle('btn-primary', !all);
@@ -11465,6 +11474,7 @@
             document.getElementById('exportScopeYearBtn').textContent = icon + ' כל שנת ' + currentYear + ' — לפי חודשים';
             document.getElementById('exportScopeFlatBtn').textContent = icon + ' הכל — ללא חלוקה';
             setExportInclude(_exportIncludeNonDeduct);
+            setExportMode('month');
             const note = document.getElementById('exportScopeCatNote');
             if (expenseFilter !== 'all') {
                 note.textContent = 'סינון קטגוריה פעיל: הדוח יכלול רק "' + expenseFilter + '"';
