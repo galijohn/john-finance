@@ -3431,6 +3431,14 @@
                     </div>
                     <input type="hidden" id="recDeductible" value="1">
                 </div>
+                <div class="form-group" id="recInputVatGroup">
+                    <label>מע"מ תשומות (קיזוז)</label>
+                    <div style="display:flex;gap:8px;">
+                        <button type="button" id="recInputVatYes" class="btn btn-sm active" onclick="setRecInputVat(true)" style="flex:1;">יש מע"מ לקיזוז</button>
+                        <button type="button" id="recInputVatNo" class="btn btn-sm" onclick="setRecInputVat(false)" style="flex:1;">אין מע"מ</button>
+                    </div>
+                    <input type="hidden" id="recInputVat" value="1">
+                </div>
                 <div class="form-group" id="recRecognitionGroup">
                     <label>% הכרה</label>
                     <div style="display:flex;align-items:center;gap:10px;">
@@ -7312,7 +7320,7 @@
             if (_savedExp && _savedExp.recurringKey) {
                 const parts = String(_savedExp.recurringKey).split(':');
                 const it = (getRecurring().months[parts[0]] || []).find(i => String(i.id) === String(parts[1]));
-                if (it) { it.deductible = _savedExp.deductible; it.category = _savedExp.category; saveData(); }
+                if (it) { it.deductible = _savedExp.deductible; it.category = _savedExp.category; it.inputVat = _savedExp.inputVat; saveData(); }
             }
             autoRefile('expenses', yd.expenses.find(x => x.id === recordId), currentYear);
             if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
@@ -10434,6 +10442,8 @@
             document.getElementById('expenseAmount').value = '';
             document.getElementById('expenseRecognition').value = item.recognition ?? 100;
             document.getElementById('expenseNotes').value = '';
+            setExpenseDeductible(item.deductible !== false);
+            setExpenseInputVat(item.inputVat !== false);
             openModal('expenseModal');
             setTimeout(() => document.getElementById('expenseDesc').focus(), 100);
         }
@@ -10504,7 +10514,8 @@
                 category: document.getElementById('expenseCategory').value,
                 amount: document.getElementById('expenseAmount').value,
                 recognition: document.getElementById('expenseRecognition').value,
-                deductible: document.getElementById('expenseDeductible').value === '1'
+                deductible: document.getElementById('expenseDeductible').value === '1',
+                inputVat: document.getElementById('expenseInputVat').value === '1'
             };
             closeModal('expenseModal');
             openRecurringAdd();
@@ -10515,6 +10526,7 @@
             if (carry.amount) document.getElementById('recAmount').value = carry.amount;
             if (carry.recognition) document.getElementById('recRecognition').value = carry.recognition;
             setRecDeductible(carry.deductible);
+            setRecInputVat(carry.inputVat !== false);
             onRecKindChange();
         }
 
@@ -10536,6 +10548,7 @@
             document.getElementById('expenseRecognition').value = item.recognition ?? 100;
             document.getElementById('expenseNotes').value = (collect ? 'חשבונית · ' : 'תשלום קבוע · ') + monthLabelFromKey(monthKey);
             setExpenseDeductible(item.deductible !== false);
+            setExpenseInputVat(item.inputVat !== false);
             // Show the type the item was defined as (bill/category/collect), and keep the
             // chooser available so it can still be changed if the user wants.
             const kg = document.getElementById('expenseKindGroup');
@@ -10552,6 +10565,17 @@
             document.getElementById('recDeductibleNo').classList.toggle('btn-primary', !v);
             const rg = document.getElementById('recRecognitionGroup');
             if (rg && document.getElementById('recKind').value !== 'category') rg.style.display = v ? '' : 'none';
+            // Input VAT reclaim only applies to a deductible bill.
+            const ivg = document.getElementById('recInputVatGroup');
+            if (ivg) ivg.style.display = (v && document.getElementById('recKind').value === 'bill') ? '' : 'none';
+        }
+
+        function setRecInputVat(on) {
+            document.getElementById('recInputVat').value = on ? '1' : '0';
+            const yes = document.getElementById('recInputVatYes');
+            const no = document.getElementById('recInputVatNo');
+            if (yes) yes.classList.toggle('active', on);
+            if (no) no.classList.toggle('active', !on);
         }
 
         function onRecKindChange() {
@@ -10560,6 +10584,9 @@
             const isCol = kind === 'collect';
             // Only bills carry a deductible flag on the template itself.
             document.getElementById('recDeductibleGroup').style.display = (isCat || isCol) ? 'none' : '';
+            // Input VAT toggle rides with the bill's deductible state.
+            const _rivg = document.getElementById('recInputVatGroup');
+            if (_rivg) _rivg.style.display = (kind === 'bill' && document.getElementById('recDeductible').value === '1') ? '' : 'none';
             document.getElementById('recDescGroup').style.display = isCat ? 'none' : '';
             document.getElementById('recDueDayGroup').style.display = (isCat || isCol) ? 'none' : '';
             // A collection line carries no amount — that is the whole point of it.
@@ -10582,6 +10609,7 @@
             document.getElementById('recKind').value = 'bill';
             document.getElementById('recRecognition').value = 100;
             setRecDeductible(true);
+            setRecInputVat(true);
             buildCategoryOptions();
             onRecKindChange();
             openModal('recurringModal');
@@ -10601,6 +10629,7 @@
             document.getElementById('recRecognition').value = item.recognition ?? 100;
             document.getElementById('recDueDay').value = item.dueDay || '';
             setRecDeductible(item.deductible !== false);
+            setRecInputVat(item.inputVat !== false);
             onRecKindChange();
             openModal('recurringModal');
         }
@@ -10633,7 +10662,8 @@
                 amount: parseFloat(document.getElementById('recAmount').value) || 0,
                 recognition: Math.min(100, Math.max(0, parseFloat(document.getElementById('recRecognition').value) || 100)),
                 dueDay: kind === 'category' ? null : (parseInt(document.getElementById('recDueDay').value) || null),
-                deductible: kind === 'bill' ? (document.getElementById('recDeductible').value === '1') : true
+                deductible: kind === 'bill' ? (document.getElementById('recDeductible').value === '1') : true,
+                inputVat: kind === 'bill' ? (document.getElementById('recInputVat').value === '1') : true
             };
             const ctx = editingRecurring;
             const monthKey = ctx ? ctx.monthKey : (expenseMonth !== 'all' ? expenseMonth : realMonthKey());
