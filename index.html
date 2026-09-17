@@ -2405,7 +2405,7 @@
                 <div class="card stat-card">
                     <div class="icon">💵</div>
                     <div class="value" id="forecastNetIncome" style="color:var(--primary)">₪0</div>
-                    <div class="label">הכנסה נטו צפויה</div>
+                    <div class="label">רווח לפני מס (הכנסה − הוצאות)</div>
                 </div>
                 <div class="card stat-card">
                     <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/bank-building.png" alt="" onerror="this.replaceWith(document.createTextNode('🏛️'))"></div>
@@ -2441,6 +2441,20 @@
                         <div style="font-size:0.9rem;color:var(--text-muted);">סה"כ</div>
                         <div style="font-size:1.8rem;font-weight:bold;color:var(--purple);" id="forecastMonthlyTotal">₪0</div>
                         <div style="font-size:0.8rem;color:var(--text-muted);">לחודש</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom:20px;background:linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05));border-color:var(--success);">
+                <h3 style="margin:0 0 15px;">💰 נטו בכיס — סה"כ (כולל הכנסות אחרות, אחרי מס וביט"ל)</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;text-align:center;">
+                    <div>
+                        <div style="font-size:0.9rem;color:var(--text-muted);">שנתי</div>
+                        <div style="font-size:1.8rem;font-weight:bold;color:var(--success);" id="forecastNetPocket">₪0</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.9rem;color:var(--text-muted);">לחודש</div>
+                        <div style="font-size:1.8rem;font-weight:bold;color:var(--success);" id="forecastNetPocketMonthly">₪0</div>
                     </div>
                 </div>
             </div>
@@ -8673,6 +8687,14 @@
             document.getElementById('forecastMonthlyTax').textContent = formatCurrency(monthlyTax);
             document.getElementById('forecastMonthlyBL').textContent = formatCurrency(monthlyBL);
             document.getElementById('forecastMonthlyTotal').textContent = formatCurrency(monthlyTotal);
+
+            // Net in pocket, total: all income (self-employed profit + other income)
+            // minus total income tax (netTax) minus Bituach Leumi.
+            const netInPocket = (netSelfEmployed + otherIncome) - netTax - bl.total;
+            const npEl = document.getElementById('forecastNetPocket');
+            const npmEl = document.getElementById('forecastNetPocketMonthly');
+            if (npEl) npEl.textContent = formatCurrency(netInPocket);
+            if (npmEl) npmEl.textContent = formatCurrency(Math.round(netInPocket / 12));
             
             // Update detail section
             document.getElementById('forecastDetailIncome').textContent = formatCurrency(income);
