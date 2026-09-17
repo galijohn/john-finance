@@ -12505,6 +12505,7 @@
             const pct = e.recognition ?? 100;
             const deduct = isDeductible(e);
             const recognized = deduct ? e.amount * (pct / 100) : 0;
+            const vatBack = expenseVatParts(e, getYearData()).vat;   // reclaimable input VAT (0 if not eligible)
             const tag = deduct ? '' : ' <span style="font-size:0.72rem;padding:1px 7px;border-radius:8px;background:var(--bg-input);color:var(--text-muted);">לא מוכר</span>';
             const pi = paidPayIcon(e);   // a recorded expense is already paid → show how
             return `<tr class="row-click"${deduct ? '' : ' style="opacity:0.75;"'} onclick="openDocFolder('expense',${e.id})"
@@ -12515,7 +12516,7 @@
                 <td>${typeBadge('once')}${e.description || '-'}${docCount(e) ? ' <span data-tip="תיק מסמכים — לחץ לפתיחה" style="color:#38bdf8;cursor:pointer;">📄' + (docCount(e) > 1 ? ' ' + docCount(e) : '') + '</span>' : ''}${e.notes ? ' <span data-tip="'+escapeFormHtml(e.notes)+'" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--bg-input);color:var(--text-muted);font-size:0.62rem;font-style:italic;font-weight:bold;vertical-align:middle;">i</span>' : ''}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
                 <td class="col-pct" style="text-align:center;${deduct ? (pct < 100 ? 'color:var(--warning)' : '') : 'color:var(--text-muted)'}">${deduct ? pct + '%' : '—'}</td>
-                <td class="col-net" style="color:${deduct ? 'var(--success)' : 'var(--text-muted)'}">${deduct ? formatCurrency(recognized) : '—'}</td>
+                <td class="col-net" style="color:${deduct ? 'var(--success)' : 'var(--text-muted)'}">${deduct ? formatCurrency(recognized) : '—'}${vatBack > 0 ? '<div style="font-size:0.72rem;color:#38bdf8;">מע"מ לקיזוז: ' + formatCurrency(vatBack) + '</div>' : ''}</td>
             </tr>`;
         }
 
