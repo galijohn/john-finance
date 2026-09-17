@@ -7720,7 +7720,7 @@
                 + row('מע"מ תשומות — ציוד / רכוש קבוע', d.equipVat, false, 'var(--success)')
                 + row('מע"מ תשומות — שוטפות (הוצאות)', d.regularVat, false, 'var(--success)')
                 + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding:14px 16px;border-radius:10px;background:' + (refund ? 'rgba(29,158,117,0.12)' : 'rgba(239,68,68,0.10)') + ';">'
-                + '<div><div style="font-size:0.82rem;color:var(--text-muted);">שורה תחתונה</div><div style="font-size:0.85rem;color:var(--text-muted);">מע"מ עסקאות ' + formatCurrency(d.outputVat) + ' − תשומות ' + formatCurrency(d.inputVat) + '</div></div>'
+                + '<div><div style="font-size:0.82rem;color:var(--text-muted);">סה"כ מע"מ לתקופה</div><div style="font-size:0.85rem;color:var(--text-muted);">מע"מ עסקאות ' + formatCurrency(d.outputVat) + ' − תשומות ' + formatCurrency(d.inputVat) + '</div></div>'
                 + '<div style="text-align:left;"><div style="font-size:1.4rem;font-weight:700;direction:ltr;color:' + (refund ? 'var(--success)' : 'var(--danger)') + ';">' + formatCurrency(balAbs) + '</div><div style="font-size:0.82rem;color:' + (refund ? 'var(--success)' : 'var(--danger)') + ';">' + (refund ? 'להחזר' : 'לתשלום') + '</div></div>'
                 + '</div>';
         }
