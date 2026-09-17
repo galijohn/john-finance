@@ -1624,6 +1624,12 @@
                     <div class="value" id="dashNetPocketMonthly" style="color:var(--success)">₪0</div>
                     <div class="label">נטו בכיס (לחודש)</div>
                 </div>
+                <div class="card stat-card" data-card="taxRates" style="border:1px solid var(--primary);">
+                    <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/percentage.png" alt="" onerror="this.replaceWith(document.createTextNode('📊'))"></div>
+                    <div class="value" id="dashMarginalRate" style="color:var(--primary)">0%</div>
+                    <div class="label">מס שולי (המדרגה שלך)</div>
+                    <div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">אפקטיבי: <span id="dashEffectiveRate">0%</span></div>
+                </div>
             </div>
 
             <div id="dashboardResult">
@@ -3895,6 +3901,10 @@
                             <input type="checkbox" id="dash_netPocketMonthly" checked onchange="saveDashboardSettings()">
                             <label for="dash_netPocketMonthly">💵 נטו בכיס (לחודש)</label>
                         </div>
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_taxRates" checked onchange="saveDashboardSettings()">
+                            <label for="dash_taxRates">📊 מס שולי + אפקטיבי</label>
+                        </div>
                     </div>
                 </div>
                 <div class="form-group">
@@ -5966,6 +5976,7 @@
                     blPaid: true,
                     netPocket: true,
                     netPocketMonthly: true,
+                    taxRates: true,
                     paymentsSummary: true,
                     result: true
                 };
@@ -5997,6 +6008,7 @@
                 blPaid: document.getElementById('dash_blPaid').checked,
                 netPocket: document.getElementById('dash_netPocket').checked,
                 netPocketMonthly: document.getElementById('dash_netPocketMonthly').checked,
+                taxRates: document.getElementById('dash_taxRates').checked,
                 paymentsSummary: document.getElementById('dash_paymentsSummary').checked,
                 result: document.getElementById('dash_result').checked
             };
@@ -8895,6 +8907,12 @@
             const dnpmEl = document.getElementById('dashNetPocketMonthly');
             if (dnpEl) dnpEl.textContent = formatCurrency(dashNet);
             if (dnpmEl) dnpmEl.textContent = formatCurrency(Math.round(dashNet / 12));
+            const dashMarginal = (taxDetails && taxDetails.length) ? taxDetails[taxDetails.length - 1].rate : 0;
+            const dashEff = totals.taxableIncome > 0 ? (netTax / totals.taxableIncome * 100) : 0;
+            const dmrEl = document.getElementById('dashMarginalRate');
+            const derEl = document.getElementById('dashEffectiveRate');
+            if (dmrEl) dmrEl.textContent = dashMarginal + '%';
+            if (derEl) derEl.textContent = dashEff.toFixed(1) + '%';
             
             document.getElementById('dashTaxFromSalary').textContent = formatCurrency(totals.taxFromSalary);
             document.getElementById('dashTaxFromUnemployment').textContent = formatCurrency(totals.taxFromUnemployment);
