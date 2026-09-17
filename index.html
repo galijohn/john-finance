@@ -13150,7 +13150,7 @@
             return { images, pdfs };
         }
 
-        function exportPagePDF(page) {
+        async function exportPagePDF(page) {
             const { headers, rows, title, year } = getPageData(page);
             const yd = getYearData();
             const dateStr = new Date().toLocaleDateString('he-IL');
@@ -13439,8 +13439,8 @@
                     cumulative += monthTotal;
                     bodyContent += '<tr><td>' + MONTHS[i] + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.monthlyTax) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.monthlyBL) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(monthTotal) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(cumulative) + '</td></tr>';
                 }
+                bodyContent += '<tr style="font-weight:bold;background:#f1f5f9;"><td>סה"כ שנתי</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.monthlyTax * 12) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.monthlyBL * 12) + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.monthlyTotal * 12) + '</td><td></td></tr>';
                 bodyContent += '</tbody></table>';
-                bodyContent += '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>סה"כ שנתי</span><span>מס: ' + fmtNum(f.monthlyTax * 12) + ' | ביט"ל: ' + fmtNum(f.monthlyBL * 12) + ' | סה"כ: ' + fmtNum(f.monthlyTotal * 12) + '</span></div>';
 
             } else if (page === 'miluim' && rows._summary) {
                 const sm = rows._summary;
@@ -13587,7 +13587,16 @@
                 s.style.cssText = 'float:left;';
             });
 
-            const pageDocs = getPageDocuments(page);
+            const _allPageDocs = getPageDocuments(page);
+            let _includeAttachments = true;
+            if (_allPageDocs.length > 0) {
+                _includeAttachments = await showPopup({
+                    type: 'info', title: '🖨️ הדפסת דוח',
+                    message: 'לכלול בדוח גם את הנספחים (' + _allPageDocs.length + ' מסמכים מצורפים)?\n\nלא תמיד צריך אותם.',
+                    okText: 'דוח מלא — עם נספחים', cancelText: 'דוח בלבד — ללא נספחים'
+                });
+            }
+            const pageDocs = _includeAttachments ? _allPageDocs : [];
 
             // Show loading overlay
             const overlay = document.createElement('div');
