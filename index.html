@@ -10,6 +10,7 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230891b2'/%3E%3Cpolygon points='50,15 85,32 85,68 50,85 15,68 15,32' fill='none' stroke='white' stroke-width='4'/%3E%3Ctext x='50' y='62' text-anchor='middle' font-family='Arial' font-size='30' font-weight='bold' fill='white'%3EJL%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0891b2">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="John Finance">
@@ -1576,17 +1577,13 @@
                     <div class="value" id="dashSelfEmployed">₪0</div>
                     <div class="label">הכנסה כעצמאי</div>
                 </div>
-            </div>
-
-            <div class="cards-grid" id="dashboardCardsExpenses" style="display:none;">
+            
                 <div class="card stat-card" data-card="expenses" style="border:1px solid var(--danger);cursor:pointer;" onclick="showPage('expenses',event)">
                     <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/receipt.png" alt="" onerror="this.replaceWith(document.createTextNode('🧾'))"></div>
                     <div class="value" id="dashExpenses" style="color:var(--danger)">₪0</div>
                     <div class="label">הוצאות מוכרות</div>
                 </div>
-            </div>
-
-            <div class="cards-grid" id="dashboardCards2">
+            
                 <div class="card stat-card total" data-card="totalIncome">
                     <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/combo-chart.png" alt="" onerror="this.replaceWith(document.createTextNode('📈'))"></div>
                     <div class="value" id="dashTotalIncome">₪0</div>
@@ -6019,17 +6016,39 @@
                 }
             });
 
-            // Handle expenses card grid
-            const expGrid = document.getElementById('dashboardCardsExpenses');
-            if (expGrid) {
-                expGrid.style.display = data.dashboardSettings.expenses ? '' : 'none';
-            }
+            applyDashboardOrder();
+            initDashboardSort();
 
             // Handle result box
             const resultBox = document.getElementById('dashboardResult');
             if (resultBox) {
                 resultBox.style.display = data.dashboardSettings.result ? '' : 'none';
             }
+        }
+
+        // Apply the user's saved tile order to the unified dashboard grid.
+        function applyDashboardOrder() {
+            const grid = document.getElementById('dashboardCards');
+            if (!grid || !Array.isArray(data.dashboardOrder)) return;
+            data.dashboardOrder.forEach(key => {
+                const el = grid.querySelector('[data-card="' + key + '"]');
+                if (el) grid.appendChild(el);
+            });
+        }
+        // Persist the current on-screen tile order (called after a drag).
+        function saveDashboardOrder() {
+            const grid = document.getElementById('dashboardCards');
+            if (!grid) return;
+            data.dashboardOrder = [...grid.querySelectorAll('[data-card]')].map(el => el.dataset.card);
+            saveData();
+        }
+        let _dashSortInited = false;
+        function initDashboardSort() {
+            if (_dashSortInited || !window.Sortable) return;
+            const grid = document.getElementById('dashboardCards');
+            if (!grid) return;
+            Sortable.create(grid, { animation: 150, delay: 150, delayOnTouchOnly: true, onEnd: saveDashboardOrder });
+            _dashSortInited = true;
         }
 
         // ========== DATA ==========
