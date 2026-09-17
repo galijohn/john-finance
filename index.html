@@ -1617,6 +1617,12 @@
                     <div class="value" id="dashBLPaid" style="color:var(--success)">₪0</div>
                     <div class="label">ביט"ל ששולם (מקדמות)</div>
                 </div>
+                <div class="card stat-card" data-card="netPocket" style="border:1px solid var(--success);">
+                    <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/money-bag.png" alt="" onerror="this.replaceWith(document.createTextNode('💰'))"></div>
+                    <div class="value" id="dashNetPocket" style="color:var(--success)">₪0</div>
+                    <div class="label">נטו בכיס (שנתי)</div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">לחודש: <span id="dashNetPocketMonthly">₪0</span></div>
+                </div>
             </div>
 
             <div id="dashboardResult">
@@ -3880,6 +3886,10 @@
                             <input type="checkbox" id="dash_blPaid" checked onchange="saveDashboardSettings()">
                             <label for="dash_blPaid">💳 ביט"ל ששולם</label>
                         </div>
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_netPocket" checked onchange="saveDashboardSettings()">
+                            <label for="dash_netPocket">💰 נטו בכיס</label>
+                        </div>
                     </div>
                 </div>
                 <div class="form-group">
@@ -5949,6 +5959,7 @@
                     taxPaid: true,
                     blDue: true,
                     blPaid: true,
+                    netPocket: true,
                     paymentsSummary: true,
                     result: true
                 };
@@ -5978,6 +5989,7 @@
                 taxPaid: document.getElementById('dash_taxPaid').checked,
                 blDue: document.getElementById('dash_blDue').checked,
                 blPaid: document.getElementById('dash_blPaid').checked,
+                netPocket: document.getElementById('dash_netPocket').checked,
                 paymentsSummary: document.getElementById('dash_paymentsSummary').checked,
                 result: document.getElementById('dash_result').checked
             };
@@ -8849,6 +8861,11 @@
             document.getElementById('dashTaxPaid').textContent = formatCurrency(totals.totalTaxPaid);
             document.getElementById('dashBLDue').textContent = formatCurrency(bl.total);
             document.getElementById('dashBLPaid').textContent = formatCurrency(totals.totalBLPaid);
+            const dashNet = totals.taxableIncome - netTax - bl.total;
+            const dnpEl = document.getElementById('dashNetPocket');
+            const dnpmEl = document.getElementById('dashNetPocketMonthly');
+            if (dnpEl) dnpEl.textContent = formatCurrency(dashNet);
+            if (dnpmEl) dnpmEl.textContent = formatCurrency(Math.round(dashNet / 12));
             
             document.getElementById('dashTaxFromSalary').textContent = formatCurrency(totals.taxFromSalary);
             document.getElementById('dashTaxFromUnemployment').textContent = formatCurrency(totals.taxFromUnemployment);
