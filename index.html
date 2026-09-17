@@ -2240,6 +2240,10 @@
             <div class="card" style="margin-top:20px;">
                 <h3 style="margin:0 0 20px;">📈 חישוב מס הכנסה לפי מדרגות</h3>
                 <div id="taxBracketsBreakdown"></div>
+                <div class="summary-row" style="font-size:0.85rem;color:var(--text-muted);margin-top:6px;">
+                    <span>שיעור מס</span>
+                    <span id="calcRates"></span>
+                </div>
                 <div class="summary-row" style="margin-top:15px;">
                     <span>מס ברוטו (לפני זיכויים)</span>
                     <span id="calcGrossTax">₪0</span>
@@ -2286,6 +2290,20 @@
                 <div class="summary-row" id="blDiffRow">
                     <span id="blDiffLabel">הפרש</span>
                     <span id="blDiff">₪0</span>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:20px;background:linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05));border-color:var(--success);">
+                <h3 style="margin:0 0 15px;">💰 נטו בכיס (אחרי מס וביטוח לאומי)</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;text-align:center;">
+                    <div>
+                        <div style="font-size:0.9rem;color:var(--text-muted);">שנתי</div>
+                        <div style="font-size:1.6rem;font-weight:bold;color:var(--success);" id="calcNetPocket">₪0</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.9rem;color:var(--text-muted);">לחודש</div>
+                        <div style="font-size:1.6rem;font-weight:bold;color:var(--success);" id="calcNetPocketMonthly">₪0</div>
+                    </div>
                 </div>
             </div>
 
@@ -8982,6 +9000,16 @@
                 </div>`;
             });
             document.getElementById('taxBracketsBreakdown').innerHTML = bracketsHTML || '<div class="empty-state">אין הכנסה חייבת</div>';
+            // Marginal + effective rate, and net-in-pocket — all on the displayed year's numbers.
+            const calcMarginal = (taxDetails && taxDetails.length) ? taxDetails[taxDetails.length - 1].rate : 0;
+            const calcEff = totals.taxableIncome > 0 ? (netTax / totals.taxableIncome * 100) : 0;
+            const crEl = document.getElementById('calcRates');
+            if (crEl) crEl.textContent = `שולי ${calcMarginal}% · אפקטיבי ${calcEff.toFixed(1)}%`;
+            const calcNet = totals.taxableIncome - netTax - bl.total;
+            const cnpEl = document.getElementById('calcNetPocket');
+            const cnpmEl = document.getElementById('calcNetPocketMonthly');
+            if (cnpEl) cnpEl.textContent = formatCurrency(calcNet);
+            if (cnpmEl) cnpmEl.textContent = formatCurrency(Math.round(calcNet / 12));
             
             document.getElementById('calcGrossTax').textContent = formatCurrency(grossTax);
             document.getElementById('calcCreditPoints').textContent = credits.toFixed(2);
