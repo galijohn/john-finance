@@ -3245,6 +3245,9 @@
                     <button type="button" id="incomeDS_blAdvance" class="btn btn-sm" onclick="setIncomeDataset('blAdvance')">🏥 ביטוח לאומי</button>
                     <button type="button" id="incomeDS_all" class="btn btn-sm" onclick="setIncomeDataset('all')">📚 הכל</button>
                 </div>
+                <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">חודשים:</div>
+                <label style="font-size:0.85rem;display:block;margin-bottom:6px;"><input type="checkbox" id="incMonthAll" checked onchange="toggleAllIncomeMonths(this.checked)"> כל החודשים</label>
+                <div id="incomeExportMonths" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;font-size:0.82rem;"></div>
                 <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">פילוג:</div>
                 <div style="display:flex;flex-direction:column;gap:10px;">
                     <button class="btn btn-primary" id="incomeExportByMonthBtn" onclick="runIncomeExport('year')" style="width:100%;">📄 לפי חודשים</button>
@@ -9526,6 +9529,37 @@
             const ds = (incomeExportScope || {}).dataset || 'selfEmployed';
             return ds === 'all' ? ['selfEmployed', 'taxAdvance', 'blAdvance'] : [ds];
         }
+        function renderIncomeExportMonths() {
+            const box = document.getElementById('incomeExportMonths');
+            if (!box) return;
+            let html = '';
+            for (let i = 1; i <= 12; i++) {
+                html += '<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="inc_m_' + i + '" checked onchange="syncIncMonthAll()"> ' + MONTHS[i] + '</label>';
+            }
+            box.innerHTML = html;
+            const all = document.getElementById('incMonthAll');
+            if (all) all.checked = true;
+        }
+        function toggleAllIncomeMonths(on) {
+            for (let i = 1; i <= 12; i++) { const c = document.getElementById('inc_m_' + i); if (c) c.checked = on; }
+        }
+        function syncIncMonthAll() {
+            let all = true;
+            for (let i = 1; i <= 12; i++) { const c = document.getElementById('inc_m_' + i); if (c && !c.checked) all = false; }
+            const a = document.getElementById('incMonthAll'); if (a) a.checked = all;
+        }
+        function getSelectedIncomeMonths() {
+            const sel = [];
+            for (let i = 1; i <= 12; i++) { const c = document.getElementById('inc_m_' + i); if (c && c.checked) sel.push(i); }
+            return (sel.length === 0 || sel.length === 12) ? null : sel;   // null = all months
+        }
+        function incomeMonthFilter(items) {
+            const m = (incomeExportScope || {}).months;
+            if (!m || !m.length) return items;
+            const set = new Set(m.map(Number));
+            return (items || []).filter(r => set.has(Number(r.month)));
+        }
+
         function openIncomeExport(kind) {
             _incomeExportKind = kind;
             document.querySelectorAll('.export-dropdown-content.show').forEach(d => d.classList.remove('show'));
@@ -9533,6 +9567,7 @@
             const icon = kind === 'excel' ? '📊' : '📄';
             document.getElementById('incomeExportByMonthBtn').textContent = icon + ' לפי חודשים';
             document.getElementById('incomeExportFlatBtn').textContent = icon + ' בלי חלוקה לחודשים';
+            renderIncomeExportMonths();
             openModal('incomeExportModal');
         }
         const _incomeDsLabels = { selfEmployed: '💰 הכנסה כעצמאי', taxAdvance: '🏛️ מס הכנסה', blAdvance: '🏥 ביטוח לאומי', all: '📚 הכל' };
@@ -9551,7 +9586,7 @@
             });
         }
         async function runIncomeExport(mode) {
-            incomeExportScope = { dataset: _incomeDataset, mode };
+            incomeExportScope = { dataset: _incomeDataset, mode, months: getSelectedIncomeMonths() };
             closeModal('incomeExportModal');
             if (_incomeExportKind === 'excel') exportPageExcel('income');
             else exportPagePDF('income');
@@ -9570,7 +9605,7 @@
             let html = '';
             incomeSelectedDatasets().forEach(dsKey => {
                 const ds = INCOME_DATASETS[dsKey];
-                const items = ds.get();
+                const items = incomeMonthFilter(ds.get());
                 const isSelf = dsKey === 'selfEmployed';
                 let missingTotal = 0;
                 if (isSelf) items.forEach(r => { missingTotal += incomeMissingStages(r).length; });
@@ -12994,9 +13029,9 @@
                 addRecordDocs(yd.blAdvances, 'מקדמות ביט"ל');
             } else if (page === 'income') {
                 const datasets = incomeSelectedDatasets();
-                if (datasets.includes('selfEmployed')) addRecordDocs(yd.selfEmployed, 'עצמאי');
-                if (datasets.includes('taxAdvance')) addRecordDocs(yd.taxAdvances, 'מקדמות מס');
-                if (datasets.includes('blAdvance')) addRecordDocs(yd.blAdvances, 'ביטוח לאומי');
+                if (datasets.includes('selfEmployed')) addRecordDocs(incomeMonthFilter(yd.selfEmployed), 'עצמאי');
+                if (datasets.includes('taxAdvance')) addRecordDocs(incomeMonthFilter(yd.taxAdvances), 'מקדמות מס');
+                if (datasets.includes('blAdvance')) addRecordDocs(incomeMonthFilter(yd.blAdvances), 'ביטוח לאומי');
             } else if (page === 'expenses') {
                 // Only attach receipts belonging to the exported scope (month/year + category filter)
                 addRecordDocs(getScopedExpenses(), 'הוצאות');
