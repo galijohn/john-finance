@@ -2043,6 +2043,7 @@
                         <tr>
                             <th>תקופה</th>
                             <th>הכנסות</th>
+                            <th>הוצאות</th>
                             <th>מע"מ עסקאות</th>
                             <th>מע"מ תשומות</th>
                             <th>לתשלום/החזר</th>
@@ -7645,20 +7646,22 @@
             let totNetIncome = 0, totNetExp = 0, totOutput = 0, totInput = 0, anyData = false, rowsHtml = '';
             PERIODS.forEach(function (pair) {
                 const key = pair[0], months = pair[1];
-                let netInc = 0, outVat = 0, inVat = 0;
+                let netInc = 0, outVat = 0, netExp = 0, inVat = 0;
                 income.filter(s => months.includes(Number(s.month))).forEach(s => {
                     const parts = incomeVatParts(s, yd); netInc += parts.net; outVat += parts.vat;
                 });
                 exps.filter(e => months.includes(expMonthOf(e))).forEach(e => {
-                    const parts = expenseVatParts(e, yd); inVat += parts.vat;
+                    const parts = expenseVatParts(e, yd);
+                    if (parts.vat > 0) { netExp += parts.net; inVat += parts.vat; }   // only VAT-eligible expenses
                 });
-                if (netInc === 0 && outVat === 0 && inVat === 0) return;
+                if (netInc === 0 && outVat === 0 && netExp === 0 && inVat === 0) return;
                 anyData = true;
-                totNetIncome += netInc; totOutput += outVat; totInput += inVat;
+                totNetIncome += netInc; totNetExp += netExp; totOutput += outVat; totInput += inVat;
                 const diff = outVat - inVat;
                 rowsHtml += '<tr>'
                     + '<td>' + (PERIOD_NAMES[key] || key) + '</td>'
                     + '<td>' + formatCurrency(netInc) + '</td>'
+                    + '<td style="color:var(--danger)">' + formatCurrency(netExp) + '</td>'
                     + '<td>' + formatCurrency(outVat) + '</td>'
                     + '<td style="color:var(--success)">' + formatCurrency(inVat) + '</td>'
                     + '<td style="color:' + (diff < 0 ? 'var(--success)' : 'var(--danger)') + '">' + (diff < 0 ? 'החזר ' : 'לשלם ') + formatCurrency(Math.abs(diff)) + '</td>'
@@ -7666,12 +7669,9 @@
                     + '</tr>';
             });
 
-            // Total recognized deductible cost (excl. VAT) across the whole year.
-            totNetExp = exps.reduce((s, e) => s + expenseVatParts(e, yd).net, 0);
-
             tbody.innerHTML = anyData
                 ? rowsHtml
-                : '<tr><td colspan="6" class="empty-state"><div class="icon">📊</div><p>אין נתוני מע"מ — סמנו חשבוניות/הוצאות עם מע"מ</p></td></tr>';
+                : '<tr><td colspan="7" class="empty-state"><div class="icon">📊</div><p>אין נתוני מע"מ — סמנו חשבוניות/הוצאות עם מע"מ</p></td></tr>';
 
             const totRefund = totInput - totOutput;   // >0 refund, <0 pay
             const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
@@ -12873,7 +12873,7 @@
                     break;
                 case 'vat': {
                     // Automatic, from records (bi-monthly), matching the on-screen VAT page.
-                    headers = ['תקופה', 'הכנסה נטו', 'מע"מ עסקאות', 'מע"מ תשומות', 'הפרש'];
+                    headers = ['תקופה', 'הכנסות', 'הוצאות (עם מע"מ)', 'מע"מ עסקאות', 'מע"מ תשומות', 'הפרש'];
                     const VPERIODS = [['1-2', [1, 2]], ['3-4', [3, 4]], ['5-6', [5, 6]], ['7-8', [7, 8]], ['9-10', [9, 10]], ['11-12', [11, 12]]];
                     const VNAMES = { '1-2': 'ינו-פבר', '3-4': 'מרץ-אפר', '5-6': 'מאי-יונ', '7-8': 'יול-אוג', '9-10': 'ספט-אוק', '11-12': 'נוב-דצמ' };
                     const vIncome = active(yd.selfEmployed);
@@ -12881,11 +12881,11 @@
                     const vMonthOf = e => parseInt((e.date || '').slice(5, 7), 10) || 0;
                     rows = [];
                     VPERIODS.forEach(([key, months]) => {
-                        let netInc = 0, outV = 0, inV = 0;
+                        let netInc = 0, outV = 0, netExp = 0, inV = 0;
                         vIncome.filter(s => months.includes(Number(s.month))).forEach(s => { const p = incomeVatParts(s, yd); netInc += p.net; outV += p.vat; });
-                        vExps.filter(e => months.includes(vMonthOf(e))).forEach(e => { inV += expenseVatParts(e, yd).vat; });
-                        if (netInc === 0 && outV === 0 && inV === 0) return;
-                        rows.push([VNAMES[key] || key, netInc, outV, inV, outV - inV]);
+                        vExps.filter(e => months.includes(vMonthOf(e))).forEach(e => { const p = expenseVatParts(e, yd); if (p.vat > 0) { netExp += p.net; inV += p.vat; } });
+                        if (netInc === 0 && outV === 0 && netExp === 0 && inV === 0) return;
+                        rows.push([VNAMES[key] || key, netInc, netExp, outV, inV, outV - inV]);
                     });
                     break;
                 }
