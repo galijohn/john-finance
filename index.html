@@ -7696,10 +7696,8 @@
             const row = (label, val, strong, color) =>
                 '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);">'
                 + '<span style="font-size:0.9rem;">' + label + '</span>'
-                + '<span style="display:flex;align-items:center;gap:10px;">'
                 + '<span style="font-weight:' + (strong ? '700' : '600') + ';direction:ltr;' + (color ? 'color:' + color + ';' : '') + '">' + formatCurrency(val) + '</span>'
-                + '<span onclick="copyVatText(\'' + Math.round(val) + '\',event)" title="העתק" style="cursor:pointer;color:var(--text-muted);">📋</span>'
-                + '</span></div>';
+                + '</div>';
 
             // Keep the three top tiles in sync with the SELECTED period (no year/period clash).
             const periodLabel = VAT_FILING_NAMES[key] + ' ' + currentYear;
@@ -7710,16 +7708,6 @@
             setTile('vatIncomeLabel', 'הכנסות ' + periodLabel + ' (לפני מע"מ)');
             setTile('vatExpensesLabel', 'הוצאות ' + periodLabel + ' (לפני מע"מ)');
             setTile('vatOnExpensesLabel', 'מע"מ לקיזוז ' + periodLabel);
-
-            const copyAll = [
-                'דוח מע"מ ' + VAT_FILING_NAMES[key] + ' ' + currentYear,
-                'עסקאות חייבות (בסיס): ' + Math.round(d.taxableBase),
-                'מע"מ עסקאות: ' + Math.round(d.outputVat),
-                'עסקאות בשיעור אפס: ' + Math.round(d.zeroRated),
-                'תשומות ציוד: ' + Math.round(d.equipVat),
-                'תשומות שוטפות: ' + Math.round(d.regularVat),
-                (refund ? 'להחזר: ' : 'לתשלום: ') + Math.round(balAbs)
-            ].join('\n');
 
             body.innerHTML =
                 '<div style="display:flex;align-items:center;gap:8px;background:rgba(245,158,11,0.12);color:var(--warning);border-radius:8px;padding:8px 12px;font-size:0.85rem;margin:6px 0 14px;">'
@@ -7734,8 +7722,7 @@
                 + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding:14px 16px;border-radius:10px;background:' + (refund ? 'rgba(29,158,117,0.12)' : 'rgba(239,68,68,0.10)') + ';">'
                 + '<div><div style="font-size:0.82rem;color:var(--text-muted);">שורה תחתונה</div><div style="font-size:0.85rem;color:var(--text-muted);">מע"מ עסקאות ' + formatCurrency(d.outputVat) + ' − תשומות ' + formatCurrency(d.inputVat) + '</div></div>'
                 + '<div style="text-align:left;"><div style="font-size:1.4rem;font-weight:700;direction:ltr;color:' + (refund ? 'var(--success)' : 'var(--danger)') + ';">' + formatCurrency(balAbs) + '</div><div style="font-size:0.82rem;color:' + (refund ? 'var(--success)' : 'var(--danger)') + ';">' + (refund ? 'להחזר' : 'לתשלום') + '</div></div>'
-                + '</div>'
-                + '<button class="btn btn-sm" style="margin-top:14px;width:100%;" onclick="copyVatText(' + JSON.stringify(copyAll).replace(/"/g, '&quot;') + ',event)">📋 העתק את כל השדות</button>';
+                + '</div>';
         }
 
         // Automatic VAT summary — computed straight from income + expense records
