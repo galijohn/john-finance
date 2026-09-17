@@ -3632,11 +3632,13 @@
                     <button type="button" id="exportInclDeductOnly" class="btn btn-sm btn-primary" onclick="setExportInclude(false)" style="flex:1;">✓ רק מוכרות (לרו"ח)</button>
                     <button type="button" id="exportInclAll" class="btn btn-sm" onclick="setExportInclude(true)" style="flex:1;">הכל כולל לא מוכרות</button>
                 </div>
-                <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">תקופה:</div>
+                <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">חודשים:</div>
+                <label style="font-size:0.85rem;display:block;margin-bottom:6px;"><input type="checkbox" id="expMonthAll" checked onchange="toggleAllExportMonths(this.checked)"> כל החודשים</label>
+                <div id="exportScopeMonths" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;font-size:0.82rem;"></div>
+                <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">פילוג:</div>
                 <div style="display:flex;flex-direction:column;gap:10px;">
-                    <button class="btn btn-primary" id="exportScopeMonthBtn" onclick="setExportMode('month')" style="width:100%;"></button>
-                    <button class="btn" id="exportScopeYearBtn" onclick="setExportMode('year')" style="width:100%;"></button>
-                    <button class="btn" id="exportScopeFlatBtn" onclick="setExportMode('flat')" style="width:100%;"></button>
+                    <button class="btn btn-primary" id="exportScopeYearBtn" onclick="setExportMode('year')" style="width:100%;">📄 לפי חודשים</button>
+                    <button class="btn" id="exportScopeFlatBtn" onclick="setExportMode('flat')" style="width:100%;">📄 ללא חלוקה</button>
                 </div>
                 <div style="display:flex;gap:10px;margin-top:18px;">
                     <button class="btn btn-primary" onclick="runScopedExport(_exportMode)" style="flex:1;font-size:1rem;padding:12px;">🖨️ הדפס</button>
@@ -11434,7 +11436,7 @@
         let _exportMode = 'month';
         function setExportMode(m) {
             _exportMode = m;
-            const b = { month: 'exportScopeMonthBtn', year: 'exportScopeYearBtn', flat: 'exportScopeFlatBtn' };
+            const b = { year: 'exportScopeYearBtn', flat: 'exportScopeFlatBtn' };
             Object.keys(b).forEach(k => { const el = document.getElementById(b[k]); if (el) el.classList.toggle('btn-primary', k === m); });
         }
         function setExportInclude(all) {
@@ -11450,6 +11452,7 @@
             let list = active(yd.expenses);
             const s = expenseExportScope;
             if (s && s.mode === 'month') list = list.filter(e => (e.date || '').startsWith(s.monthKey));
+            if (s && s.months && s.months.length) list = list.filter(e => s.months.includes(parseInt((e.date || '').slice(5, 7), 10)));
             if (expenseFilter !== 'all') list = list.filter(e => e.category === expenseFilter);
             if (!_exportIncludeNonDeduct) list = list.filter(isDeductible);
             return list;
@@ -11465,16 +11468,36 @@
             return t;
         }
 
+        function renderExportScopeMonths() {
+            const box = document.getElementById('exportScopeMonths');
+            if (!box) return;
+            let html = '';
+            for (let i = 1; i <= 12; i++) {
+                html += '<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="exp_m_' + i + '" checked onchange="syncExpMonthAll()"> ' + MONTHS[i] + '</label>';
+            }
+            box.innerHTML = html;
+            const all = document.getElementById('expMonthAll'); if (all) all.checked = true;
+        }
+        function toggleAllExportMonths(on) {
+            for (let i = 1; i <= 12; i++) { const c = document.getElementById('exp_m_' + i); if (c) c.checked = on; }
+        }
+        function syncExpMonthAll() {
+            let all = true;
+            for (let i = 1; i <= 12; i++) { const c = document.getElementById('exp_m_' + i); if (c && !c.checked) all = false; }
+            const a = document.getElementById('expMonthAll'); if (a) a.checked = all;
+        }
+        function getSelectedExpenseMonths() {
+            const sel = [];
+            for (let i = 1; i <= 12; i++) { const c = document.getElementById('exp_m_' + i); if (c && c.checked) sel.push(i); }
+            return (sel.length === 0 || sel.length === 12) ? null : sel;
+        }
+
         function openExportScope(kind) {
             _exportKind = kind;
             document.querySelectorAll('.export-dropdown-content.show').forEach(d => d.classList.remove('show'));
-            const mk = expenseMonth !== 'all' ? expenseMonth : realMonthKey();
-            const icon = kind === 'excel' ? '📊' : '📄';
-            document.getElementById('exportScopeMonthBtn').textContent = icon + ' ' + monthLabelFromKey(mk) + ' — החודש המוצג';
-            document.getElementById('exportScopeYearBtn').textContent = icon + ' כל שנת ' + currentYear + ' — לפי חודשים';
-            document.getElementById('exportScopeFlatBtn').textContent = icon + ' הכל — ללא חלוקה';
             setExportInclude(_exportIncludeNonDeduct);
-            setExportMode('month');
+            renderExportScopeMonths();
+            setExportMode('year');
             const note = document.getElementById('exportScopeCatNote');
             if (expenseFilter !== 'all') {
                 note.textContent = 'סינון קטגוריה פעיל: הדוח יכלול רק "' + expenseFilter + '"';
@@ -11487,7 +11510,7 @@
 
         async function runScopedExport(mode) {
             const mk = expenseMonth !== 'all' ? expenseMonth : realMonthKey();
-            expenseExportScope = { mode: mode, monthKey: mk };
+            expenseExportScope = { mode: mode, monthKey: mk, months: getSelectedExpenseMonths() };
             closeModal('exportScopeModal');
             if (getScopedExpenses().length === 0) {
                 await popupError('אין נתונים', 'אין הוצאות בתקופה שנבחרה');
