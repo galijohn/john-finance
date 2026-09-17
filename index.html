@@ -148,8 +148,6 @@
             margin: 0;
             font-size: 1.5rem;
         }
-        /* Print button pinned to the top-right corner on every page (RTL: first = rightmost) */
-        .page-header .export-dropdown { order: -1; }
         
         .cards-grid {
             display: grid;
@@ -3252,9 +3250,12 @@
                 <div id="incomeExportMonths" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;font-size:0.82rem;"></div>
                 <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">פילוג:</div>
                 <div style="display:flex;flex-direction:column;gap:10px;">
-                    <button class="btn btn-primary" id="incomeExportByMonthBtn" onclick="runIncomeExport('year')" style="width:100%;">📄 לפי חודשים</button>
-                    <button class="btn" id="incomeExportFlatBtn" onclick="runIncomeExport('flat')" style="width:100%;">📄 בלי חלוקה לחודשים</button>
-                    <button class="btn" onclick="closeModal('incomeExportModal')" style="width:100%;">ביטול</button>
+                    <button class="btn btn-primary" id="incomeExportByMonthBtn" onclick="setIncomeMode('year')" style="width:100%;">📄 לפי חודשים</button>
+                    <button class="btn" id="incomeExportFlatBtn" onclick="setIncomeMode('flat')" style="width:100%;">📄 בלי חלוקה לחודשים</button>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:18px;">
+                    <button class="btn btn-primary" onclick="runIncomeExport(_incomeMode)" style="flex:1;font-size:1rem;padding:12px;">🖨️ הדפס</button>
+                    <button class="btn" onclick="closeModal('incomeExportModal')" style="flex:1;">ביטול</button>
                 </div>
             </div>
         </div>
@@ -9570,6 +9571,7 @@
             document.getElementById('incomeExportByMonthBtn').textContent = icon + ' לפי חודשים';
             document.getElementById('incomeExportFlatBtn').textContent = icon + ' בלי חלוקה לחודשים';
             renderIncomeExportMonths();
+            setIncomeMode('year');
             openModal('incomeExportModal');
         }
         const _incomeDsLabels = { selfEmployed: '💰 הכנסה כעצמאי', taxAdvance: '🏛️ מס הכנסה', blAdvance: '🏥 ביטוח לאומי', all: '📚 הכל' };
@@ -9586,6 +9588,14 @@
                 b.style.boxShadow = on ? 'inset 0 0 0 2px rgba(255,255,255,0.45)' : '';
                 b.style.fontWeight = on ? '700' : '';
             });
+        }
+        let _incomeMode = 'year';
+        function setIncomeMode(m) {
+            _incomeMode = m;
+            const b1 = document.getElementById('incomeExportByMonthBtn');
+            const b2 = document.getElementById('incomeExportFlatBtn');
+            if (b1) b1.classList.toggle('btn-primary', m === 'year');
+            if (b2) b2.classList.toggle('btn-primary', m === 'flat');
         }
         async function runIncomeExport(mode) {
             incomeExportScope = { dataset: _incomeDataset, mode, months: getSelectedIncomeMonths() };
