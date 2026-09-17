@@ -12697,7 +12697,7 @@
                 const redFont = { size: 10, color: { argb: 'FFDC2626' }, name: 'Segoe UI' };
                 incomeSelectedDatasets().forEach(dsKey => {
                     const ds = INCOME_DATASETS[dsKey];
-                    const items = ds.get();
+                    const items = incomeMonthFilter(ds.get());
                     const isSelf = dsKey === 'selfEmployed';
                     addSection(ds.title, S);
                     addHdr(isSelf ? ['חודש', 'תיאור', 'סכום', 'מסמכים חסרים'] : ['חודש', 'סכום', 'מסמך', '']);
