@@ -12024,7 +12024,7 @@
 
                 let html = '';
                 // One header for the whole recognized section (parallel to the לא-מוכר header).
-                html += `<tr class="category-group-header" style="background:rgba(148,163,184,0.10);"><td colspan="4" style="color:var(--text-muted);">💳 הוצאות מוכרות</td><td class="col-pct"></td><td class="col-net"></td></tr>`;
+                html += `<tr class="category-group-header" style="background:rgba(148,163,184,0.10);"><td colspan="4" style="color:var(--text-muted);">💳 הוצאות מוכרות${_totalInputVat > 0 ? ' · מע"מ לקיזוז החודש: ' + formatCurrency(_totalInputVat) : ''}</td><td class="col-pct"></td><td class="col-net"></td></tr>`;
                 // Cross-month "unpaid from earlier months" summary — belongs to no single category.
                 if (inMonth) html += carryBillsSummaryHtml(expenseMonth);
 
@@ -12033,6 +12033,8 @@
                     const billT = catBills.reduce((a, i) => { const e = billEff(i); a.gross += e.gross; a.recognized += e.recognized; return a; }, { gross: 0, recognized: 0 });
                     const catRecognized = items.reduce((s, e) => s + (isDeductible(e) ? e.amount * ((e.recognition ?? 100) / 100) : 0), 0) + billT.recognized;
                     const catGross = items.reduce((s, e) => s + (Number(e.amount) || 0), 0) + billT.gross;
+                    const catVat = items.reduce((s, e) => s + expenseVatParts(e, yd).vat, 0)
+                        + catBills.reduce((s, i) => { const p = lineDone(expenseMonth, i); const r = (p && p.id) ? p : null; return s + (r ? expenseVatParts(r, yd).vat : 0); }, 0);
                     const count = items.length + catBills.length;
                     const isCollapsed = collapsedCategories[cat];
                     const b = budgets[cat];
@@ -12056,7 +12058,7 @@
                                 ? ` <span style="color:#a78bfa;font-size:0.78rem;font-weight:400;">📄 ${pendingCollects[cat].length} לאיסוף</span>`
                                 : ''}</td>
                         ${budgetCell}
-                        <td class="col-net" style="color:var(--warning)">${formatCurrency(catRecognized)}</td>
+                        <td class="col-net" style="color:var(--warning)">${formatCurrency(catRecognized)}${catVat > 0 ? '<div style="font-size:0.72rem;color:#38bdf8;font-weight:400;">מע"מ: ' + formatCurrency(catVat) + '</div>' : ''}</td>
                     </tr>`;
                     if (!isCollapsed) {
                         html += items.map(e => renderExpenseRow(e)).join('');
@@ -12223,6 +12225,7 @@
             // A non-deductible bill is tracked but never recognized — show "—" like a regular
             // non-deductible expense, not 100% + a recognized amount.
             const deduct = real ? isDeductible(real) : isDeductible(item);
+            const vatBack = real ? expenseVatParts(real, getYearData()).vat : 0;   // reclaimable VAT on the paid record
             const menuExtra = `{monthKey:'${monthKey}',paymentId:${real ? real.id : 'null'}}`;
             const rowClick = real ? `openDocFolder('expense',${real.id})` : `payRecurring('${monthKey}','${item.id}')`;
             // State icon: unpaid → 🪙, paid → how it was paid. Collect lines carry no money out.
@@ -12240,7 +12243,7 @@
                 <td>${typeBadge(item.kind)}${(real && real.description) ? real.description : item.description}${real && (real.driveLink || real.driveId) ? ' <span data-tip="יש מסמך — לחץ לצפייה" style="color:#38bdf8;cursor:pointer;">📄</span>' : ''}${real && real.notes ? ' <span data-tip="' + escapeFormHtml(real.notes) + '" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--bg-input);color:var(--text-muted);font-size:0.62rem;font-style:italic;font-weight:bold;vertical-align:middle;">i</span>' : ''}</td>
                 <td style="color:${collect ? 'var(--text-muted)' : 'var(--danger)'}">${collect ? '—' : formatCurrency(amount)}</td>
                 <td class="col-pct" style="text-align:center;${!collect && deduct && effPct < 100 ? 'color:var(--warning)' : ''}">${collect || !deduct ? '—' : effPct + '%'}</td>
-                <td class="col-net" style="color:${collect || !deduct ? 'var(--text-muted)' : 'var(--success)'}">${collect || !deduct ? '—' : formatCurrency(amount * (effPct / 100))}</td>
+                <td class="col-net" style="color:${collect || !deduct ? 'var(--text-muted)' : 'var(--success)'}">${collect || !deduct ? '—' : formatCurrency(amount * (effPct / 100))}${(!collect && deduct && vatBack > 0) ? '<div style="font-size:0.72rem;color:#38bdf8;">מע"מ לקיזוז: ' + formatCurrency(vatBack) + '</div>' : ''}</td>
             </tr>`;
         }
 
