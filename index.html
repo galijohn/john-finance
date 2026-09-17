@@ -2016,6 +2016,14 @@
                 • יש להגיש דו"ח חודשי/דו-חודשי לרשות המסים
             </div>
 
+            <div class="card" style="margin-bottom:20px;">
+                <div class="table-header" style="align-items:center;">
+                    <h3 style="margin:0;">📋 דוח להגשה</h3>
+                    <select class="form-control" id="vatFilingPeriod" onchange="renderVatFiling()" style="width:auto;"></select>
+                </div>
+                <div id="vatFilingBody"></div>
+            </div>
+
             <div class="cards-grid" style="margin-bottom:20px;">
                 <div class="card stat-card">
                     <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/combo-chart.png" alt="" onerror="this.replaceWith(document.createTextNode('📈'))"></div>
@@ -7630,6 +7638,102 @@
             renderAll();
         }
 
+        // ===== VAT filing helper (דוח להגשה) — per bi-monthly period, fields matching
+        // the official periodic report. Equipment input VAT (category 'ציוד') is split out. =====
+        const VAT_FILING_PERIODS = [['1-2', [1, 2]], ['3-4', [3, 4]], ['5-6', [5, 6]], ['7-8', [7, 8]], ['9-10', [9, 10]], ['11-12', [11, 12]]];
+        const VAT_FILING_NAMES = { '1-2': 'ינו-פבר', '3-4': 'מרץ-אפר', '5-6': 'מאי-יונ', '7-8': 'יול-אוג', '9-10': 'ספט-אוק', '11-12': 'נוב-דצמ' };
+
+        function vatPeriodData(months) {
+            const yd = getYearData();
+            let taxableBase = 0, outputVat = 0, zeroRated = 0, equipVat = 0, regularVat = 0;
+            active(yd.selfEmployed).filter(s => months.includes(Number(s.month))).forEach(s => {
+                const p = incomeVatParts(s, yd);
+                if (s.vat) { taxableBase += p.net; outputVat += p.vat; } else { zeroRated += p.net; }
+            });
+            deductibleExpenses(yd).filter(e => months.includes(parseInt((e.date || '').slice(5, 7), 10) || 0)).forEach(e => {
+                const p = expenseVatParts(e, yd);
+                if (p.vat > 0) { if (e.category === 'ציוד') equipVat += p.vat; else regularVat += p.vat; }
+            });
+            const inputVat = equipVat + regularVat;
+            return { taxableBase, outputVat, zeroRated, equipVat, regularVat, inputVat, balance: outputVat - inputVat };
+        }
+
+        function vatFilingDeadline(months) {
+            const endM = months[months.length - 1];
+            let y = currentYear, m = endM + 1;
+            if (m > 12) { m = 1; y = currentYear + 1; }
+            return y + '-' + String(m).padStart(2, '0') + '-15';
+        }
+
+        function copyVatText(str, ev) {
+            if (ev) ev.stopPropagation();
+            const done = () => { if (typeof showSyncNotification === 'function') showSyncNotification('📋 הועתק'); };
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(str).then(done).catch(() => {});
+            else { try { const t = document.createElement('textarea'); t.value = str; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); done(); } catch (e) {} }
+        }
+
+        function renderVatFiling() {
+            const sel = document.getElementById('vatFilingPeriod');
+            const body = document.getElementById('vatFilingBody');
+            if (!sel || !body) return;
+
+            const prev = sel.value;
+            // Default to the latest period that has any data.
+            let defKey = VAT_FILING_PERIODS[0][0];
+            VAT_FILING_PERIODS.forEach(([k, months]) => {
+                const d = vatPeriodData(months);
+                if (d.taxableBase || d.outputVat || d.zeroRated || d.inputVat) defKey = k;
+            });
+            sel.innerHTML = VAT_FILING_PERIODS.map(([k]) => '<option value="' + k + '">' + VAT_FILING_NAMES[k] + ' ' + currentYear + '</option>').join('');
+            sel.value = (prev && VAT_FILING_PERIODS.some(p => p[0] === prev)) ? prev : defKey;
+
+            const key = sel.value;
+            const months = (VAT_FILING_PERIODS.find(p => p[0] === key) || VAT_FILING_PERIODS[0])[1];
+            const d = vatPeriodData(months);
+            const due = vatFilingDeadline(months);
+            const refund = d.balance <= 0;
+            const balAbs = Math.abs(d.balance);
+
+            // Deadline banner (days remaining only meaningful for the current calendar year).
+            const dueDate = new Date(due + 'T00:00:00');
+            const days = Math.ceil((dueDate - new Date()) / 86400000);
+            const dueTxt = formatDate(due) + (days >= 0 && days <= 120 ? ' · נותרו ' + days + ' ימים' : '');
+
+            const row = (label, val, strong, color) =>
+                '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);">'
+                + '<span style="font-size:0.9rem;">' + label + '</span>'
+                + '<span style="display:flex;align-items:center;gap:10px;">'
+                + '<span style="font-weight:' + (strong ? '700' : '600') + ';direction:ltr;' + (color ? 'color:' + color + ';' : '') + '">' + formatCurrency(val) + '</span>'
+                + '<span onclick="copyVatText(\'' + Math.round(val) + '\',event)" title="העתק" style="cursor:pointer;color:var(--text-muted);">📋</span>'
+                + '</span></div>';
+
+            const copyAll = [
+                'דוח מע"מ ' + VAT_FILING_NAMES[key] + ' ' + currentYear,
+                'עסקאות חייבות (בסיס): ' + Math.round(d.taxableBase),
+                'מע"מ עסקאות: ' + Math.round(d.outputVat),
+                'עסקאות בשיעור אפס: ' + Math.round(d.zeroRated),
+                'תשומות ציוד: ' + Math.round(d.equipVat),
+                'תשומות שוטפות: ' + Math.round(d.regularVat),
+                (refund ? 'להחזר: ' : 'לתשלום: ') + Math.round(balAbs)
+            ].join('\n');
+
+            body.innerHTML =
+                '<div style="display:flex;align-items:center;gap:8px;background:rgba(245,158,11,0.12);color:var(--warning);border-radius:8px;padding:8px 12px;font-size:0.85rem;margin:6px 0 14px;">'
+                + '🔔 מועד הגשה אחרון: ' + dueTxt + '</div>'
+                + '<div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;">עסקאות (מכר)</div>'
+                + row('עסקאות חייבות במע"מ (בסיס)', d.taxableBase)
+                + row('מע"מ על העסקאות החייבות', d.outputVat)
+                + row('עסקאות בשיעור אפס (יצוא לחו"ל)', d.zeroRated)
+                + '<div style="font-size:0.82rem;color:var(--text-muted);margin:14px 0 4px;">תשומות (קיזוז)</div>'
+                + row('מע"מ תשומות — ציוד / רכוש קבוע', d.equipVat, false, 'var(--success)')
+                + row('מע"מ תשומות — שוטפות (הוצאות)', d.regularVat, false, 'var(--success)')
+                + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding:14px 16px;border-radius:10px;background:' + (refund ? 'rgba(29,158,117,0.12)' : 'rgba(239,68,68,0.10)') + ';">'
+                + '<div><div style="font-size:0.82rem;color:var(--text-muted);">שורה תחתונה</div><div style="font-size:0.85rem;color:var(--text-muted);">מע"מ עסקאות ' + formatCurrency(d.outputVat) + ' − תשומות ' + formatCurrency(d.inputVat) + '</div></div>'
+                + '<div style="text-align:left;"><div style="font-size:1.4rem;font-weight:700;direction:ltr;color:' + (refund ? 'var(--success)' : 'var(--danger)') + ';">' + formatCurrency(balAbs) + '</div><div style="font-size:0.82rem;color:' + (refund ? 'var(--success)' : 'var(--danger)') + ';">' + (refund ? 'להחזר' : 'לתשלום') + '</div></div>'
+                + '</div>'
+                + '<button class="btn btn-sm" style="margin-top:14px;width:100%;" onclick="copyVatText(' + JSON.stringify(copyAll).replace(/"/g, '&quot;') + ',event)">📋 העתק את כל השדות</button>';
+        }
+
         // Automatic VAT summary — computed straight from income + expense records
         // (bi-monthly periods). No manual entry: mark an invoice/expense as carrying VAT.
         function renderVatTable() {
@@ -9274,6 +9378,7 @@
             renderTaxAdvanceTable();
             renderBLAdvanceTable();
             renderVatTable();
+            renderVatFiling();
             
             // Credits
             document.getElementById('totalCredits').textContent = credits.toFixed(2);
