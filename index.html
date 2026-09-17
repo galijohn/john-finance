@@ -2061,12 +2061,6 @@
                     <tbody id="vatTable"></tbody>
                 </table>
             </div>
-
-            <div class="result-box refund" style="margin-top:20px;" id="vatResultBox">
-                <div>💰 סה"כ מע"מ לקיזוז (החזר צפוי)</div>
-                <div class="amount" id="vatTotalRefund">₪0</div>
-                <div>בתנאי שההכנסות מיצוא לחו"ל (0% מע"מ)</div>
-            </div>
         </div>
 
         <!-- Credits Page -->
@@ -12969,20 +12963,13 @@
                     });
                     break;
                 case 'vat': {
-                    // Automatic, from records (bi-monthly), matching the on-screen VAT page.
-                    headers = ['תקופה', 'הכנסות', 'הוצאות (עם מע"מ)', 'מע"מ עסקאות', 'מע"מ תשומות', 'הפרש'];
-                    const VPERIODS = [['1-2', [1, 2]], ['3-4', [3, 4]], ['5-6', [5, 6]], ['7-8', [7, 8]], ['9-10', [9, 10]], ['11-12', [11, 12]]];
-                    const VNAMES = { '1-2': 'ינו-פבר', '3-4': 'מרץ-אפר', '5-6': 'מאי-יונ', '7-8': 'יול-אוג', '9-10': 'ספט-אוק', '11-12': 'נוב-דצמ' };
-                    const vIncome = active(yd.selfEmployed);
-                    const vExps = deductibleExpenses(yd);
-                    const vMonthOf = e => parseInt((e.date || '').slice(5, 7), 10) || 0;
+                    // Filing report — official periodic-report fields per bi-monthly period.
+                    headers = ['תקופה', 'עסקאות חייבות', 'מע"מ עסקאות', 'עסקאות אפס (יצוא)', 'תשומות ציוד', 'תשומות שוטפות', 'לתשלום/החזר'];
                     rows = [];
-                    VPERIODS.forEach(([key, months]) => {
-                        let netInc = 0, outV = 0, netExp = 0, inV = 0;
-                        vIncome.filter(s => months.includes(Number(s.month))).forEach(s => { const p = incomeVatParts(s, yd); netInc += p.net; outV += p.vat; });
-                        vExps.filter(e => months.includes(vMonthOf(e))).forEach(e => { const p = expenseVatParts(e, yd); if (p.vat > 0) { netExp += p.net; inV += p.vat; } });
-                        if (netInc === 0 && outV === 0 && netExp === 0 && inV === 0) return;
-                        rows.push([VNAMES[key] || key, netInc, netExp, outV, inV, outV - inV]);
+                    VAT_FILING_PERIODS.forEach(([key, months]) => {
+                        const d = vatPeriodData(months);
+                        if (!(d.taxableBase || d.outputVat || d.zeroRated || d.inputVat)) return;
+                        rows.push([VAT_FILING_NAMES[key], d.taxableBase, d.outputVat, d.zeroRated, d.equipVat, d.regularVat, d.balance]);
                     });
                     break;
                 }
