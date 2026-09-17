@@ -1617,12 +1617,12 @@
                 <div class="card stat-card" data-card="netPocket" style="border:1px solid var(--success);">
                     <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/money-bag.png" alt="" onerror="this.replaceWith(document.createTextNode('💰'))"></div>
                     <div class="value" id="dashNetPocket" style="color:var(--success)">₪0</div>
-                    <div class="label">נטו בכיס (שנתי)</div>
+                    <div class="label">הכנסה פנויה (שנתי)</div>
                 </div>
                 <div class="card stat-card" data-card="netPocketMonthly" style="border:1px solid var(--success);">
                     <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/cash-in-hand.png" alt="" onerror="this.replaceWith(document.createTextNode('💵'))"></div>
                     <div class="value" id="dashNetPocketMonthly" style="color:var(--success)">₪0</div>
-                    <div class="label">נטו בכיס (לחודש)</div>
+                    <div class="label">הכנסה פנויה (לחודש)</div>
                 </div>
                 <div class="card stat-card" data-card="taxRates" style="border:1px solid var(--primary);">
                     <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/percentage.png" alt="" onerror="this.replaceWith(document.createTextNode('📊'))"></div>
@@ -2321,7 +2321,7 @@
             </div>
 
             <div class="card" style="margin-top:20px;background:linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05));border-color:var(--success);">
-                <h3 style="margin:0 0 15px;">💰 נטו בכיס (אחרי מס וביטוח לאומי)</h3>
+                <h3 style="margin:0 0 15px;">💰 הכנסה פנויה (אחרי מס וביטוח לאומי)</h3>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;text-align:center;">
                     <div>
                         <div style="font-size:0.9rem;color:var(--text-muted);">שנתי</div>
@@ -2491,7 +2491,7 @@
             </div>
 
             <div class="card" style="margin-bottom:20px;background:linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05));border-color:var(--success);">
-                <h3 style="margin:0 0 15px;">💰 נטו בכיס — סה"כ (כולל הכנסות אחרות, אחרי מס וביט"ל)</h3>
+                <h3 style="margin:0 0 15px;">💰 הכנסה פנויה — סה"כ (כולל הכנסות אחרות, אחרי מס וביט"ל)</h3>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;text-align:center;">
                     <div>
                         <div style="font-size:0.9rem;color:var(--text-muted);">שנתי</div>
@@ -3945,11 +3945,11 @@
                         </div>
                         <div class="credit-item">
                             <input type="checkbox" id="dash_netPocket" checked onchange="saveDashboardSettings()">
-                            <label for="dash_netPocket">💰 נטו בכיס (שנתי)</label>
+                            <label for="dash_netPocket">💰 הכנסה פנויה (שנתי)</label>
                         </div>
                         <div class="credit-item">
                             <input type="checkbox" id="dash_netPocketMonthly" checked onchange="saveDashboardSettings()">
-                            <label for="dash_netPocketMonthly">💵 נטו בכיס (לחודש)</label>
+                            <label for="dash_netPocketMonthly">💵 הכנסה פנויה (לחודש)</label>
                         </div>
                         <div class="credit-item">
                             <input type="checkbox" id="dash_taxRates" checked onchange="saveDashboardSettings()">
@@ -13841,8 +13841,8 @@
                 if (show('blPaid')) summaryCards.push(['💳 ביט"ל ששולם (מקדמות)', fmtNum(d.totals.totalBLPaid)]);
                 const _taxable = d.totals.taxableIncome || 0;
                 const _netInPocket = _taxable - d.netTax - d.bl.total;
-                if (show('netPocket')) summaryCards.push(['💰 נטו בכיס (שנתי)', fmtNum(_netInPocket)]);
-                if (show('netPocketMonthly')) summaryCards.push(['💵 נטו בכיס (לחודש)', fmtNum(Math.round(_netInPocket / 12))]);
+                if (show('netPocket')) summaryCards.push(['💰 הכנסה פנויה (שנתי)', fmtNum(_netInPocket)]);
+                if (show('netPocketMonthly')) summaryCards.push(['💵 הכנסה פנויה (לחודש)', fmtNum(Math.round(_netInPocket / 12))]);
                 if (show('taxRates')) {
                     const _det = calculateIncomeTax(_taxable).details;
                     const _marg = (_det && _det.length) ? _det[_det.length - 1].rate : 0;
