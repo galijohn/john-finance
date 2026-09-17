@@ -12983,8 +12983,8 @@
                 });
             }
 
-            if (page === 'dashboard' || page === 'calculation' || page === 'taxCalc' || page === 'vat') {
-                // All documents (the forecast is a projection — it attaches no source documents)
+            if (page === 'calculation' || page === 'taxCalc' || page === 'vat') {
+                // All documents (dashboard is a summary + forecast is a projection — neither attaches documents)
                 addRecordDocs(yd.salary, 'שכיר');
                 addRecordDocs(yd.unemployment, 'אבטלה');
                 addRecordDocs(yd.miluim, 'מילואים');
