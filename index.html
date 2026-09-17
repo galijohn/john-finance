@@ -12033,6 +12033,8 @@
                     const billT = catBills.reduce((a, i) => { const e = billEff(i); a.gross += e.gross; a.recognized += e.recognized; return a; }, { gross: 0, recognized: 0 });
                     const catRecognized = items.reduce((s, e) => s + (isDeductible(e) ? e.amount * ((e.recognition ?? 100) / 100) : 0), 0) + billT.recognized;
                     const catGross = items.reduce((s, e) => s + (Number(e.amount) || 0), 0) + billT.gross;
+                    const catVat = items.reduce((s, e) => s + expenseVatParts(e, yd).vat, 0)
+                        + catBills.reduce((s, i) => { const p = lineDone(expenseMonth, i); const r = (p && p.id) ? p : null; return s + (r ? expenseVatParts(r, yd).vat : 0); }, 0);
                     const count = items.length + catBills.length;
                     const isCollapsed = collapsedCategories[cat];
                     const b = budgets[cat];
@@ -12056,7 +12058,7 @@
                                 ? ` <span style="color:#a78bfa;font-size:0.78rem;font-weight:400;">📄 ${pendingCollects[cat].length} לאיסוף</span>`
                                 : ''}</td>
                         ${budgetCell}
-                        <td class="col-net" style="color:var(--warning)">${formatCurrency(catRecognized)}</td>
+                        <td class="col-net" style="color:var(--warning)">${formatCurrency(catRecognized)}${catVat > 0 ? '<div style="font-size:0.72rem;color:#38bdf8;font-weight:400;">מע"מ: ' + formatCurrency(catVat) + '</div>' : ''}</td>
                     </tr>`;
                     if (!isCollapsed) {
                         html += items.map(e => renderExpenseRow(e)).join('');
