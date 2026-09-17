@@ -2390,6 +2390,13 @@
                         <input type="number" class="form-control" id="forecastOtherTax" placeholder="₪0" onchange="calculateForecast()">
                     </div>
                 </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>נקודות זיכוי (תחזית)</label>
+                        <input type="number" step="0.25" min="0" class="form-control" id="forecastCredits" placeholder="לדוגמה 2.25" onchange="calculateForecast()">
+                    </div>
+                    <div class="form-group"></div>
+                </div>
                 <button class="btn btn-primary" onclick="calculateForecast()" style="margin-top:10px;">🧮 חשב תחזית</button>
                 <button class="btn" onclick="loadActualToForecast()" style="margin-top:10px;">📊 טען נתונים בפועל</button>
             </div>
@@ -2475,7 +2482,9 @@
                     <span>סה"כ הכנסה חייבת צפויה</span>
                     <span id="forecastDetailTaxable">₪0</span>
                 </div>
-                <div class="summary-row" style="margin-top:15px;">
+                <div style="margin-top:15px;margin-bottom:6px;font-weight:600;">📊 פירוט מדרגות המס <span id="forecastRates" style="font-weight:400;font-size:0.82rem;color:var(--text-muted);"></span></div>
+                <div id="forecastBracketsBreakdown"></div>
+                <div class="summary-row" style="margin-top:12px;">
                     <span>מס ברוטו (לפני זיכויים)</span>
                     <span id="forecastDetailGrossTax">₪0</span>
                 </div>
@@ -7853,35 +7862,24 @@
             // Get number of months as self-employed (default 12, or use override for forecast)
             const months = overrideMonths !== null ? overrideMonths : (yd.selfEmployedMonths || 12);
             
-            // Monthly thresholds (2025)
-            const monthlyReducedThreshold = 7522;  // 60% of average salary
-            const monthlyMaxThreshold = 50695;     // Maximum insurable income
-            
-            // Calculate thresholds based on actual months
-            const reducedThreshold = monthlyReducedThreshold * months;
-            const maxThreshold = monthlyMaxThreshold * months;
-            
-            // Rates
-            const reducedRate = 7.70;  // BL 4.47% + Health 3.23%
-            const fullRate = 18;       // BL 12.83% + Health 5.17%
-            
-            let reduced = 0;
-            let full = 0;
-            
-            // Calculate reduced rate portion (up to threshold)
-            if (selfEmployedIncome > 0) {
-                const incomeForReduced = Math.min(selfEmployedIncome, reducedThreshold);
-                reduced = incomeForReduced * (reducedRate / 100);
-            }
-            
-            // Calculate full rate portion (above reduced threshold, up to max)
-            if (selfEmployedIncome > reducedThreshold) {
-                const incomeForFull = Math.min(selfEmployedIncome, maxThreshold) - reducedThreshold;
-                full = incomeForFull * (fullRate / 100);
-            }
-            
-            const total = reduced + full;
-            
+            // Use the DISPLAYED year's own Bituach-Leumi brackets (settings.blBrackets) — never a
+            // hardcoded year. Brackets are annual (12 months); prorate them by the months.
+            const brackets = (yd.settings && Array.isArray(yd.settings.blBrackets)) ? yd.settings.blBrackets : [];
+            const factor = months / 12;
+            let total = 0, reduced = 0, full = 0;
+            brackets.forEach((b, i) => {
+                const bMin = (Number(b.min) || 0) * factor;
+                const bMax = (b.max == null ? Infinity : Number(b.max)) * factor;
+                if (selfEmployedIncome <= bMin) return;
+                const inBracket = Math.min(selfEmployedIncome, bMax) - bMin;
+                if (inBracket <= 0) return;
+                const rate = (b.totalRate != null ? Number(b.totalRate) : ((Number(b.blRate) || 0) + (Number(b.healthRate) || 0)));
+                const tax = inBracket * (rate / 100);
+                total += tax;
+                if (i === 0) reduced += tax; else full += tax;
+            });
+            const reducedThreshold = brackets[0] ? (Number(brackets[0].max) || 0) * factor : 0;
+            const maxThreshold = brackets.length ? (Number(brackets[brackets.length - 1].max) || 0) * factor : 0;
             return { total, reduced, full, months, reducedThreshold, maxThreshold };
         }
 
@@ -8645,9 +8643,10 @@
             const taxableIncome = netSelfEmployed + otherIncome;
             
             // Calculate tax
-            const credits = calculateCredits();
+            let credits = parseFloat(document.getElementById('forecastCredits').value);
+            if (!Number.isFinite(credits)) credits = calculateCredits();
             const creditValue = credits * yd.settings.creditValue * 12;
-            const { gross: grossTax } = calculateIncomeTax(taxableIncome);
+            const { gross: grossTax, details: taxDetails } = calculateIncomeTax(taxableIncome);
             const netTax = Math.max(0, grossTax - creditValue);
             
             // Tax to pay as self-employed (minus what's already deducted from other sources)
@@ -8685,6 +8684,14 @@
             document.getElementById('forecastDetailCreditValue').textContent = '-' + formatCurrency(Math.min(creditValue, grossTax));
             document.getElementById('forecastDetailOtherTax').textContent = '-' + formatCurrency(otherTax);
             document.getElementById('forecastDetailNetTax').textContent = formatCurrency(selfEmployedTax);
+            let fbHTML = '';
+            (taxDetails || []).forEach(d => { fbHTML += `<div class="breakdown-item"><span>${formatCurrency(d.min)} - ${formatCurrency(d.max)}</span><span class="rate">${d.rate}%</span><span>${formatCurrency(d.tax)}</span></div>`; });
+            const fbEl = document.getElementById('forecastBracketsBreakdown');
+            if (fbEl) fbEl.innerHTML = fbHTML || '<div class="empty-state">אין הכנסה חייבת</div>';
+            const marginal = (taxDetails && taxDetails.length) ? taxDetails[taxDetails.length - 1].rate : 0;
+            const effRate = taxableIncome > 0 ? (netTax / taxableIncome * 100) : 0;
+            const frEl = document.getElementById('forecastRates');
+            if (frEl) frEl.textContent = `— שיעור שולי ${marginal}% · אפקטיבי ${effRate.toFixed(1)}%`;
             
             // Render payment schedule table - always 12 months
             renderForecastTable(monthlyTax, monthlyBL, 12);
@@ -8694,7 +8701,8 @@
                 income,
                 expenses,
                 otherIncome,
-                otherTax
+                otherTax,
+                credits
             };
             saveData();
         }
@@ -8742,6 +8750,7 @@
             document.getElementById('forecastExpenses').value = totals.expenses || 0;
             document.getElementById('forecastOtherIncome').value = (totals.salary + totals.unemployment + totals.miluim) || 0;
             document.getElementById('forecastOtherTax').value = (totals.taxFromSalary + totals.taxFromUnemployment + totals.taxFromMiluim) || 0;
+            document.getElementById('forecastCredits').value = calculateCredits();
             
             // Recalculate
             calculateForecast();
@@ -8749,14 +8758,16 @@
         
         function loadForecastFromData() {
             const yd = getYearData();
+            const _cEl = document.getElementById('forecastCredits');
             if (yd.forecast) {
                 document.getElementById('forecastIncome').value = yd.forecast.income || 0;
                 document.getElementById('forecastExpenses').value = yd.forecast.expenses || 0;
                 document.getElementById('forecastOtherIncome').value = yd.forecast.otherIncome || 0;
                 document.getElementById('forecastOtherTax').value = yd.forecast.otherTax || 0;
+                if (_cEl) _cEl.value = (yd.forecast.credits != null ? yd.forecast.credits : calculateCredits());
                 calculateForecast();
             } else {
-                // Show empty table - always 12 months
+                if (_cEl) _cEl.value = calculateCredits();
                 renderForecastTable(0, 0, 12);
             }
         }
