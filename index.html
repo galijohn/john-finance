@@ -1621,7 +1621,11 @@
                     <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/money-bag.png" alt="" onerror="this.replaceWith(document.createTextNode('💰'))"></div>
                     <div class="value" id="dashNetPocket" style="color:var(--success)">₪0</div>
                     <div class="label">נטו בכיס (שנתי)</div>
-                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">לחודש: <span id="dashNetPocketMonthly">₪0</span></div>
+                </div>
+                <div class="card stat-card" data-card="netPocketMonthly" style="border:1px solid var(--success);">
+                    <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/cash-in-hand.png" alt="" onerror="this.replaceWith(document.createTextNode('💵'))"></div>
+                    <div class="value" id="dashNetPocketMonthly" style="color:var(--success)">₪0</div>
+                    <div class="label">נטו בכיס (לחודש)</div>
                 </div>
             </div>
 
@@ -3888,7 +3892,11 @@
                         </div>
                         <div class="credit-item">
                             <input type="checkbox" id="dash_netPocket" checked onchange="saveDashboardSettings()">
-                            <label for="dash_netPocket">💰 נטו בכיס</label>
+                            <label for="dash_netPocket">💰 נטו בכיס (שנתי)</label>
+                        </div>
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_netPocketMonthly" checked onchange="saveDashboardSettings()">
+                            <label for="dash_netPocketMonthly">💵 נטו בכיס (לחודש)</label>
                         </div>
                     </div>
                 </div>
@@ -5960,6 +5968,7 @@
                     blDue: true,
                     blPaid: true,
                     netPocket: true,
+                    netPocketMonthly: true,
                     paymentsSummary: true,
                     result: true
                 };
@@ -5990,6 +5999,7 @@
                 blDue: document.getElementById('dash_blDue').checked,
                 blPaid: document.getElementById('dash_blPaid').checked,
                 netPocket: document.getElementById('dash_netPocket').checked,
+                netPocketMonthly: document.getElementById('dash_netPocketMonthly').checked,
                 paymentsSummary: document.getElementById('dash_paymentsSummary').checked,
                 result: document.getElementById('dash_result').checked
             };
