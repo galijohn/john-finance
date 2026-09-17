@@ -12871,13 +12871,24 @@
                         return [formatDate(e.date), e.description || '', categoryLabel(e.category), e.amount, pct + '%', e.amount * (pct / 100), e.notes || ''];
                     });
                     break;
-                case 'vat':
-                    headers = ['תקופה', 'הכנסות', 'מע"מ עסקאות', 'מע"מ תשומות', 'הפרש'];
-                    rows = active(yd.vatReports).map(v => {
-                        const diff = v.outputVat - v.inputVat;
-                        return [v.period, v.income, v.outputVat, v.inputVat, diff];
+                case 'vat': {
+                    // Automatic, from records (bi-monthly), matching the on-screen VAT page.
+                    headers = ['תקופה', 'הכנסה נטו', 'מע"מ עסקאות', 'מע"מ תשומות', 'הפרש'];
+                    const VPERIODS = [['1-2', [1, 2]], ['3-4', [3, 4]], ['5-6', [5, 6]], ['7-8', [7, 8]], ['9-10', [9, 10]], ['11-12', [11, 12]]];
+                    const VNAMES = { '1-2': 'ינו-פבר', '3-4': 'מרץ-אפר', '5-6': 'מאי-יונ', '7-8': 'יול-אוג', '9-10': 'ספט-אוק', '11-12': 'נוב-דצמ' };
+                    const vIncome = active(yd.selfEmployed);
+                    const vExps = deductibleExpenses(yd);
+                    const vMonthOf = e => parseInt((e.date || '').slice(5, 7), 10) || 0;
+                    rows = [];
+                    VPERIODS.forEach(([key, months]) => {
+                        let netInc = 0, outV = 0, inV = 0;
+                        vIncome.filter(s => months.includes(Number(s.month))).forEach(s => { const p = incomeVatParts(s, yd); netInc += p.net; outV += p.vat; });
+                        vExps.filter(e => months.includes(vMonthOf(e))).forEach(e => { inV += expenseVatParts(e, yd).vat; });
+                        if (netInc === 0 && outV === 0 && inV === 0) return;
+                        rows.push([VNAMES[key] || key, netInc, outV, inV, outV - inV]);
                     });
                     break;
+                }
                 case 'dashboard': {
                     const dTotals = calculateTotals();
                     const dCredits = calculateCredits();
