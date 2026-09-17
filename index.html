@@ -13489,6 +13489,18 @@
                 addRecordDocs(yd.expenses, 'הוצאות');
                 addRecordDocs(yd.taxAdvances, 'מקדמות מס');
                 addRecordDocs(yd.blAdvances, 'מקדמות ביט"ל');
+            } else if (page === 'vat') {
+                // Only the receipts that back the VAT refund: reclaimable-VAT expenses of the
+                // selected filing period. Nothing else (no income docs, no non-VAT expenses).
+                const selKey = (document.getElementById('vatFilingPeriod') || {}).value;
+                const sel = (typeof VAT_FILING_PERIODS !== 'undefined') ? VAT_FILING_PERIODS.find(p => p[0] === selKey) : null;
+                const months = sel ? sel[1] : null;
+                const elig = deductibleExpenses(yd).filter(e => {
+                    if (expenseVatParts(e, yd).vat <= 0) return false;
+                    if (months && !months.includes(parseInt((e.date || '').slice(5, 7), 10) || 0)) return false;
+                    return true;
+                });
+                addRecordDocs(elig, 'מע"מ תשומות');
             } else if (page === 'income') {
                 const datasets = incomeSelectedDatasets();
                 if (datasets.includes('selfEmployed')) addRecordDocs(incomeMonthFilter(yd.selfEmployed), 'עצמאי');
