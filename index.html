@@ -2619,12 +2619,10 @@
             <div class="card" style="margin-bottom:20px;">
                 <h3 style="margin:0 0 15px;">🏢 מעמד עסקי</h3>
                 <div class="form-group">
-                    <label>סוג עוסק</label>
-                    <select class="form-control" id="businessStatus" onchange="updateBusinessStatus()">
-                        <option value="zair">עוסק זעיר (עד 120,000₪ בשנה)</option>
-                        <option value="patur">עוסק פטור (עד 107,692₪ בשנה)</option>
-                        <option value="murshe">עוסק מורשה (עם מע"מ)</option>
-                    </select>
+                    <label>מעמד עסקי לפי תקופות</label>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">כל תקופה תקפה עד תחילת הבאה. קיזוז מע"מ מותר רק בתקופת "עוסק מורשה", לפי תאריך החשבונית.</div>
+                    <div id="statusPeriodsEditor"></div>
+                    <button type="button" class="btn btn-sm" onclick="addStatusPeriod()" style="margin-top:8px;">+ הוסף תקופה</button>
                 </div>
                 <div class="form-group">
                     <label>חודשים כעצמאי בשנה זו</label>
@@ -2657,11 +2655,7 @@
                         <label>שיעור מע"מ (%)</label>
                         <input type="number" class="form-control" id="vatRate" step="0.1" onchange="updateVatRate()">
                     </div>
-                    <div class="form-group">
-                        <label>תאריך מעבר לעוסק מורשה (תחילת זכאות לקיזוז מע"מ)</label>
-                        <input type="date" class="form-control" id="vatStartDate" onchange="updateVatStartDate()">
-                        <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">הוצאות לפני התאריך — בתקופת עוסק פטור — לא זכאיות לקיזוז מע"מ, גם אם סומנו.</div>
-                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);">תחילת הזכאות לקיזוז מע"מ נגזרת מ"מעמד עסקי לפי תקופות" למעלה (התקופה הראשונה כ"עוסק מורשה").</div>
                 </div>
             </div>
 
@@ -7521,25 +7515,64 @@
 
         function loadBusinessStatus() {
             const yd = getYearData();
-            const status = yd.businessStatus || 'zair';
-            const select = document.getElementById('businessStatus');
-            if (select) select.value = status;
-            
             // Load self employed months
             const months = yd.selfEmployedMonths || 12;
             const monthsSelect = document.getElementById('selfEmployedMonths');
             if (monthsSelect) monthsSelect.value = months;
-            
+
+            // VAT section/nav show whenever this year overlaps an עוסק מורשה period.
+            const showVat = yearHasMurshe(currentYear);
             const vatInfo = document.getElementById('vatInfo');
             const navVat = document.getElementById('navVat');
-            
-            if (status === 'murshe') {
-                if (vatInfo) vatInfo.style.display = 'block';
-                if (navVat) navVat.style.display = 'flex';
-            } else {
-                if (vatInfo) vatInfo.style.display = 'none';
-                if (navVat) navVat.style.display = 'none';
-            }
+            if (vatInfo) vatInfo.style.display = showVat ? 'block' : 'none';
+            if (navVat) navVat.style.display = showVat ? 'flex' : 'none';
+
+            renderStatusPeriods();
+        }
+
+        function statusLabel(s) { return ({ zair: 'עוסק זעיר', patur: 'עוסק פטור', murshe: 'עוסק מורשה' })[s] || s; }
+
+        function renderStatusPeriods() {
+            const box = document.getElementById('statusPeriodsEditor');
+            if (!box) return;
+            const ps = getStatusPeriods();
+            box.innerHTML = ps.map((p, i) => {
+                const opts = ['zair', 'patur', 'murshe'].map(s =>
+                    '<option value="' + s + '"' + (p.status === s ? ' selected' : '') + '>' + statusLabel(s) + '</option>').join('');
+                return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">'
+                    + '<select class="form-control" style="flex:1;min-width:130px;" onchange="updateStatusPeriod(' + i + ',\'status\',this.value)">' + opts + '</select>'
+                    + '<span style="color:var(--text-muted);font-size:0.85rem;">מתאריך</span>'
+                    + '<input type="date" class="form-control" style="width:165px;" value="' + (p.from || '') + '" onchange="updateStatusPeriod(' + i + ',\'from\',this.value)">'
+                    + (ps.length > 1 ? '<button type="button" class="btn btn-icon btn-sm" title="מחק תקופה" onclick="removeStatusPeriod(' + i + ')">🗑️</button>' : '')
+                    + '</div>';
+            }).join('');
+        }
+        function updateStatusPeriod(i, field, value) {
+            const ps = getStatusPeriods();
+            if (!ps[i]) return;
+            if (field === 'from' && !value) { renderStatusPeriods(); return; }   // never allow a blank date
+            ps[i][field] = value;
+            data.statusPeriods = ps.slice().sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+            saveData();
+            renderStatusPeriods();
+            renderAll();
+        }
+        function addStatusPeriod() {
+            const ps = getStatusPeriods();
+            ps.push({ from: localTodayISO(), status: 'murshe' });
+            data.statusPeriods = ps.slice().sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+            saveData();
+            renderStatusPeriods();
+            renderAll();
+        }
+        function removeStatusPeriod(i) {
+            const ps = getStatusPeriods();
+            if (ps.length <= 1) return;
+            ps.splice(i, 1);
+            data.statusPeriods = ps;
+            saveData();
+            renderStatusPeriods();
+            renderAll();
         }
 
         function addVatReport() {
@@ -7876,13 +7909,12 @@
             if (!hint) return;
             // Before the עוסק מורשה registration date there is no reclaim — force the toggle off.
             const dateVal = (document.getElementById('expenseDate') || {}).value;
-            const start = getVatStartDate();
-            if (dateVal && start && dateVal < start) {
+            if (dateVal && !isMursheOn(dateVal)) {
                 document.getElementById('expenseInputVat').value = '0';
                 const y = document.getElementById('expInputVatYes'), n = document.getElementById('expInputVatNo');
                 if (y) y.classList.remove('active');
                 if (n) n.classList.add('active');
-                hint.textContent = 'לפני מעבר לעוסק מורשה (' + formatDate(start) + ') — אין זכאות לקיזוז מע"מ';
+                hint.textContent = 'בתאריך זה הסטטוס אינו "עוסק מורשה" — אין זכאות לקיזוז מע"מ';
                 return;
             }
             const on = document.getElementById('expenseInputVat').value === '1';
@@ -7948,17 +7980,55 @@
             const net = amount / (1 + rate);
             return { net, vat: amount - net };
         }
-        // Date the business became עוסק מורשה. Expenses before it were paid while עוסק פטור,
-        // so no input VAT can be reclaimed on them — the gate below enforces it everywhere.
+        // ===== Business-status timeline (עוסק פטור/זעיר/מורשה by date periods) =====
+        // Single source of truth. VAT reclaim/charge is allowed only during a 'murshe'
+        // period, decided by the record's own date. Supports any number of transitions.
+        function getStatusPeriods() {
+            if (!Array.isArray(data.statusPeriods) || !data.statusPeriods.length) {
+                const vs = (data && data.vatStartDate) ? data.vatStartDate : '2026-08-11';
+                const yrs = Object.keys((data && data.yearData) || {}).map(n => parseInt(n, 10)).filter(Boolean);
+                const earliest = yrs.length ? Math.min(...yrs) : (new Date().getFullYear());
+                data.statusPeriods = [
+                    { from: earliest + '-01-01', status: 'patur' },
+                    { from: vs, status: 'murshe' }
+                ];
+            }
+            data.statusPeriods.sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+            return data.statusPeriods;
+        }
+        function statusOnDate(dateStr) {
+            if (!dateStr) return null;
+            const ps = getStatusPeriods();
+            let cur = null;
+            for (const p of ps) { if (p.from <= dateStr) cur = p.status; else break; }
+            return cur;   // null = before the earliest period
+        }
+        function isMursheOn(dateStr) { return statusOnDate(dateStr) === 'murshe'; }
+        // Does a 'murshe' period overlap the given calendar year?
+        function yearHasMurshe(year) {
+            const ps = getStatusPeriods();
+            const yStart = year + '-01-01', yEnd = year + '-12-31';
+            for (let i = 0; i < ps.length; i++) {
+                if (ps[i].status !== 'murshe') continue;
+                const from = ps[i].from;
+                const to = (i + 1 < ps.length) ? ps[i + 1].from : '9999-12-31';
+                if (from <= yEnd && to > yStart) return true;
+            }
+            return false;
+        }
+        function businessStatusForYear(year) {
+            return statusOnDate(year + '-12-31') || (getStatusPeriods()[0] || {}).status || 'patur';
+        }
+        // First day input VAT can be reclaimed (start of the first 'murshe' period).
         function getVatStartDate() {
-            return (typeof data !== 'undefined' && data && data.vatStartDate) ? data.vatStartDate : '2026-08-11';
+            const m = getStatusPeriods().find(p => p.status === 'murshe');
+            return m ? m.from : ((data && data.vatStartDate) ? data.vatStartDate : '2026-08-11');
         }
         // Deductible expense: when it carries reclaimable input VAT, the real cost is net.
         function expenseVatParts(e, yd) {
             const amount = Number(e && e.amount) || 0;
             if (!e || !e.inputVat || isDeductible(e) === false) return { net: amount, vat: 0 };
-            const start = getVatStartDate();
-            if (start && e.date && e.date < start) return { net: amount, vat: 0 };   // עוסק פטור period — no reclaim
+            if (!isMursheOn(e.date)) return { net: amount, vat: 0 };   // only during an עוסק מורשה period
             const rate = vatRateFor(yd) / 100;
             const net = amount / (1 + rate);
             return { net, vat: amount - net };
@@ -12600,9 +12670,8 @@
             // VAT rate (per-year)
             const _vatEl = document.getElementById('vatRate');
             if (_vatEl) _vatEl.value = (yd.settings.vatRate != null ? yd.settings.vatRate : 18);
-            // VAT registration date (global business fact)
-            const _vsdEl = document.getElementById('vatStartDate');
-            if (_vsdEl) _vsdEl.value = getVatStartDate();
+            // Business-status timeline editor
+            renderStatusPeriods();
         }
 
         function updateTaxBracket(idx, field, value) {
@@ -12863,7 +12932,7 @@
                     const credits = calculateCredits();
                     const creditValue = yd.settings.creditValue;
                     const businessTypes = { zair: 'עוסק זעיר', patur: 'עוסק פטור', murshe: 'עוסק מורשה' };
-                    const businessStatus = businessTypes[yd.settings.businessStatus || 'murshe'] || 'עוסק מורשה';
+                    const businessStatus = businessTypes[businessStatusForYear(currentYear)] || 'עוסק מורשה';
                     const selfMonths = yd.selfEmployedMonths || 12;
                     rows._custom = 'settings';
                     rows._data = {
