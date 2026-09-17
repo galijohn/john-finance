@@ -13089,22 +13089,24 @@
                 const scoped = getScopedExpenses();
                 const byDate = (a, b) => (a.date || '').localeCompare(b.date || '');
                 const recOf = e => e.amount * ((e.recognition ?? 100) / 100);
-                const S = mode === 'month' ? 6 : 7;
+                const vatOf = e => expenseVatParts(e, getYearData()).vat;
+                const S = mode === 'month' ? 7 : 8;
                 addTitle(S); addInfo(S);
                 const subR = ws.addRow([expenseScopeSubtitle()]);
                 subR.getCell(1).font = { bold: true, size: 10, color: { argb: 'FF475569' }, name: 'Segoe UI' };
                 ws.addRow([]);
-                ws.getColumn(1).width = 14; ws.getColumn(2).width = 30; ws.getColumn(3).width = 14; ws.getColumn(4).width = 12; ws.getColumn(5).width = 14; ws.getColumn(6).width = 16; ws.getColumn(7).width = 22;
+                ws.getColumn(1).width = 14; ws.getColumn(2).width = 30; ws.getColumn(3).width = 14; ws.getColumn(4).width = 12; ws.getColumn(5).width = 14; ws.getColumn(6).width = 16; ws.getColumn(7).width = 22; ws.getColumn(8).width = 16;
 
                 const grandTotal = scoped.reduce((s, e) => s + e.amount, 0);
                 const grandRecognized = scoped.reduce((s, e) => s + recOf(e), 0);
-                const HDR7 = ['תאריך', 'תיאור', 'קטגוריה', 'סכום', '% הכרה', 'מוכר', 'אמצעי תשלום'];
-                const row7 = e => { const pct = e.recognition ?? 100; return [formatDate(e.date), e.description || '', categoryLabel(e.category) || '', e.amount, pct + '%', recOf(e), payMethodText(e)]; };
+                const grandVat = scoped.reduce((s, e) => s + vatOf(e), 0);
+                const HDR7 = ['תאריך', 'תיאור', 'קטגוריה', 'סכום', '% הכרה', 'מוכר', 'אמצעי תשלום', 'מע"מ לקיזוז'];
+                const row7 = e => { const pct = e.recognition ?? 100; return [formatDate(e.date), e.description || '', categoryLabel(e.category) || '', e.amount, pct + '%', recOf(e), payMethodText(e), vatOf(e)]; };
 
                 if (mode === 'flat') {
                     addHdr(HDR7);
                     [...scoped].sort(byDate).forEach((e, i) => addDR(row7(e), i));
-                    addGrand(['סה"כ הוצאות מוכרות (' + scoped.length + ')', '', '', grandTotal, '', grandRecognized, '']);
+                    addGrand(['סה"כ הוצאות מוכרות (' + scoped.length + ')', '', '', grandTotal, '', grandRecognized, '', grandVat]);
                 } else if (mode === 'year') {
                     const byMonth = {};
                     scoped.forEach(e => { const k = (e.date || '').slice(0, 7) || 'ללא תאריך'; (byMonth[k] = byMonth[k] || []).push(e); });
@@ -13114,9 +13116,9 @@
                         addSection(label, S);
                         addHdr(HDR7);
                         items.forEach((e, i) => addDR(row7(e), i));
-                        addSub(['סה"כ ' + label + ' (' + items.length + ')', '', '', items.reduce((s, e) => s + e.amount, 0), '', items.reduce((s, e) => s + recOf(e), 0), '']);
+                        addSub(['סה"כ ' + label + ' (' + items.length + ')', '', '', items.reduce((s, e) => s + e.amount, 0), '', items.reduce((s, e) => s + recOf(e), 0), '', items.reduce((s, e) => s + vatOf(e), 0)]);
                     });
-                    addGrand(['סה"כ הוצאות מוכרות', '', '', grandTotal, '', grandRecognized, '']);
+                    addGrand(['סה"כ הוצאות מוכרות', '', '', grandTotal, '', grandRecognized, '', grandVat]);
                 } else {
                     // month scope — classic category-grouped layout
                     const groups = {}; const catOrder = [];
@@ -13125,11 +13127,11 @@
                     catOrder.forEach((cat, idx) => {
                         const items = groups[cat].sort(byDate);
                         addSection((letters[idx] || '') + '. ' + categoryLabel(cat), S);
-                        addHdr(['תאריך', 'תיאור', 'סכום', '% הכרה', 'מוכר', 'אמצעי תשלום']);
-                        items.forEach((e, i) => { const pct = e.recognition ?? 100; addDR([formatDate(e.date), e.description || '', e.amount, pct + '%', recOf(e), payMethodText(e)], i); });
-                        addSub(['סה"כ ' + categoryLabel(cat) + ' (' + items.length + ')', '', items.reduce((s, e) => s + e.amount, 0), '', items.reduce((s, e) => s + recOf(e), 0), '']);
+                        addHdr(['תאריך', 'תיאור', 'סכום', '% הכרה', 'מוכר', 'אמצעי תשלום', 'מע"מ לקיזוז']);
+                        items.forEach((e, i) => { const pct = e.recognition ?? 100; addDR([formatDate(e.date), e.description || '', e.amount, pct + '%', recOf(e), payMethodText(e), vatOf(e)], i); });
+                        addSub(['סה"כ ' + categoryLabel(cat) + ' (' + items.length + ')', '', items.reduce((s, e) => s + e.amount, 0), '', items.reduce((s, e) => s + recOf(e), 0), '', items.reduce((s, e) => s + vatOf(e), 0)]);
                     });
-                    addGrand(['סה"כ הוצאות מוכרות', '', grandTotal, '', grandRecognized, '']);
+                    addGrand(['סה"כ הוצאות מוכרות', '', grandTotal, '', grandRecognized, '', grandVat]);
                 }
                 if (grandTotal !== grandRecognized) { const r = ws.addRow(['סה"כ לפני הכרה: ₪' + grandTotal.toLocaleString('he-IL')]); r.getCell(1).font = { size: 9, color: { argb: 'FF94A3B8' }, name: 'Segoe UI' }; }
                 addFooter(S);
@@ -13564,20 +13566,24 @@
                 const scoped = getScopedExpenses();
                 const byDate = (a, b) => (a.date || '').localeCompare(b.date || '');
                 const recOf = e => e.amount * ((e.recognition ?? 100) / 100);
+                const vatOf = e => expenseVatParts(e, getYearData()).vat;
                 const grandTotal = scoped.reduce((s, e) => s + e.amount, 0);
                 const grandRecognized = scoped.reduce((s, e) => s + recOf(e), 0);
+                const grandVat = scoped.reduce((s, e) => s + vatOf(e), 0);
 
                 bodyContent += '<div style="font-size:11px;font-weight:bold;color:var(--text-muted);margin-bottom:10px;">' + expenseScopeSubtitle() + '</div>';
                 const h3 = t => '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">' + t + '</h3>';
                 const subTotal = (label, val) => '<div style="overflow:hidden;padding:6px 10px;font-weight:bold;border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;"><span>' + label + '</span><span>' + fmtNum(val) + '</span></div>';
-                const tableOpen6 = '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>קטגוריה</th><th>סכום</th><th>% הכרה</th><th>מוכר</th><th>אמצעי תשלום</th></tr></thead><tbody>';
+                const tableOpen6 = '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>קטגוריה</th><th>סכום</th><th>% הכרה</th><th>מוכר</th><th>אמצעי תשלום</th><th>מע"מ לקיזוז</th></tr></thead><tbody>';
                 const rowHtml6 = e => {
                     const pct = e.recognition ?? 100;
+                    const vat = vatOf(e);
                     return '<tr><td>' + formatDate(e.date) + '</td><td>' + (e.description || '-') + '</td><td>' + (categoryLabel(e.category) || '') + '</td>' +
                         '<td style="text-align:left;direction:ltr;">' + fmtNum(e.amount) + '</td>' +
                         '<td style="text-align:left;direction:ltr;' + (pct < 100 ? 'color:#d97706;' : '') + '">' + pct + '%</td>' +
                         '<td style="text-align:left;direction:ltr;">' + fmtNum(recOf(e)) + '</td>' +
-                        '<td style="font-size:10px;color:var(--text-muted);">' + (payMethodText(e) || '—') + '</td></tr>';
+                        '<td style="font-size:10px;color:var(--text-muted);">' + (payMethodText(e) || '—') + '</td>' +
+                        '<td style="text-align:left;direction:ltr;color:#0369a1;">' + (vat > 0 ? fmtNum(vat) : '—') + '</td></tr>';
                 };
 
                 if (mode === 'flat') {
@@ -13593,6 +13599,7 @@
                         bodyContent += h3(label) + tableOpen6;
                         items.forEach(e => { bodyContent += rowHtml6(e); });
                         bodyContent += '</tbody></table>' + subTotal('סה"כ ' + label + ' (' + items.length + ' פריטים)', items.reduce((s, e) => s + recOf(e), 0));
+                        { const mVat = items.reduce((s, e) => s + vatOf(e), 0); if (mVat > 0) bodyContent += subTotal('מזה מע"מ לקיזוז (החזר)', mVat); }
                     });
                 } else {
                     // month scope — classic category-grouped layout
@@ -13606,20 +13613,26 @@
                     catOrder.forEach((cat, idx) => {
                         const items = groups[cat].sort(byDate);
                         bodyContent += h3((letters[idx] || '') + '. ' + categoryLabel(cat));
-                        bodyContent += '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>סכום</th><th>% הכרה</th><th>מוכר</th><th>אמצעי תשלום</th></tr></thead><tbody>';
+                        bodyContent += '<table><thead><tr><th>תאריך</th><th>תיאור</th><th>סכום</th><th>% הכרה</th><th>מוכר</th><th>אמצעי תשלום</th><th>מע"מ לקיזוז</th></tr></thead><tbody>';
                         items.forEach(e => {
                             const pct = e.recognition ?? 100;
+                            const vat = vatOf(e);
                             bodyContent += '<tr><td>' + formatDate(e.date) + '</td><td>' + (e.description || '-') + '</td>';
                             bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(e.amount) + '</td>';
                             bodyContent += '<td style="text-align:left;direction:ltr;' + (pct < 100 ? 'color:#d97706;' : '') + '">' + pct + '%</td>';
                             bodyContent += '<td style="text-align:left;direction:ltr;">' + fmtNum(recOf(e)) + '</td>';
-                            bodyContent += '<td style="font-size:10px;color:var(--text-muted);">' + (payMethodText(e) || '—') + '</td></tr>';
+                            bodyContent += '<td style="font-size:10px;color:var(--text-muted);">' + (payMethodText(e) || '—') + '</td>';
+                            bodyContent += '<td style="text-align:left;direction:ltr;color:#0369a1;">' + (vat > 0 ? fmtNum(vat) : '—') + '</td></tr>';
                         });
                         bodyContent += '</tbody></table>' + subTotal('סה"כ ' + categoryLabel(cat) + ' (' + items.length + ' פריטים)', items.reduce((s, e) => s + recOf(e), 0));
+                        { const cVat = items.reduce((s, e) => s + vatOf(e), 0); if (cVat > 0) bodyContent += subTotal('מזה מע"מ לקיזוז (החזר)', cVat); }
                     });
                 }
 
                 bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:15px;"><span>סה"כ הוצאות מוכרות</span><span>' + fmtNum(grandRecognized) + '</span></div>';
+                if (grandVat > 0) {
+                    bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:#0369a1;color:white;font-weight:bold;font-size:13px;margin-top:6px;"><span>סה"כ מע"מ תשומות לקיזוז (החזר)</span><span>' + fmtNum(grandVat) + '</span></div>';
+                }
                 if (grandTotal !== grandRecognized) {
                     bodyContent += '<div style="text-align:left;color:#94a3b8;font-size:9px;margin-top:5px;">סה"כ לפני הכרה: ' + fmtNum(grandTotal) + '</div>';
                 }
