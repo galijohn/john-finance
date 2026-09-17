@@ -13307,6 +13307,16 @@
                 if (show('taxPaid')) summaryCards.push(['✅ מס הכנסה שנוכה/שולם', fmtNum(d.totals.totalTaxPaid)]);
                 if (show('blDue')) summaryCards.push(['🏥 ביט"ל + בריאות (עצמאי)', fmtNum(d.bl.total)]);
                 if (show('blPaid')) summaryCards.push(['💳 ביט"ל ששולם (מקדמות)', fmtNum(d.totals.totalBLPaid)]);
+                const _taxable = d.totals.taxableIncome || 0;
+                const _netInPocket = _taxable - d.netTax - d.bl.total;
+                if (show('netPocket')) summaryCards.push(['💰 נטו בכיס (שנתי)', fmtNum(_netInPocket)]);
+                if (show('netPocketMonthly')) summaryCards.push(['💵 נטו בכיס (לחודש)', fmtNum(Math.round(_netInPocket / 12))]);
+                if (show('taxRates')) {
+                    const _det = calculateIncomeTax(_taxable).details;
+                    const _marg = (_det && _det.length) ? _det[_det.length - 1].rate : 0;
+                    const _eff = _taxable > 0 ? (d.netTax / _taxable * 100) : 0;
+                    summaryCards.push(['📊 מס שולי / אפקטיבי', _marg + '% / ' + _eff.toFixed(1) + '%']);
+                }
                 if (summaryCards.length > 0) {
                     bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">' + nextLetter() + '. סיכום מס וביטוח לאומי</h3>';
                     bodyContent += '<table><thead><tr><th>פריט</th><th>ערך</th></tr></thead><tbody>';
