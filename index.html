@@ -2657,6 +2657,11 @@
                         <label>שיעור מע"מ (%)</label>
                         <input type="number" class="form-control" id="vatRate" step="0.1" onchange="updateVatRate()">
                     </div>
+                    <div class="form-group">
+                        <label>תאריך מעבר לעוסק מורשה (תחילת זכאות לקיזוז מע"מ)</label>
+                        <input type="date" class="form-control" id="vatStartDate" onchange="updateVatStartDate()">
+                        <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">הוצאות לפני התאריך — בתקופת עוסק פטור — לא זכאיות לקיזוז מע"מ, גם אם סומנו.</div>
+                    </div>
                 </div>
             </div>
 
@@ -3299,7 +3304,7 @@
                 </div>
                 <div class="form-group">
                     <label>תאריך</label>
-                    <input type="date" class="form-control" id="expenseDate">
+                    <input type="date" class="form-control" id="expenseDate" onchange="updateExpenseVatHint()">
                 </div>
                 <div class="form-group">
                     <label>תיאור</label>
@@ -6788,6 +6793,8 @@
                     if (_yd.settings.vatRate == null) _yd.settings.vatRate = (_y <= 2024) ? 17 : 18;
                     else if (_y >= 2025 && Number(_yd.settings.vatRate) === 17) _yd.settings.vatRate = 18;
                 });
+                // Date the business became עוסק מורשה (VAT reclaim eligibility starts here).
+                if (!data.vatStartDate) data.vatStartDate = '2026-08-11';
                 // ONE-TIME retroactive VAT: every existing deductible expense gets input-VAT
                 // reclaim, EXCEPT flights and rent (no Israeli VAT on those). New expenses are
                 // set manually via the form. Runs once; respects any expense already flagged.
@@ -7867,6 +7874,17 @@
         function updateExpenseVatHint() {
             const hint = document.getElementById('expInputVatHint');
             if (!hint) return;
+            // Before the עוסק מורשה registration date there is no reclaim — force the toggle off.
+            const dateVal = (document.getElementById('expenseDate') || {}).value;
+            const start = getVatStartDate();
+            if (dateVal && start && dateVal < start) {
+                document.getElementById('expenseInputVat').value = '0';
+                const y = document.getElementById('expInputVatYes'), n = document.getElementById('expInputVatNo');
+                if (y) y.classList.remove('active');
+                if (n) n.classList.add('active');
+                hint.textContent = 'לפני מעבר לעוסק מורשה (' + formatDate(start) + ') — אין זכאות לקיזוז מע"מ';
+                return;
+            }
             const on = document.getElementById('expenseInputVat').value === '1';
             const amt = parseFloat(document.getElementById('expenseAmount').value) || 0;
             if (!on) { hint.textContent = 'לא מקזזים מע"מ על הוצאה זו'; return; }
@@ -7930,10 +7948,17 @@
             const net = amount / (1 + rate);
             return { net, vat: amount - net };
         }
+        // Date the business became עוסק מורשה. Expenses before it were paid while עוסק פטור,
+        // so no input VAT can be reclaimed on them — the gate below enforces it everywhere.
+        function getVatStartDate() {
+            return (typeof data !== 'undefined' && data && data.vatStartDate) ? data.vatStartDate : '2026-08-11';
+        }
         // Deductible expense: when it carries reclaimable input VAT, the real cost is net.
         function expenseVatParts(e, yd) {
             const amount = Number(e && e.amount) || 0;
             if (!e || !e.inputVat || isDeductible(e) === false) return { net: amount, vat: 0 };
+            const start = getVatStartDate();
+            if (start && e.date && e.date < start) return { net: amount, vat: 0 };   // עוסק פטור period — no reclaim
             const rate = vatRateFor(yd) / 100;
             const net = amount / (1 + rate);
             return { net, vat: amount - net };
@@ -12575,6 +12600,9 @@
             // VAT rate (per-year)
             const _vatEl = document.getElementById('vatRate');
             if (_vatEl) _vatEl.value = (yd.settings.vatRate != null ? yd.settings.vatRate : 18);
+            // VAT registration date (global business fact)
+            const _vsdEl = document.getElementById('vatStartDate');
+            if (_vsdEl) _vsdEl.value = getVatStartDate();
         }
 
         function updateTaxBracket(idx, field, value) {
@@ -12645,6 +12673,13 @@
             const yd = getYearData();
             const v = parseFloat(document.getElementById('vatRate').value);
             yd.settings.vatRate = (Number.isFinite(v) && v >= 0) ? v : 18;
+            saveData();
+            renderAll();
+        }
+
+        function updateVatStartDate() {
+            const v = document.getElementById('vatStartDate').value;
+            data.vatStartDate = v || '2026-08-11';
             saveData();
             renderAll();
         }
