@@ -2028,17 +2028,17 @@
                 <div class="card stat-card">
                     <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/combo-chart.png" alt="" onerror="this.replaceWith(document.createTextNode('📈'))"></div>
                     <div class="value" id="vatIncome">₪0</div>
-                    <div class="label">הכנסות (לפני מע"מ)</div>
+                    <div class="label" id="vatIncomeLabel">הכנסות (לפני מע"מ)</div>
                 </div>
                 <div class="card stat-card">
                     <div class="icon">📉</div>
                     <div class="value" id="vatExpenses">₪0</div>
-                    <div class="label">הוצאות (לפני מע"מ)</div>
+                    <div class="label" id="vatExpensesLabel">הוצאות (לפני מע"מ)</div>
                 </div>
                 <div class="card stat-card">
                     <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/money-bag.png" alt="" onerror="this.replaceWith(document.createTextNode('💰'))"></div>
                     <div class="value" id="vatOnExpenses" style="color:var(--success)">₪0</div>
-                    <div class="label">מע"מ על הוצאות (לקיזוז)</div>
+                    <div class="label" id="vatOnExpensesLabel">מע"מ על הוצאות (לקיזוז)</div>
                 </div>
             </div>
 
@@ -7639,17 +7639,17 @@
 
         function vatPeriodData(months) {
             const yd = getYearData();
-            let taxableBase = 0, outputVat = 0, zeroRated = 0, equipVat = 0, regularVat = 0;
+            let taxableBase = 0, outputVat = 0, zeroRated = 0, equipVat = 0, regularVat = 0, netExp = 0;
             active(yd.selfEmployed).filter(s => months.includes(Number(s.month))).forEach(s => {
                 const p = incomeVatParts(s, yd);
                 if (s.vat) { taxableBase += p.net; outputVat += p.vat; } else { zeroRated += p.net; }
             });
             deductibleExpenses(yd).filter(e => months.includes(parseInt((e.date || '').slice(5, 7), 10) || 0)).forEach(e => {
                 const p = expenseVatParts(e, yd);
-                if (p.vat > 0) { if (e.category === 'ציוד') equipVat += p.vat; else regularVat += p.vat; }
+                if (p.vat > 0) { netExp += p.net; if (e.category === 'ציוד') equipVat += p.vat; else regularVat += p.vat; }
             });
             const inputVat = equipVat + regularVat;
-            return { taxableBase, outputVat, zeroRated, equipVat, regularVat, inputVat, balance: outputVat - inputVat };
+            return { taxableBase, outputVat, zeroRated, netIncome: taxableBase + zeroRated, netExp, equipVat, regularVat, inputVat, balance: outputVat - inputVat };
         }
 
         function vatFilingDeadline(months) {
@@ -7700,6 +7700,16 @@
                 + '<span style="font-weight:' + (strong ? '700' : '600') + ';direction:ltr;' + (color ? 'color:' + color + ';' : '') + '">' + formatCurrency(val) + '</span>'
                 + '<span onclick="copyVatText(\'' + Math.round(val) + '\',event)" title="העתק" style="cursor:pointer;color:var(--text-muted);">📋</span>'
                 + '</span></div>';
+
+            // Keep the three top tiles in sync with the SELECTED period (no year/period clash).
+            const periodLabel = VAT_FILING_NAMES[key] + ' ' + currentYear;
+            const setTile = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+            setTile('vatIncome', formatCurrency(d.netIncome));
+            setTile('vatExpenses', formatCurrency(d.netExp));
+            setTile('vatOnExpenses', formatCurrency(d.inputVat));
+            setTile('vatIncomeLabel', 'הכנסות ' + periodLabel + ' (לפני מע"מ)');
+            setTile('vatExpensesLabel', 'הוצאות ' + periodLabel + ' (לפני מע"מ)');
+            setTile('vatOnExpensesLabel', 'מע"מ לקיזוז ' + periodLabel);
 
             const copyAll = [
                 'דוח מע"מ ' + VAT_FILING_NAMES[key] + ' ' + currentYear,
@@ -7770,25 +7780,8 @@
             tbody.innerHTML = anyData
                 ? rowsHtml
                 : '<tr><td colspan="7" class="empty-state"><div class="icon">📊</div><p>אין נתוני מע"מ — סמנו חשבוניות/הוצאות עם מע"מ</p></td></tr>';
-
-            const totRefund = totInput - totOutput;   // >0 refund, <0 pay
-            const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-            setTxt('vatIncome', formatCurrency(totNetIncome));
-            setTxt('vatExpenses', formatCurrency(totNetExp));
-            setTxt('vatOnExpenses', formatCurrency(totInput));
-            setTxt('vatTotalRefund', formatCurrency(Math.abs(totRefund)));
-
-            const resultBox = document.getElementById('vatResultBox');
-            if (resultBox) {
-                const head = resultBox.querySelector('div:first-child');
-                if (totRefund >= 0) {
-                    resultBox.className = 'result-box refund';
-                    if (head) head.textContent = '💰 סה"כ מע"מ לקיזוז (החזר צפוי)';
-                } else {
-                    resultBox.className = 'result-box owe';
-                    if (head) head.textContent = '💳 סה"כ מע"מ לתשלום';
-                }
-            }
+            // The three summary tiles are set by renderVatFiling for the SELECTED period,
+            // so the top of the page always matches the filing card and the table below.
         }
 
         async function deleteDriveFile(driveId) {
@@ -12963,12 +12956,13 @@
                     });
                     break;
                 case 'vat': {
-                    // Filing report — official periodic-report fields per bi-monthly period.
+                    // Filing report — only the period selected in the filing card (not the whole year).
                     headers = ['תקופה', 'עסקאות חייבות', 'מע"מ עסקאות', 'עסקאות אפס (יצוא)', 'תשומות ציוד', 'תשומות שוטפות', 'לתשלום/החזר'];
                     rows = [];
+                    const selKey = (document.getElementById('vatFilingPeriod') || {}).value;
                     VAT_FILING_PERIODS.forEach(([key, months]) => {
+                        if (selKey && key !== selKey) return;
                         const d = vatPeriodData(months);
-                        if (!(d.taxableBase || d.outputVat || d.zeroRated || d.inputVat)) return;
                         rows.push([VAT_FILING_NAMES[key], d.taxableBase, d.outputVat, d.zeroRated, d.equipVat, d.regularVat, d.balance]);
                     });
                     break;
@@ -13743,11 +13737,12 @@
                     bodyContent += '<div style="text-align:left;color:#94a3b8;font-size:9px;margin-top:5px;">סה"כ לפני הכרה: ' + fmtNum(grandTotal) + '</div>';
                 }
             } else if (page === 'vat') {
-                // Readable filing report — one clear block per bi-monthly period.
+                // Readable filing report — only the period selected in the filing card.
+                const selKey = (document.getElementById('vatFilingPeriod') || {}).value;
                 let anyV = false, yOut = 0, yIn = 0;
                 VAT_FILING_PERIODS.forEach(([key, months]) => {
+                    if (selKey && key !== selKey) return;
                     const d = vatPeriodData(months);
-                    if (!(d.taxableBase || d.outputVat || d.zeroRated || d.inputVat)) return;
                     anyV = true; yOut += d.outputVat; yIn += d.inputVat;
                     const refund = d.balance <= 0;
                     bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">' + VAT_FILING_NAMES[key] + ' ' + currentYear + '</h3>';
@@ -13761,8 +13756,8 @@
                     bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:' + (refund ? '#0f6e56' : '#991b1b') + ';color:white;font-weight:bold;font-size:14px;margin-bottom:10px;"><span>' + (refund ? 'להחזר' : 'לתשלום') + '</span><span>' + fmtNum(Math.abs(d.balance)) + '</span></div>';
                 });
                 if (!anyV) {
-                    bodyContent += '<div style="padding:20px;text-align:center;color:#94a3b8;">אין נתוני מע"מ בשנה זו</div>';
-                } else {
+                    bodyContent += '<div style="padding:20px;text-align:center;color:#94a3b8;">אין נתוני מע"מ בתקופה זו</div>';
+                } else if (!selKey) {
                     const yBal = yOut - yIn;
                     bodyContent += '<div style="overflow:hidden;padding:12px 15px;background:#1e293b;color:white;font-weight:bold;font-size:15px;margin-top:15px;"><span>סה"כ שנתי — ' + (yBal <= 0 ? 'להחזר' : 'לתשלום') + '</span><span>' + fmtNum(Math.abs(yBal)) + '</span></div>';
                 }
