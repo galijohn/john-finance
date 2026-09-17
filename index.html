@@ -13742,6 +13742,30 @@
                 if (grandTotal !== grandRecognized) {
                     bodyContent += '<div style="text-align:left;color:#94a3b8;font-size:9px;margin-top:5px;">סה"כ לפני הכרה: ' + fmtNum(grandTotal) + '</div>';
                 }
+            } else if (page === 'vat') {
+                // Readable filing report — one clear block per bi-monthly period.
+                let anyV = false, yOut = 0, yIn = 0;
+                VAT_FILING_PERIODS.forEach(([key, months]) => {
+                    const d = vatPeriodData(months);
+                    if (!(d.taxableBase || d.outputVat || d.zeroRated || d.inputVat)) return;
+                    anyV = true; yOut += d.outputVat; yIn += d.inputVat;
+                    const refund = d.balance <= 0;
+                    bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">' + VAT_FILING_NAMES[key] + ' ' + currentYear + '</h3>';
+                    bodyContent += '<table><thead><tr><th>שדה</th><th>סכום</th></tr></thead><tbody>';
+                    bodyContent += '<tr><td>עסקאות חייבות במע"מ (בסיס)</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.taxableBase) + '</td></tr>';
+                    bodyContent += '<tr><td>מע"מ על העסקאות החייבות</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.outputVat) + '</td></tr>';
+                    bodyContent += '<tr><td>עסקאות בשיעור אפס (יצוא לחו"ל)</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.zeroRated) + '</td></tr>';
+                    bodyContent += '<tr><td>מע"מ תשומות — ציוד / רכוש קבוע</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.equipVat) + '</td></tr>';
+                    bodyContent += '<tr><td>מע"מ תשומות — שוטפות (הוצאות)</td><td style="text-align:left;direction:ltr;">' + fmtNum(d.regularVat) + '</td></tr>';
+                    bodyContent += '</tbody></table>';
+                    bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:' + (refund ? '#0f6e56' : '#991b1b') + ';color:white;font-weight:bold;font-size:14px;margin-bottom:10px;"><span>' + (refund ? 'להחזר' : 'לתשלום') + '</span><span>' + fmtNum(Math.abs(d.balance)) + '</span></div>';
+                });
+                if (!anyV) {
+                    bodyContent += '<div style="padding:20px;text-align:center;color:#94a3b8;">אין נתוני מע"מ בשנה זו</div>';
+                } else {
+                    const yBal = yOut - yIn;
+                    bodyContent += '<div style="overflow:hidden;padding:12px 15px;background:#1e293b;color:white;font-weight:bold;font-size:15px;margin-top:15px;"><span>סה"כ שנתי — ' + (yBal <= 0 ? 'להחזר' : 'לתשלום') + '</span><span>' + fmtNum(Math.abs(yBal)) + '</span></div>';
+                }
             } else if (page === 'income') {
                 bodyContent += incomeReportBodyHTML(fmtNum);
             } else if (page === 'selfEmployed') {
