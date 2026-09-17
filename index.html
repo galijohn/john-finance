@@ -1630,6 +1630,11 @@
                     <div class="label">מס שולי (המדרגה שלך)</div>
                     <div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">אפקטיבי: <span id="dashEffectiveRate">0%</span></div>
                 </div>
+                <div class="card stat-card" data-card="vatBalance" style="border:1px solid var(--cyan);">
+                    <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/refund-2.png" alt="" onerror="this.replaceWith(document.createTextNode('🧾'))"></div>
+                    <div class="value" id="dashVatBalance" style="color:var(--cyan)">₪0</div>
+                    <div class="label" id="dashVatBalanceLabel">מאזן מע"מ</div>
+                </div>
             </div>
 
             <div id="dashboardResult">
@@ -1836,7 +1841,7 @@
                         </div>
                     </div>
                 </div>
-                <button class="btn btn-primary" onclick="openModal('selfEmployedModal')">+ הוסף הכנסה</button>
+                <button class="btn btn-primary" onclick="openAddSelfEmployed()">+ הוסף הכנסה</button>
             </div>
 
             <div class="info-box warning" id="selfEmployedWarning" style="display:none;">
@@ -1857,6 +1862,8 @@
                     <tbody id="selfEmployedTable"></tbody>
                 </table>
             </div>
+
+            <div class="info-box" id="selfEmployedVatSummary" style="display:none;margin-top:12px;font-size:0.9rem;"></div>
 
             <div class="card" style="margin-top:20px;">
                 <div class="table-header" style="padding:15px 0;">
@@ -1979,6 +1986,10 @@
                     <span>סך כל ההוצאות החודש</span>
                     <span id="totalExpensesAll">₪0</span>
                 </div>
+                <div class="summary-row" id="expInputVatRow" style="display:none;color:var(--success);border-top:1px solid var(--border);">
+                    <span>מע"מ תשומות לקיזוז (החזר)</span>
+                    <span id="totalExpenseInputVat">₪0</span>
+                </div>
             </div>
         </div>
 
@@ -1995,13 +2006,13 @@
                         </div>
                     </div>
                 </div>
-                <button class="btn btn-primary" onclick="openModal('vatModal')">+ הוסף דיווח</button>
+                <div style="font-size:0.85rem;color:var(--text-muted);">📊 הסיכום מחושב אוטומטית מההכנסות וההוצאות המסומנות עם מע"מ.</div>
             </div>
 
             <div class="info-box">
                 <strong>💡 מע"מ לעוסק מורשה:</strong><br>
                 • יצוא לחו"ל (שירותים לחו"ל) = <strong>0% מע"מ</strong> על הכנסות<br>
-                • מע"מ על הוצאות (17%) = <strong>מגיע לך החזר!</strong><br>
+                • מע"מ על הוצאות (18%) = <strong>מגיע לך החזר!</strong><br>
                 • יש להגיש דו"ח חודשי/דו-חודשי לרשות המסים
             </div>
 
@@ -2644,7 +2655,7 @@
                     </div>
                     <div class="form-group">
                         <label>שיעור מע"מ (%)</label>
-                        <input type="number" class="form-control" id="vatRate" value="17" step="0.1">
+                        <input type="number" class="form-control" id="vatRate" step="0.1" onchange="updateVatRate()">
                     </div>
                 </div>
             </div>
@@ -3183,7 +3194,16 @@
                 </div>
                 <div class="form-group">
                     <label>סכום (₪)</label>
-                    <input type="number" class="form-control" id="selfAmount">
+                    <input type="number" class="form-control" id="selfAmount" oninput="updateIncomeVatHint()">
+                </div>
+                <div class="form-group">
+                    <label>מע"מ בחשבונית</label>
+                    <div style="display:flex;gap:8px;">
+                        <button type="button" id="selfVatNo" class="btn btn-sm active" onclick="setIncomeVat(false)" style="flex:1;">ללא מע"מ (יצוא/חו"ל)</button>
+                        <button type="button" id="selfVatYes" class="btn btn-sm" onclick="setIncomeVat(true)" style="flex:1;">כולל מע"מ</button>
+                    </div>
+                    <input type="hidden" id="selfVat" value="0">
+                    <div id="selfVatHint" style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;"></div>
                 </div>
                 <div class="form-group">
                     <label>📎 הערות</label>
@@ -3300,7 +3320,7 @@
                 </div>
                 <div class="form-group">
                     <label>סכום (₪)</label>
-                    <input type="number" class="form-control" id="expenseAmount">
+                    <input type="number" class="form-control" id="expenseAmount" oninput="updateExpenseVatHint()">
                 </div>
                 <div class="form-group">
                     <label>📎 הערות</label>
@@ -3327,6 +3347,15 @@
                         <button type="button" id="expDeductibleNo" class="btn btn-sm" onclick="setExpenseDeductible(false)" style="flex:1;">לא מוכרת</button>
                     </div>
                     <input type="hidden" id="expenseDeductible" value="1">
+                </div>
+                <div class="form-group" id="expenseInputVatGroup">
+                    <label>מע"מ תשומות (קיזוז)</label>
+                    <div style="display:flex;gap:8px;">
+                        <button type="button" id="expInputVatYes" class="btn btn-sm active" onclick="setExpenseInputVat(true)" style="flex:1;">יש מע"מ לקיזוז</button>
+                        <button type="button" id="expInputVatNo" class="btn btn-sm" onclick="setExpenseInputVat(false)" style="flex:1;">אין מע"מ</button>
+                    </div>
+                    <input type="hidden" id="expenseInputVat" value="1">
+                    <div id="expInputVatHint" style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;"></div>
                 </div>
                 <div class="form-group" id="expRecognitionGroup">
                     <label>% הכרה</label>
@@ -3915,6 +3944,10 @@
                         <div class="credit-item">
                             <input type="checkbox" id="dash_taxRates" checked onchange="saveDashboardSettings()">
                             <label for="dash_taxRates">📊 מס שולי + אפקטיבי</label>
+                        </div>
+                        <div class="credit-item">
+                            <input type="checkbox" id="dash_vatBalance" checked onchange="saveDashboardSettings()">
+                            <label for="dash_vatBalance">🧾 מאזן מע"מ (החזר/לתשלום)</label>
                         </div>
                     </div>
                 </div>
@@ -5988,6 +6021,7 @@
                     netPocket: true,
                     netPocketMonthly: true,
                     taxRates: true,
+                    vatBalance: true,
                     paymentsSummary: true,
                     result: true
                 };
@@ -6020,6 +6054,7 @@
                 netPocket: document.getElementById('dash_netPocket').checked,
                 netPocketMonthly: document.getElementById('dash_netPocketMonthly').checked,
                 taxRates: document.getElementById('dash_taxRates').checked,
+                vatBalance: document.getElementById('dash_vatBalance').checked,
                 paymentsSummary: document.getElementById('dash_paymentsSummary').checked,
                 result: document.getElementById('dash_result').checked
             };
@@ -6138,7 +6173,7 @@
                     taxBrackets: defaultBrackets,
                     blBrackets: defaultBLBrackets,
                     creditValue: 242,
-                    vatRate: 17
+                    vatRate: (year && year <= 2024) ? 17 : 18
                 }
             };
         }
@@ -6737,6 +6772,29 @@
                         console.log('Migrated BL settings to brackets format for year ' + year);
                     }
                 });
+                // VAT: 18% from 2025 (17% before). Fill missing / bump legacy 17→18.
+                Object.keys(data.yearData).forEach(year => {
+                    const _yd = data.yearData[year];
+                    if (!_yd || !_yd.settings) return;
+                    const _y = parseInt(year, 10);
+                    if (_yd.settings.vatRate == null) _yd.settings.vatRate = (_y <= 2024) ? 17 : 18;
+                    else if (_y >= 2025 && Number(_yd.settings.vatRate) === 17) _yd.settings.vatRate = 18;
+                });
+                // ONE-TIME retroactive VAT: every existing deductible expense gets input-VAT
+                // reclaim, EXCEPT flights and rent (no Israeli VAT on those). New expenses are
+                // set manually via the form. Runs once; respects any expense already flagged.
+                if (!data._vatRetroApplied) {
+                    const rxNoVat = /(טיס|flight|שכ"ד|שכ״ד|שכר דירה|שכירות|דמי שכירות|rent)/i;
+                    Object.keys(data.yearData).forEach(year => {
+                        (data.yearData[year].expenses || []).forEach(e => {
+                            if (!e || e._deleted || e.inputVat !== undefined) return;
+                            const deductible = e.deductible !== false;
+                            const txt = (e.description || '') + ' ' + (e.category || '');
+                            e.inputVat = deductible && !rxNoVat.test(txt);
+                        });
+                    });
+                    data._vatRetroApplied = true;
+                }
                 saveData();
                 loadCreditsToUI();
                 return true; // Data was found
@@ -7108,7 +7166,8 @@
                 month: parseInt(document.getElementById('selfMonth').value),
                 description: document.getElementById('selfDescription').value,
                 amount: parseFloat(document.getElementById('selfAmount').value) || 0,
-                notes: document.getElementById('selfNotes').value
+                notes: document.getElementById('selfNotes').value,
+                vat: document.getElementById('selfVat').value === '1'
             };
             
             // Handle file upload — REQUIRES Drive success
@@ -7172,6 +7231,7 @@
                 recognition: (function(){ const v = parseFloat(document.getElementById('expenseRecognition').value); return Number.isFinite(v) ? v : 100; })(),
                 notes: document.getElementById('expenseNotes').value,
                 deductible: document.getElementById('expenseDeductible').value === '1',
+                inputVat: document.getElementById('expenseInputVat').value === '1',
                 payMethod: document.getElementById('expensePayMethod').value || null,
                 assetId: (document.getElementById('expenseAssetGroup').style.display !== 'none'
                     ? (document.getElementById('expenseAsset').value || null) : null)
@@ -7521,70 +7581,67 @@
             renderAll();
         }
 
+        // Automatic VAT summary — computed straight from income + expense records
+        // (bi-monthly periods). No manual entry: mark an invoice/expense as carrying VAT.
         function renderVatTable() {
             const yd = getYearData();
             const tbody = document.getElementById('vatTable');
             if (!tbody) return;
-            
-            const vatItems = active(yd.vatReports);
-            if (vatItems.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">📊</div><p>לחץ + להוסיף דיווח מע"מ</p></td></tr>';
-                document.getElementById('vatTotalRefund').textContent = '₪0';
-                document.getElementById('vatIncome').textContent = '₪0';
-                document.getElementById('vatExpenses').textContent = '₪0';
-                document.getElementById('vatOnExpenses').textContent = '₪0';
-                return;
-            }
-            
-            const PERIOD_NAMES = {
-                '1-2': 'ינו-פבר',
-                '3-4': 'מרץ-אפר',
-                '5-6': 'מאי-יונ',
-                '7-8': 'יול-אוג',
-                '9-10': 'ספט-אוק',
-                '11-12': 'נוב-דצמ'
-            };
-            
-            let totalIncome = 0;
-            let totalExpenses = 0;
-            let totalInputVat = 0;
-            let totalOutputVat = 0;
-            
-            tbody.innerHTML = [...vatItems].sort((a, b) => parseInt(a.period) - parseInt(b.period)).map(v => {
-                totalIncome += v.income;
-                totalExpenses += v.expenses;
-                totalInputVat += v.inputVat;
-                totalOutputVat += v.outputVat;
-                const diff = v.outputVat - v.inputVat;
-                
-                return `<tr>
-                    <td>${PERIOD_NAMES[v.period] || v.period} ${v.notes ? '<span data-tip="'+v.notes+'" style="cursor:help;">📎</span>' : ''}</td>
-                    <td>${formatCurrency(v.income)}</td>
-                    <td>${formatCurrency(v.outputVat)}</td>
-                    <td style="color:var(--success)">${formatCurrency(v.inputVat)}</td>
-                    <td style="color:${diff < 0 ? 'var(--success)' : 'var(--danger)'}">${diff < 0 ? 'החזר ' : 'לשלם '}${formatCurrency(Math.abs(diff))}</td>
-                    <td>
-                        <button class="btn btn-icon btn-sm" onclick="editVatReport(${v.id})" title="עריכה">✏️</button>
-                        <button class="btn btn-icon btn-sm" onclick="deleteVatReport(${v.id})" title="מחיקה">🗑️</button>
-                    </td>
-                </tr>`;
-            }).join('');
-            
-            // Summary
-            const totalRefund = totalInputVat - totalOutputVat;
-            document.getElementById('vatIncome').textContent = formatCurrency(totalIncome);
-            document.getElementById('vatExpenses').textContent = formatCurrency(totalExpenses);
-            document.getElementById('vatOnExpenses').textContent = formatCurrency(totalInputVat);
-            document.getElementById('vatTotalRefund').textContent = formatCurrency(Math.max(0, totalRefund));
-            
+
+            const PERIODS = [['1-2',[1,2]],['3-4',[3,4]],['5-6',[5,6]],['7-8',[7,8]],['9-10',[9,10]],['11-12',[11,12]]];
+            const PERIOD_NAMES = { '1-2':'ינו-פבר','3-4':'מרץ-אפר','5-6':'מאי-יונ','7-8':'יול-אוג','9-10':'ספט-אוק','11-12':'נוב-דצמ' };
+            const income = active(yd.selfEmployed);
+            const exps = deductibleExpenses(yd);
+            const expMonthOf = e => parseInt((e.date || '').slice(5, 7), 10) || 0;
+
+            let totNetIncome = 0, totNetExp = 0, totOutput = 0, totInput = 0, anyData = false, rowsHtml = '';
+            PERIODS.forEach(function (pair) {
+                const key = pair[0], months = pair[1];
+                let netInc = 0, outVat = 0, inVat = 0;
+                income.filter(s => months.includes(Number(s.month))).forEach(s => {
+                    const parts = incomeVatParts(s, yd); netInc += parts.net; outVat += parts.vat;
+                });
+                exps.filter(e => months.includes(expMonthOf(e))).forEach(e => {
+                    const parts = expenseVatParts(e, yd); inVat += parts.vat;
+                });
+                if (netInc === 0 && outVat === 0 && inVat === 0) return;
+                anyData = true;
+                totNetIncome += netInc; totOutput += outVat; totInput += inVat;
+                const diff = outVat - inVat;
+                rowsHtml += '<tr>'
+                    + '<td>' + (PERIOD_NAMES[key] || key) + '</td>'
+                    + '<td>' + formatCurrency(netInc) + '</td>'
+                    + '<td>' + formatCurrency(outVat) + '</td>'
+                    + '<td style="color:var(--success)">' + formatCurrency(inVat) + '</td>'
+                    + '<td style="color:' + (diff < 0 ? 'var(--success)' : 'var(--danger)') + '">' + (diff < 0 ? 'החזר ' : 'לשלם ') + formatCurrency(Math.abs(diff)) + '</td>'
+                    + '<td></td>'
+                    + '</tr>';
+            });
+
+            // Total recognized deductible cost (excl. VAT) across the whole year.
+            totNetExp = exps.reduce((s, e) => s + expenseVatParts(e, yd).net, 0);
+
+            tbody.innerHTML = anyData
+                ? rowsHtml
+                : '<tr><td colspan="6" class="empty-state"><div class="icon">📊</div><p>אין נתוני מע"מ — סמנו חשבוניות/הוצאות עם מע"מ</p></td></tr>';
+
+            const totRefund = totInput - totOutput;   // >0 refund, <0 pay
+            const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+            setTxt('vatIncome', formatCurrency(totNetIncome));
+            setTxt('vatExpenses', formatCurrency(totNetExp));
+            setTxt('vatOnExpenses', formatCurrency(totInput));
+            setTxt('vatTotalRefund', formatCurrency(Math.abs(totRefund)));
+
             const resultBox = document.getElementById('vatResultBox');
-            if (totalRefund > 0) {
-                resultBox.className = 'result-box refund';
-                resultBox.querySelector('div:first-child').textContent = '💰 סה"כ מע"מ לקיזוז (החזר צפוי)';
-            } else if (totalRefund < 0) {
-                resultBox.className = 'result-box owe';
-                resultBox.querySelector('div:first-child').textContent = '💳 סה"כ מע"מ לתשלום';
-                document.getElementById('vatTotalRefund').textContent = formatCurrency(Math.abs(totalRefund));
+            if (resultBox) {
+                const head = resultBox.querySelector('div:first-child');
+                if (totRefund >= 0) {
+                    resultBox.className = 'result-box refund';
+                    if (head) head.textContent = '💰 סה"כ מע"מ לקיזוז (החזר צפוי)';
+                } else {
+                    resultBox.className = 'result-box owe';
+                    if (head) head.textContent = '💳 סה"כ מע"מ לתשלום';
+                }
             }
         }
 
@@ -7681,7 +7738,38 @@
             document.getElementById('selfDescription').value = item.description || '';
             document.getElementById('selfAmount').value = item.amount;
             document.getElementById('selfNotes').value = item.notes || '';
+            setIncomeVat(item.vat === true);
             openModal('selfEmployedModal');
+        }
+
+        function openAddSelfEmployed() {
+            editingId = null;
+            clearForm('selfEmployedModal');
+            setIncomeVat(false);
+            const st = document.getElementById('selfFileStatus');
+            if (st) st.textContent = '';
+            openModal('selfEmployedModal');
+        }
+
+        function setIncomeVat(on) {
+            document.getElementById('selfVat').value = on ? '1' : '0';
+            const yes = document.getElementById('selfVatYes');
+            const no = document.getElementById('selfVatNo');
+            if (yes) yes.classList.toggle('active', on);
+            if (no) no.classList.toggle('active', !on);
+            updateIncomeVatHint();
+        }
+
+        function updateIncomeVatHint() {
+            const hint = document.getElementById('selfVatHint');
+            if (!hint) return;
+            const on = document.getElementById('selfVat').value === '1';
+            const amt = parseFloat(document.getElementById('selfAmount').value) || 0;
+            if (!on) { hint.textContent = 'יצוא/חו"ל — 0% מע"מ'; return; }
+            if (!amt) { hint.textContent = 'הסכום כולל מע"מ — יופרד אוטומטית'; return; }
+            const rate = vatRateFor(getYearData()) / 100;
+            const net = amt / (1 + rate);
+            hint.textContent = 'הכנסה נטו: ' + formatCurrency(net) + ' · מע"מ עסקאות: ' + formatCurrency(amt - net);
         }
 
         function editExpense(id) {
@@ -7696,6 +7784,7 @@
             document.getElementById('expenseRecognition').value = item.recognition ?? 100;
             document.getElementById('expenseNotes').value = item.notes || '';
             setExpenseDeductible(item.deductible !== false);
+            setExpenseInputVat(item.inputVat === true);
             setExpensePayment(item.payMethod || '', item.assetId || '');
             const ks = document.getElementById('expenseKindGroup');
             if (ks) ks.style.display = '';   // type is visible/editable in the unified edit box
@@ -7752,6 +7841,31 @@
                 const rec = document.getElementById('expenseRecognition');
                 if (rec && !Number.isFinite(parseFloat(rec.value))) rec.value = 100;
             }
+            // Input VAT is only reclaimable on a deductible (business) expense.
+            const _ivg = document.getElementById('expenseInputVatGroup');
+            if (_ivg) _ivg.style.display = v ? '' : 'none';
+        }
+
+        // מע"מ תשומות toggle — whether this expense carries reclaimable input VAT.
+        function setExpenseInputVat(on) {
+            document.getElementById('expenseInputVat').value = on ? '1' : '0';
+            const yes = document.getElementById('expInputVatYes');
+            const no = document.getElementById('expInputVatNo');
+            if (yes) yes.classList.toggle('active', on);
+            if (no) no.classList.toggle('active', !on);
+            updateExpenseVatHint();
+        }
+
+        function updateExpenseVatHint() {
+            const hint = document.getElementById('expInputVatHint');
+            if (!hint) return;
+            const on = document.getElementById('expenseInputVat').value === '1';
+            const amt = parseFloat(document.getElementById('expenseAmount').value) || 0;
+            if (!on) { hint.textContent = 'לא מקזזים מע"מ על הוצאה זו'; return; }
+            if (!amt) { hint.textContent = 'הסכום כולל מע"מ — יופרד לקיזוז'; return; }
+            const rate = vatRateFor(getYearData()) / 100;
+            const net = amt / (1 + rate);
+            hint.textContent = 'עלות נטו: ' + formatCurrency(net) + ' · מע"מ לקיזוז: ' + formatCurrency(amt - net);
         }
 
         // ========== CREDITS ==========
@@ -7794,6 +7908,28 @@
         // Expenses default to deductible; only an explicit false excludes from tax.
         const isDeductible = e => e.deductible !== false;
         const deductibleExpenses = yd => active(yd && yd.expenses).filter(isDeductible);
+
+        // ===== VAT (מע"מ) — per-record, opt-in. Legacy records (no flag) carry no VAT. =====
+        function vatRateFor(yd) {
+            const r = yd && yd.settings ? Number(yd.settings.vatRate) : NaN;
+            return (Number.isFinite(r) && r > 0) ? r : 18;
+        }
+        // Income invoice: amount is the total received; when it carries VAT we strip it out.
+        function incomeVatParts(r, yd) {
+            const amount = Number(r && r.amount) || 0;
+            if (!r || !r.vat) return { net: amount, vat: 0 };
+            const rate = vatRateFor(yd) / 100;
+            const net = amount / (1 + rate);
+            return { net, vat: amount - net };
+        }
+        // Deductible expense: when it carries reclaimable input VAT, the real cost is net.
+        function expenseVatParts(e, yd) {
+            const amount = Number(e && e.amount) || 0;
+            if (!e || !e.inputVat || isDeductible(e) === false) return { net: amount, vat: 0 };
+            const rate = vatRateFor(yd) / 100;
+            const net = amount / (1 + rate);
+            return { net, vat: amount - net };
+        }
 
         function calculateTotals() {
             const yd = getYearData();
@@ -7870,8 +8006,8 @@
             const totalUnemployment = active(yd.unemployment).reduce((sum, u) => sum + (Number(u.gross) || 0), 0);
             const totalMiluim = active(yd.miluim).reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
             const totalMiluimDays = active(yd.miluim).reduce((sum, m) => sum + (Number(m.days) || 0), 0);
-            const totalSelfEmployed = active(yd.selfEmployed).reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-            const totalExpenses = deductibleExpenses(yd).reduce((sum, e) => sum + ((Number(e.amount) || 0) * ((e.recognition ?? 100) / 100)), 0);
+            const totalSelfEmployed = active(yd.selfEmployed).reduce((sum, s) => sum + incomeVatParts(s, yd).net, 0);
+            const totalExpenses = deductibleExpenses(yd).reduce((sum, e) => sum + (expenseVatParts(e, yd).net * ((e.recognition ?? 100) / 100)), 0);
 
             const taxFromUnemployment = active(yd.unemployment).reduce((sum, u) => sum + (Number(u.taxDeducted) || 0), 0);
             const taxFromMiluim = active(yd.miluim).reduce((sum, m) => sum + (Number(m.taxDeducted) || 0), 0);
@@ -7883,6 +8019,11 @@
             const blFromSelf = active(yd.blAdvances).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
             const totalBLPaid = blFromSalary + blFromUnemployment + blFromMiluim + blFromSelf;
+
+            // ===== VAT totals (מע"מ) — output on income, input reclaimable on expenses =====
+            const outputVatTotal = active(yd.selfEmployed).reduce((s, r) => s + incomeVatParts(r, yd).vat, 0);
+            const inputVatTotal = deductibleExpenses(yd).reduce((s, e) => s + expenseVatParts(e, yd).vat, 0);
+            const vatBalance = outputVatTotal - inputVatTotal;   // >0 pay, <0 refund
 
             // ===== SELF-EMPLOYED (עצמאי) - apply שומה override if present =====
             const computedSelfEmployedNet = Math.max(0, totalSelfEmployed - totalExpenses);
@@ -7912,6 +8053,9 @@
                 expenses: totalExpenses,
                 selfEmployedNet,
                 computedSelfEmployedNet,
+                outputVatTotal,
+                inputVatTotal,
+                vatBalance,
                 selfEmployedSource,
                 taxableIncome,
                 assessment,
@@ -8924,6 +9068,15 @@
             const derEl = document.getElementById('dashEffectiveRate');
             if (dmrEl) dmrEl.textContent = dashMarginal + '%';
             if (derEl) derEl.textContent = dashEff.toFixed(1) + '%';
+            const dvbEl = document.getElementById('dashVatBalance');
+            const dvblEl = document.getElementById('dashVatBalanceLabel');
+            if (dvbEl) {
+                const vb = totals.vatBalance || 0;
+                dvbEl.textContent = formatCurrency(Math.abs(vb));
+                if (vb < 0) { dvbEl.style.color = 'var(--success)'; if (dvblEl) dvblEl.textContent = 'מע"מ — החזר צפוי'; }
+                else if (vb > 0) { dvbEl.style.color = 'var(--danger)'; if (dvblEl) dvblEl.textContent = 'מע"מ — לתשלום'; }
+                else { dvbEl.style.color = 'var(--cyan)'; if (dvblEl) dvblEl.textContent = 'מאזן מע"מ'; }
+            }
             
             document.getElementById('dashTaxFromSalary').textContent = formatCurrency(totals.taxFromSalary);
             document.getElementById('dashTaxFromUnemployment').textContent = formatCurrency(totals.taxFromUnemployment);
@@ -9673,17 +9826,26 @@
                 <td>${MONTHS[s.month]}</td>
                 <td onclick="event.stopPropagation();openIncomeDossier(${s.id})" style="cursor:pointer;">${incomeStatusCell(s)}</td>
                 <td>${s.description || '-'} ${s.notes ? '<span data-tip="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
-                <td>${formatCurrency(s.amount)}</td>
+                <td>${formatCurrency(s.amount)}${s.vat ? ' <span data-tip=\'חשבונית עם מע"מ\' style="font-size:0.64rem;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:0 5px;cursor:help;">מע"מ</span>' : ''}</td>
                 <td style="color:var(--primary)">${formatCurrency(cumulative)}</td>
             </tr>`;
             }).join('');
+            let _totOut = 0, _totNet = 0;
+            selfItems.forEach(s => { const p = incomeVatParts(s, yd); _totOut += p.vat; _totNet += p.net; });
+            const _vatSum = document.getElementById('selfEmployedVatSummary');
+            if (_vatSum) {
+                if (_totOut > 0) {
+                    _vatSum.style.display = 'block';
+                    _vatSum.innerHTML = 'מתוך ההכנסות — מע"מ עסקאות: <strong>' + formatCurrency(_totOut) + '</strong> · הכנסה נטו (ללא מע"מ): <strong>' + formatCurrency(_totNet) + '</strong>';
+                } else { _vatSum.style.display = 'none'; }
+            }
         }
 
         function renderDashExpenses() {
             const yd = getYearData();
             const el = document.getElementById('dashExpenses');
             if (!el) return;
-            const totalRecognized = deductibleExpenses(yd).reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+            const totalRecognized = deductibleExpenses(yd).reduce((s, e) => s + (expenseVatParts(e, yd).net * ((e.recognition ?? 100) / 100)), 0);
             el.textContent = formatCurrency(totalRecognized);
         }
 
@@ -10316,6 +10478,7 @@
             recurringPayContext = null;
             editingId = null;
             setExpenseDeductible(true);
+            setExpenseInputVat(true);
             setExpensePayment('', '');
             // Default the date so a new expense never gets saved without one and
             // vanishes from the month view — the current month if viewed (else today).
@@ -11636,6 +11799,12 @@
             document.getElementById('totalExpensesNonDeductible').textContent = formatCurrency(totalNonDeductible);
             document.getElementById('expAllRow').style.display = nonDeductibleItems.length ? '' : 'none';
             document.getElementById('totalExpensesAll').textContent = formatCurrency(totalAll);
+            const _totalInputVat = deductibleItems.reduce((s, e) => s + expenseVatParts(e, yd).vat, 0);
+            const _ivRow = document.getElementById('expInputVatRow');
+            if (_ivRow) {
+                _ivRow.style.display = _totalInputVat > 0 ? '' : 'none';
+                document.getElementById('totalExpenseInputVat').textContent = formatCurrency(_totalInputVat);
+            }
 
             // A month can have no recorded expenses and still have bills waiting —
             // show those instead of an empty table.
@@ -12373,6 +12542,9 @@
             
             // Credit value
             document.getElementById('setCreditValue').value = yd.settings.creditValue;
+            // VAT rate (per-year)
+            const _vatEl = document.getElementById('vatRate');
+            if (_vatEl) _vatEl.value = (yd.settings.vatRate != null ? yd.settings.vatRate : 18);
         }
 
         function updateTaxBracket(idx, field, value) {
@@ -12435,6 +12607,14 @@
         function updateCreditValue() {
             const yd = getYearData();
             yd.settings.creditValue = parseFloat(document.getElementById('setCreditValue').value) || 242;
+            saveData();
+            renderAll();
+        }
+
+        function updateVatRate() {
+            const yd = getYearData();
+            const v = parseFloat(document.getElementById('vatRate').value);
+            yd.settings.vatRate = (Number.isFinite(v) && v >= 0) ? v : 18;
             saveData();
             renderAll();
         }
@@ -13396,6 +13576,10 @@
                     const _marg = (_det && _det.length) ? _det[_det.length - 1].rate : 0;
                     const _eff = _taxable > 0 ? (d.netTax / _taxable * 100) : 0;
                     summaryCards.push(['📊 מס שולי / אפקטיבי', _marg + '% / ' + _eff.toFixed(1) + '%']);
+                }
+                if (show('vatBalance')) {
+                    const _vb = d.totals.vatBalance || 0;
+                    summaryCards.push(['🧾 מאזן מע"מ', (_vb < 0 ? 'החזר ' : (_vb > 0 ? 'לתשלום ' : '')) + fmtNum(Math.abs(_vb))]);
                 }
                 if (summaryCards.length > 0) {
                     bodyContent += '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">' + nextLetter() + '. סיכום מס וביטוח לאומי</h3>';
