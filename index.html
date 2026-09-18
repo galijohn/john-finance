@@ -1556,6 +1556,8 @@
 
             <div id="docReminders" style="display:none;margin-bottom:20px;padding:12px 15px;border-radius:10px;background:rgba(239,68,68,0.10);border:1px solid var(--danger);"></div>
 
+            <div id="deadlineReminders" style="display:none;margin-bottom:20px;"></div>
+
             <div class="cards-grid" id="dashboardCards">
                 <div class="card stat-card salary" data-card="salary">
                     <div class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/briefcase.png" alt="" onerror="this.replaceWith(document.createTextNode('💼'))"></div>
@@ -2683,6 +2685,42 @@
                     <div class="form-group">
                         <label>ערך נקודה (חודשי)</label>
                         <input type="number" class="form-control" id="setCreditValue" value="242" onchange="updateCreditValue()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:20px;">
+                <h3 style="margin:0 0 5px;">📅 מועדי דיווח ותזכורות</h3>
+                <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:15px;">תדירות הדיווח, יום ההגשה, וכמה ימים מראש לקבל תזכורת בדשבורד.</div>
+                <table style="width:100%;">
+                    <thead><tr>
+                        <th style="text-align:right;">חובה</th>
+                        <th style="text-align:right;">תדירות</th>
+                        <th style="text-align:right;">יום הגשה</th>
+                    </tr></thead>
+                    <tbody>
+                        <tr>
+                            <td>מע"מ</td>
+                            <td><select class="form-control" id="rem_vat_freq" onchange="updateReminderSettings()"><option value="bi">דו-חודשי</option><option value="month">חודשי</option></select></td>
+                            <td><input type="number" class="form-control" id="rem_vat_day" min="1" max="31" value="15" onchange="updateReminderSettings()" style="width:90px;"></td>
+                        </tr>
+                        <tr>
+                            <td>מקדמת מס הכנסה</td>
+                            <td><select class="form-control" id="rem_taxAdv_freq" onchange="updateReminderSettings()"><option value="month">חודשי</option><option value="bi">דו-חודשי</option></select></td>
+                            <td><input type="number" class="form-control" id="rem_taxAdv_day" min="1" max="31" value="15" onchange="updateReminderSettings()" style="width:90px;"></td>
+                        </tr>
+                        <tr>
+                            <td>מקדמת ביטוח לאומי</td>
+                            <td><select class="form-control" id="rem_blAdv_freq" onchange="updateReminderSettings()"><option value="month">חודשי</option><option value="bi">דו-חודשי</option></select></td>
+                            <td><input type="number" class="form-control" id="rem_blAdv_day" min="1" max="31" value="15" onchange="updateReminderSettings()" style="width:90px;"></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="form-group" style="margin-top:15px;">
+                    <label>🛡️ ימי ביטחון (תזכורת מקדימה)</label>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <input type="number" class="form-control" id="rem_buffer" min="0" max="60" value="7" onchange="updateReminderSettings()" style="width:90px;">
+                        <span style="color:var(--text-muted);font-size:0.85rem;">ימים לפני המועד — אז תופיע התזכורת בדשבורד</span>
                     </div>
                 </div>
             </div>
@@ -9353,6 +9391,7 @@
             renderBLAdvanceTable();
             renderVatTable();
             renderVatFiling();
+            renderDeadlineReminders();
             
             // Credits
             document.getElementById('totalCredits').textContent = credits.toFixed(2);
@@ -12755,6 +12794,8 @@
             if (_vatEl) _vatEl.value = (yd.settings.vatRate != null ? yd.settings.vatRate : 18);
             // Business-status timeline editor
             renderStatusPeriods();
+            // Reporting deadlines & reminders
+            loadReminderSettings();
         }
 
         function updateTaxBracket(idx, field, value) {
@@ -12819,6 +12860,78 @@
             yd.settings.creditValue = parseFloat(document.getElementById('setCreditValue').value) || 242;
             saveData();
             renderAll();
+        }
+
+        // ===== Reporting deadlines & reminders (global, user-configurable) =====
+        function getReminderSettings() {
+            const d = data.reminderSettings || {};
+            const one = (o, defFreq) => ({ freq: (o && o.freq) || defFreq, day: (o && o.day) ? o.day : 15 });
+            return {
+                vat: one(d.vat, 'bi'),
+                taxAdv: one(d.taxAdv, 'month'),
+                blAdv: one(d.blAdv, 'month'),
+                bufferDays: (d.bufferDays != null) ? d.bufferDays : 7
+            };
+        }
+        function updateReminderSettings() {
+            const g = id => document.getElementById(id);
+            data.reminderSettings = {
+                vat: { freq: g('rem_vat_freq').value, day: parseInt(g('rem_vat_day').value) || 15 },
+                taxAdv: { freq: g('rem_taxAdv_freq').value, day: parseInt(g('rem_taxAdv_day').value) || 15 },
+                blAdv: { freq: g('rem_blAdv_freq').value, day: parseInt(g('rem_blAdv_day').value) || 15 },
+                bufferDays: parseInt(g('rem_buffer').value) || 0
+            };
+            saveData();
+            renderDeadlineReminders();
+        }
+        function loadReminderSettings() {
+            const s = getReminderSettings();
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+            set('rem_vat_freq', s.vat.freq); set('rem_vat_day', s.vat.day);
+            set('rem_taxAdv_freq', s.taxAdv.freq); set('rem_taxAdv_day', s.taxAdv.day);
+            set('rem_blAdv_freq', s.blAdv.freq); set('rem_blAdv_day', s.blAdv.day);
+            set('rem_buffer', s.bufferDays);
+        }
+        // Next due date (>= today). Bi-monthly reports are due in odd calendar months.
+        function nextDueDate(freq, day) {
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            for (let i = 0; i < 14; i++) {
+                const base = new Date(today.getFullYear(), today.getMonth() + i, 1);
+                const y = base.getFullYear(), m = base.getMonth();   // m: 0-based
+                if (freq === 'bi' && ((m + 1) % 2 === 0)) continue;   // skip even calendar months
+                const due = new Date(y, m, day); due.setHours(0, 0, 0, 0);
+                if (due >= today) return due;
+            }
+            return null;
+        }
+        function renderDeadlineReminders() {
+            const box = document.getElementById('deadlineReminders');
+            if (!box) return;
+            const s = getReminderSettings();
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const items = [
+                { label: 'דיווח מע"מ', page: 'vat', cfg: s.vat, icon: '📊' },
+                { label: 'מקדמת מס הכנסה', page: 'income', cfg: s.taxAdv, icon: '🏛️' },
+                { label: 'מקדמת ביטוח לאומי', page: 'income', cfg: s.blAdv, icon: '🏥' }
+            ];
+            let html = '';
+            items.forEach(it => {
+                const due = nextDueDate(it.cfg.freq, it.cfg.day);
+                if (!due) return;
+                const days = Math.round((due - today) / 86400000);
+                if (days > s.bufferDays) return;   // outside the reminder window
+                const urgent = days <= 3;
+                const bg = urgent ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)';
+                const col = urgent ? 'var(--danger)' : 'var(--warning)';
+                const ymd = due.getFullYear() + '-' + String(due.getMonth() + 1).padStart(2, '0') + '-' + String(due.getDate()).padStart(2, '0');
+                const when = days === 0 ? 'היום!' : 'עד ' + formatDate(ymd) + ' · נותרו ' + days + (days === 1 ? ' יום' : ' ימים');
+                html += '<div onclick="showPage(\'' + it.page + '\')" style="display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;background:' + bg + ';border:1px solid ' + col + ';border-radius:8px;padding:10px 14px;margin-bottom:8px;">'
+                    + '<span style="display:flex;align-items:center;gap:8px;color:' + col + ';font-size:0.95rem;">🔔 ' + it.icon + ' ' + it.label + '</span>'
+                    + '<span style="color:' + col + ';font-size:0.9rem;font-weight:600;">' + when + ' ›</span>'
+                    + '</div>';
+            });
+            box.innerHTML = html;
+            box.style.display = html ? 'block' : 'none';
         }
 
         function updateVatRate() {
