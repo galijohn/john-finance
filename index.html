@@ -2738,6 +2738,12 @@
             </div>
 
             <div class="card" style="margin-top:20px;">
+                <h3 style="margin:0 0 5px;">📦 דוח שנתי לרואה חשבון</h3>
+                <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:15px;">קובץ אחד שמרכז הכל לשנה המוצגת: הכנסות, הוצאות נטו, חישוב מס, ביטוח לאומי, מע"מ ומקדמות.</div>
+                <button class="btn btn-primary" onclick="exportPagePDF('accountant')">📄 הפק דוח שנתי (PDF)</button>
+            </div>
+
+            <div class="card" style="margin-top:20px;">
                 <h3 style="margin:0 0 15px;">☁️ סנכרון ענן</h3>
                 <div id="driveStatus" style="padding:15px;background:var(--bg-input);border-radius:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
                     <div>
@@ -13113,6 +13119,7 @@
                 vat: 'מע"מ',
                 taxCalc: 'חישוב מס',
                 forecast: 'תחזית שנתית',
+                accountant: 'דוח שנתי לרואה חשבון',
                 settings: 'הגדרות מערכת - מעמד עסקי'
             };
 
@@ -13218,6 +13225,22 @@
                         totals: tTotals, credits: tCredits, creditValue: tCreditValue,
                         grossTax: tGrossTax, netTax: tNetTax, taxDetails: tTaxDetails,
                         bl: tBL, taxDiff: tTaxDiff, blDiff: tBLDiff
+                    };
+                    break;
+                }
+                case 'accountant': {
+                    const aT = calculateTotals();
+                    const aCredits = calculateCredits();
+                    const aCreditValue = aCredits * yd.settings.creditValue * 12;
+                    const { gross: aGross } = calculateIncomeTax(aT.taxableIncome);
+                    const aNetTax = Math.max(0, aGross - aCreditValue);
+                    const aBL = calculateBituachLeumi(aT.selfEmployedNet);
+                    const _bt = { zair: 'עוסק זעיר', patur: 'עוסק פטור', murshe: 'עוסק מורשה' };
+                    rows._custom = 'accountant';
+                    rows._data = {
+                        totals: aT, credits: aCredits, creditValue: aCreditValue,
+                        grossTax: aGross, netTax: aNetTax, bl: aBL,
+                        businessStatus: _bt[businessStatusForYear(currentYear)] || 'עוסק מורשה'
                     };
                     break;
                 }
@@ -13700,7 +13723,7 @@
                 });
             }
 
-            if (page === 'calculation' || page === 'taxCalc') {
+            if (page === 'calculation' || page === 'taxCalc' || page === 'accountant') {
                 // All documents (dashboard/forecast/vat are summaries — they attach no documents)
                 addRecordDocs(yd.salary, 'שכיר');
                 addRecordDocs(yd.unemployment, 'אבטלה');
@@ -14184,6 +14207,45 @@
                 bodyContent += '</tbody></table>';
                 const totalResult = t.taxDiff + t.blDiff;
                 bodyContent += '<div style="overflow:hidden;padding:10px 15px;background:#1e293b;color:white;font-weight:bold;font-size:14px;margin-top:15px;"><span>' + (totalResult > 0 ? 'סה"כ החזר' : totalResult < 0 ? 'סה"כ לתשלום' : 'מאוזן') + '</span><span>' + fmtNum(Math.abs(totalResult)) + '</span></div>';
+
+            } else if (rows._custom === 'accountant') {
+                const d = rows._data, tt = d.totals;
+                const H = t => '<h3 style="font-size:13px;font-weight:bold;margin:20px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text);">' + t + '</h3>';
+                const strip = (label, val, dark) => '<div style="overflow:hidden;padding:' + (dark ? '10px 15px' : '6px 10px') + ';font-weight:bold;' + (dark ? 'background:#1e293b;color:white;font-size:14px;margin-top:15px;' : 'border-top:1px solid #94a3b8;margin-bottom:10px;font-size:11px;') + '"><span>' + label + '</span><span>' + fmtNum(val) + '</span></div>';
+                const trow = (a, b) => '<tr><td>' + a + '</td><td style="text-align:left;direction:ltr;">' + fmtNum(b) + '</td></tr>';
+
+                bodyContent += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">מעמד עסקי: ' + d.businessStatus + '</div>';
+
+                bodyContent += H('א. הכנסות');
+                bodyContent += '<table><thead><tr><th>מקור</th><th>סכום</th></tr></thead><tbody>';
+                bodyContent += trow('הכנסה כשכיר (ברוטו)', tt.salary);
+                bodyContent += trow('דמי אבטלה', tt.unemployment);
+                bodyContent += trow('דמי מילואים', tt.miluim);
+                bodyContent += trow('הכנסה כעצמאי (נטו ממע"מ)', tt.selfEmployed);
+                bodyContent += trow('(-) הוצאות מוכרות (נטו ממע"מ)', tt.expenses);
+                bodyContent += '</tbody></table>' + strip('סה"כ הכנסה חייבת', tt.taxableIncome);
+
+                bodyContent += H('ב. חישוב מס הכנסה');
+                bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
+                bodyContent += trow('מס ברוטו', d.grossTax);
+                bodyContent += '<tr><td>נקודות זיכוי: ' + d.credits.toFixed(2) + '</td><td style="text-align:left;direction:ltr;">-' + fmtNum(Math.min(d.creditValue, d.grossTax)) + '</td></tr>';
+                bodyContent += '</tbody></table>' + strip('מס הכנסה נטו', d.netTax, true);
+
+                bodyContent += H('ג. ביטוח לאומי (עצמאי)');
+                bodyContent += strip('סה"כ ביטוח לאומי + בריאות', d.bl.total);
+
+                bodyContent += H('ד. מע"מ (סיכום שנתי)');
+                bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
+                bodyContent += trow('מע"מ עסקאות', tt.outputVatTotal || 0);
+                bodyContent += trow('מע"מ תשומות (לקיזוז)', tt.inputVatTotal || 0);
+                bodyContent += '</tbody></table>';
+                bodyContent += strip(((tt.vatBalance || 0) <= 0 ? 'מאזן מע"מ — להחזר' : 'מאזן מע"מ — לתשלום'), Math.abs(tt.vatBalance || 0));
+
+                bodyContent += H('ה. מקדמות ששולמו');
+                bodyContent += '<table><thead><tr><th>פריט</th><th>סכום</th></tr></thead><tbody>';
+                bodyContent += trow('מס הכנסה שנוכה/שולם', tt.totalTaxPaid);
+                bodyContent += trow('ביטוח לאומי (מקדמות עצמאי)', tt.blFromSelf);
+                bodyContent += '</tbody></table>';
 
             } else if (rows._custom === 'forecast') {
                 const f = rows._data;
