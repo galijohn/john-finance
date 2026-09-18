@@ -8095,9 +8095,14 @@
             return (Number.isFinite(r) && r > 0) ? r : 18;
         }
         // Income invoice: amount is the total received; when it carries VAT we strip it out.
+        // Output VAT applies only while the business is עוסק מורשה — income has month
+        // granularity, so we test mid-month against the status timeline.
         function incomeVatParts(r, yd) {
             const amount = Number(r && r.amount) || 0;
             if (!r || !r.vat) return { net: amount, vat: 0 };
+            const yr = (typeof currentYear !== 'undefined') ? currentYear : new Date().getFullYear();
+            const dt = yr + '-' + String(r.month || 1).padStart(2, '0') + '-15';
+            if (!isMursheOn(dt)) return { net: amount, vat: 0 };   // patur period — no output VAT
             const rate = vatRateFor(yd) / 100;
             const net = amount / (1 + rate);
             return { net, vat: amount - net };
@@ -12906,7 +12911,8 @@
                 const base = new Date(today.getFullYear(), today.getMonth() + i, 1);
                 const y = base.getFullYear(), m = base.getMonth();   // m: 0-based
                 if (freq === 'bi' && ((m + 1) % 2 === 0)) continue;   // skip even calendar months
-                const due = new Date(y, m, day); due.setHours(0, 0, 0, 0);
+                const lastDay = new Date(y, m + 1, 0).getDate();      // clamp 29-31 to month length
+                const due = new Date(y, m, Math.min(day, lastDay)); due.setHours(0, 0, 0, 0);
                 if (due >= today) return due;
             }
             return null;
