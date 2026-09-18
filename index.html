@@ -13032,9 +13032,14 @@
                 { label: 'הכנסה פנויה (שנתי)', key: 'netPocket', strong: true },
                 { label: 'מאזן מע"מ', key: 'vatBalance', vat: true }
             ];
+            const realY = new Date().getFullYear();
+            const realM = new Date().getMonth() + 1;
+            const partialShown = years.includes(realY);
             let html = '<table style="width:100%;border-collapse:collapse;font-size:0.9rem;"><thead><tr>'
                 + '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border);">פריט</th>'
-                + years.map(y => '<th style="text-align:left;padding:8px;border-bottom:1px solid var(--border);direction:ltr;">' + y + '</th>').join('')
+                + years.map(y => '<th style="text-align:left;padding:8px;border-bottom:1px solid var(--border);direction:ltr;">' + y
+                    + (y === realY ? '<div style="font-size:0.72rem;color:var(--warning);font-weight:400;">חלקי · עד ' + MONTHS[realM] + '</div>' : '')
+                    + '</th>').join('')
                 + '</tr></thead><tbody>';
             rows.forEach(r => {
                 html += '<tr><td style="padding:8px;' + (r.strong ? 'font-weight:700;' : '') + '">' + r.label + '</td>';
@@ -13057,6 +13062,9 @@
                 html += '</tr>';
             });
             html += '</tbody></table>';
+            if (partialShown) {
+                html += '<div style="font-size:0.78rem;color:var(--text-muted);margin-top:8px;">* ' + realY + ' — נתונים חלקיים נכון ל' + MONTHS[realM] + ' ' + realY + ' (השנה טרם הסתיימה). ההשוואה מול שנה מלאה אינה סופית.</div>';
+            }
             body.innerHTML = html;
         }
 
