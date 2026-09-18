@@ -1699,6 +1699,12 @@
                 <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;">פערים שכדאי לטפל בהם לפני דיווח או סוף שנה.</div>
                 <div id="completenessBody"></div>
             </div>
+
+            <div class="card" data-card="yearCompare" id="yearCompareCard" style="margin-top:20px;display:none;">
+                <h3 style="margin:0 0 5px;">📊 השוואה שנה-מול-שנה</h3>
+                <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;">מגמות בין השנים — הכנסות, הוצאות, מס, נטו ומע"מ.</div>
+                <div id="yearCompareBody" style="overflow-x:auto;"></div>
+            </div>
         </div>
 
         <!-- Salary Page -->
@@ -9404,6 +9410,7 @@
             renderVatFiling();
             renderDeadlineReminders();
             renderCompletenessCheck();
+            renderYearComparison();
             
             // Credits
             document.getElementById('totalCredits').textContent = credits.toFixed(2);
@@ -12980,6 +12987,71 @@
                 + '<span style="font-weight:700;color:var(--warning);">' + it.count + ' ›</span>'
                 + '</div>'
             ).join('');
+        }
+
+        // ===== Year-over-year comparison =====
+        function computeYearSummary(year) {
+            const prev = currentYear;
+            currentYear = year;
+            let s;
+            try {
+                const yd = getYearData();
+                const t = calculateTotals();
+                const credits = calculateCredits();
+                const cv = credits * yd.settings.creditValue * 12;
+                const { gross } = calculateIncomeTax(t.taxableIncome);
+                const netTax = Math.max(0, gross - cv);
+                const bl = calculateBituachLeumi(t.selfEmployedNet);
+                s = {
+                    taxable: t.taxableIncome, expenses: t.expenses, netTax: netTax,
+                    bl: bl.total, netPocket: t.taxableIncome - netTax - bl.total, vatBalance: t.vatBalance || 0
+                };
+            } finally { currentYear = prev; }
+            return s;
+        }
+        function renderYearComparison() {
+            const card = document.getElementById('yearCompareCard');
+            const body = document.getElementById('yearCompareBody');
+            if (!card || !body) return;
+            const years = (data.years || []).filter(y => data.yearData && data.yearData[y])
+                .map(Number).sort((a, b) => b - a).slice(0, 5);
+            if (years.length < 2) { card.style.display = 'none'; return; }
+            card.style.display = '';
+            const sums = {}; years.forEach(y => { sums[y] = computeYearSummary(y); });
+            const rows = [
+                { label: 'הכנסה חייבת', key: 'taxable' },
+                { label: 'הוצאות מוכרות', key: 'expenses' },
+                { label: 'מס הכנסה (נטו)', key: 'netTax' },
+                { label: 'ביטוח לאומי', key: 'bl' },
+                { label: 'הכנסה פנויה (שנתי)', key: 'netPocket', strong: true },
+                { label: 'מאזן מע"מ', key: 'vatBalance', vat: true }
+            ];
+            let html = '<table style="width:100%;border-collapse:collapse;font-size:0.9rem;"><thead><tr>'
+                + '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border);">פריט</th>'
+                + years.map(y => '<th style="text-align:left;padding:8px;border-bottom:1px solid var(--border);direction:ltr;">' + y + '</th>').join('')
+                + '</tr></thead><tbody>';
+            rows.forEach(r => {
+                html += '<tr><td style="padding:8px;' + (r.strong ? 'font-weight:700;' : '') + '">' + r.label + '</td>';
+                years.forEach((y, i) => {
+                    let val = sums[y][r.key] || 0;
+                    let disp;
+                    if (r.vat) { disp = (val < 0 ? 'החזר ' : val > 0 ? 'לתשלום ' : '') + formatCurrency(Math.abs(val)); }
+                    else disp = formatCurrency(val);
+                    // trend arrow vs the older (next) year, on the latest column only
+                    let trend = '';
+                    if (i === 0 && years.length > 1 && !r.vat) {
+                        const older = sums[years[1]][r.key] || 0;
+                        if (older) {
+                            const pct = Math.round((val - older) / Math.abs(older) * 100);
+                            if (pct !== 0) { const up = pct > 0; trend = ' <span style="font-size:0.75rem;color:' + (up ? 'var(--success)' : 'var(--danger)') + ';">' + (up ? '▲' : '▼') + Math.abs(pct) + '%</span>'; }
+                        }
+                    }
+                    html += '<td style="text-align:left;padding:8px;direction:ltr;' + (r.strong ? 'font-weight:700;color:var(--success);' : '') + '">' + disp + trend + '</td>';
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            body.innerHTML = html;
         }
 
         function updateVatRate() {
