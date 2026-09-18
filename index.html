@@ -1693,6 +1693,12 @@
                     <span id="dashTotalBLPaid" style="color:var(--warning)">₪0</span>
                 </div>
             </div>
+
+            <div class="card" data-card="completeness" style="margin-top:20px;">
+                <h3 style="margin:0 0 5px;">🔎 בקרת שלמות</h3>
+                <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;">פערים שכדאי לטפל בהם לפני דיווח או סוף שנה.</div>
+                <div id="completenessBody"></div>
+            </div>
         </div>
 
         <!-- Salary Page -->
@@ -9392,6 +9398,7 @@
             renderVatTable();
             renderVatFiling();
             renderDeadlineReminders();
+            renderCompletenessCheck();
             
             // Credits
             document.getElementById('totalCredits').textContent = credits.toFixed(2);
@@ -12932,6 +12939,41 @@
             });
             box.innerHTML = html;
             box.style.display = html ? 'block' : 'none';
+        }
+
+        // ===== Completeness check — gaps to fix before filing / year-end =====
+        function renderCompletenessCheck() {
+            const box = document.getElementById('completenessBody');
+            if (!box) return;
+            const yd = getYearData();
+            const issues = [];
+
+            const expNoDoc = deductibleExpenses(yd).filter(e => docCount(e) === 0);
+            if (expNoDoc.length) issues.push({ icon: '🧾', text: 'הוצאות מוכרות בלי חשבונית מצורפת', count: expNoDoc.length, page: 'expenses' });
+
+            const incNoDoc = active(yd.selfEmployed).filter(s => docCount(s) === 0);
+            if (incNoDoc.length) issues.push({ icon: '💰', text: 'הכנסות עצמאי בלי מסמך מצורף', count: incNoDoc.length, page: 'income' });
+
+            let collectPending = 0;
+            const rec = getRecurring();
+            const _rk = realMonthKey();
+            Object.keys(rec.months || {}).forEach(mk => {
+                if (String(mk).slice(0, 4) !== String(currentYear)) return;
+                if (mk > _rk) return;   // future months aren't a gap yet
+                active(rec.months[mk]).forEach(i => { if (isCollect(i) && !lineDone(mk, i)) collectPending++; });
+            });
+            if (collectPending) issues.push({ icon: '📄', text: 'חשבוניות לאיסוף שטרם הושלמו', count: collectPending, page: 'expenses' });
+
+            if (!issues.length) {
+                box.innerHTML = '<div style="display:flex;align-items:center;gap:8px;color:var(--success);padding:6px 0;font-size:0.95rem;">✅ הכל תקין — אין פערים לטיפול</div>';
+                return;
+            }
+            box.innerHTML = issues.map(it =>
+                '<div onclick="showPage(\'' + it.page + '\')" style="display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;padding:10px 12px;border-radius:8px;background:rgba(245,158,11,0.10);border:1px solid var(--warning);margin-bottom:8px;">'
+                + '<span style="display:flex;align-items:center;gap:8px;font-size:0.92rem;">' + it.icon + ' ' + it.text + '</span>'
+                + '<span style="font-weight:700;color:var(--warning);">' + it.count + ' ›</span>'
+                + '</div>'
+            ).join('');
         }
 
         function updateVatRate() {
