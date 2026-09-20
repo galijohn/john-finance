@@ -10739,10 +10739,9 @@
                     .forEach(i => { html += recurringRowHtml(expenseMonth, i, false); });
             }
 
-            if (cats.length) {
-                html += `<div class="rec-section-label">קטגוריות שוטפות — כמה הוצאתי</div>`;
-                cats.forEach(i => { html += categoryRowHtml(expenseMonth, i); });
-            }
+            // "קטגוריה שוטפת" was removed — it tracked a budget and touched no tax,
+            // VAT or report figure. Existing lines stay in the data untouched, they are
+            // simply no longer shown or editable.
 
             if (items.length === 0) {
                 html += `<div style="color:var(--text-muted);font-size:0.85rem;padding:6px 8px;">אין הוצאות קבועות בחודש הזה.</div>`;
@@ -11013,18 +11012,8 @@
                     : 'תשלום אחד בחודש, עם תאריך יעד וקבלה אחת';
         }
 
-        function openRecurringAdd() {
-            editingRecurring = null;
-            clearForm('recurringModal');
-            document.getElementById('recurringModalTitle').textContent = '🔁 הוספת הוצאה קבועה';
-            document.getElementById('recKind').value = 'bill';
-            document.getElementById('recRecognition').value = 100;
-            setRecDeductible(true);
-            setRecInputVat(true);
-            buildCategoryOptions();
-            onRecKindChange();
-            openModal('recurringModal');
-        }
+        // Removed: adding a recurring expense is done in the expense dialog by choosing
+        // "קבועה". The old recurring window is no longer opened by anything.
 
         // Editing an unpaid recurring line now happens in the SAME dialog as an expense.
         // The old recurring window is no longer opened from anywhere.
@@ -12349,13 +12338,8 @@
                     });
                 }
 
-                // Budgets defined for running categories, so a group header can show them
+                // Category budgets were removed — nothing feeds this any more.
                 const budgets = {};
-                if (expenseMonth !== 'all') {
-                    active(rec.months[expenseMonth] || []).forEach(i => {
-                        if (isCategory(i) && Number(i.amount) > 0) budgets[i.category] = i;
-                    });
-                }
 
                 // Invoices still to collect live INSIDE their category
                 const pendingCollects = {};
@@ -12613,19 +12597,7 @@
             </tr>`;
         }
 
-        // Give a category a monthly budget straight from its row in the table.
-        function setCategoryBudget(cat) {
-            editingRecurring = null;
-            clearForm('recurringModal');
-            document.getElementById('recurringModalTitle').textContent = '🎯 תקציב חודשי — ' + categoryLabel(cat);
-            document.getElementById('recKind').value = 'category';
-            buildCategoryOptions();
-            document.getElementById('recCategory').value = cat;
-            document.getElementById('recRecognition').value = 100;
-            onRecKindChange();
-            openModal('recurringModal');
-            setTimeout(() => document.getElementById('recAmount').focus(), 100);
-        }
+        // Removed together with the category budget feature.
 
         // ===== ROW INTERACTIONS =====
         // Clicking a row opens its archived document; right-click (or long-press on
@@ -12705,10 +12677,6 @@
                 const cat = id;
                 html += `<button onclick="hideRowMenu();addExpenseToCategory('${cat}')">＋ הוסף חשבונית</button>`;
                 html += `<button onclick="hideRowMenu();renameCategory('${cat}')">🏷️ שנה שם קטגוריה</button>`;
-                html += extra && extra.budgetId
-                    ? `<button onclick="hideRowMenu();openRecurringEdit('${expenseMonth}','${extra.budgetId}')">🎯 שנה תקציב</button>
-                       <div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteRecurring('${expenseMonth}','${extra.budgetId}')">✕ הסר תקציב</button>`
-                    : `<button onclick="hideRowMenu();setCategoryBudget('${cat}')">🎯 הגדר תקציב</button>`;
             } else if (kind === 'selfEmployed' || kind === 'taxAdvance' || kind === 'blAdvance') {
                 const r = active(incomeArr(kind)).find(x => x.id === id);
                 if (!r) return;
