@@ -3347,13 +3347,25 @@
             </div>
             <div class="modal-body">
                 <div class="form-group" id="expenseKindGroup" style="display:none;">
-                    <label>סוג</label>
-                    <select class="form-control" id="expenseKind" onchange="onExpenseKindChange(this.value)">
-                        <option value="once">🧾 הוצאה רגילה חד־פעמית</option>
-                        <option value="bill">💳 חשבון קבוע — תשלום אחד בחודש (בזק, רו"ח)</option>
-                        <option value="category">🔄 קטגוריה שוטפת — הרבה תשלומים (דלק, חניות)</option>
-                        <option value="collect">📄 חשבונית לאיסוף — ספק חוזר בלי סכום קבוע</option>
-                    </select>
+                    <label>סוג ההוצאה</label>
+                    <div style="display:flex;gap:10px;">
+                        <button type="button" id="expKindOnceBtn" class="btn btn-sm" onclick="setExpenseKind('once')" style="flex:1;">🧾 חד־פעמית</button>
+                        <button type="button" id="expKindRecBtn" class="btn btn-sm" onclick="setExpenseKind('rec')" style="flex:1;">🔁 קבועה</button>
+                    </div>
+                    <div id="expKindFixedGroup" style="display:none;margin-top:12px;">
+                        <label>סכום קבוע כל חודש?</label>
+                        <div style="display:flex;gap:10px;">
+                            <button type="button" id="expKindFixedYes" class="btn btn-sm" onclick="setExpenseFixed(true)" style="flex:1;">כן — חשבון קבוע</button>
+                            <button type="button" id="expKindFixedNo" class="btn btn-sm" onclick="setExpenseFixed(false)" style="flex:1;">לא — לאיסוף</button>
+                        </div>
+                        <div id="expKindHint" style="font-size:0.8rem;color:var(--text-muted);margin-top:6px;"></div>
+                    </div>
+                    <div id="expKindCategoryNote" style="display:none;margin-top:8px;font-size:0.85rem;color:var(--text-muted);">🔄 קטגוריה שוטפת — סוג זה נקבע ברשימת ההוצאות הקבועות ולא משתנה מכאן.</div>
+                    <input type="hidden" id="expenseKind" value="once">
+                </div>
+                <div class="form-group" id="expDueDayGroup" style="display:none;">
+                    <label>יום החיוב בחודש</label>
+                    <input type="number" class="form-control" id="expDueDay" min="1" max="31" placeholder="לדוגמה: 10">
                 </div>
                 <div class="form-group">
                     <label>תאריך</label>
@@ -7297,6 +7309,27 @@
             renderAll();
         }
 
+        // The kind the dialog was opened with — so saving only converts when it CHANGED.
+        let _expenseKindOnOpen = 'once';
+
+        // Apply the type picked in the expense dialog to the saved record.
+        // Reuses the existing, proven conversions; each one asks its own confirmation.
+        async function applyExpenseKindChange(recordId) {
+            const chosen = (document.getElementById('expenseKind') || {}).value || 'once';
+            const before = _expenseKindOnOpen || 'once';
+            _expenseKindOnOpen = 'once';
+            if (chosen === before) return;              // nothing changed
+            if (before === 'category' || chosen === 'category') return;   // buckets are not converted here
+            if (chosen === 'bill') {
+                const d = parseInt((document.getElementById('expDueDay') || {}).value);
+                await makeExpenseRecurring(recordId, Number.isFinite(d) && d >= 1 && d <= 31 ? d : null);
+            } else if (chosen === 'collect') {
+                await makeExpenseCollect(recordId);
+            } else if (chosen === 'once') {
+                await unlinkExpenseRecurring(recordId);
+            }
+        }
+
         let _expenseSaving = false;
         async function addExpense() {
             if (_expenseSaving) return;   // a save is already in flight — ignore the double-click
@@ -7398,6 +7431,9 @@
             }
             autoRefile('expenses', yd.expenses.find(x => x.id === recordId), currentYear);
             if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
+            // The type chosen in THIS dialog is applied here — no second window.
+            // 'category' is never produced by the chooser, so it is left untouched.
+            await applyExpenseKindChange(recordId);
             // Keep the saved row visible: show its month and open its category
             // (otherwise a collapsed category or another month hides it → looks deleted).
             if (itemData.date && expenseMonth !== 'all') expenseMonth = itemData.date.slice(0, 7);
@@ -7984,18 +8020,19 @@
             setExpensePayment(item.payMethod || '', item.assetId || '');
             const ks = document.getElementById('expenseKindGroup');
             if (ks) ks.style.display = '';   // type is visible/editable in the unified edit box
-            const kSel = document.getElementById('expenseKind');
-            if (kSel) {
-                // Show the item's REAL type — a payment linked to a recurring item takes
-                // that item's kind (bill/category/collect); otherwise it's a one-time expense.
-                let k = 'once';
-                if (item.recurringKey) {
-                    const parts = String(item.recurringKey).split(':');
-                    const it = (getRecurring().months[parts[0]] || []).find(i => String(i.id) === String(parts[1]));
-                    if (it) k = it.kind || 'bill';
-                }
-                kSel.value = k;
+            // Show the item's REAL type — a payment linked to a recurring item takes
+            // that item's kind (bill/category/collect); otherwise it's a one-time expense.
+            let k = 'once';
+            let recLine = null;
+            if (item.recurringKey) {
+                const parts = String(item.recurringKey).split(':');
+                recLine = (getRecurring().months[parts[0]] || []).find(i => String(i.id) === String(parts[1]));
+                if (recLine) k = recLine.kind || 'bill';
             }
+            _expenseKindOnOpen = k;
+            syncExpenseKindUI(k);
+            const ddEl = document.getElementById('expDueDay');
+            if (ddEl) ddEl.value = (recLine && recLine.dueDay) ? recLine.dueDay : (item.date ? parseInt(item.date.slice(8, 10)) || '' : '');
             document.getElementById('expenseModalTitle').textContent = '🧾 עריכת הוצאה';
             // Documents live inside the dialog: point the folder at this record and show it.
             _docFolderKind = 'expense'; _docFolderId = id;
@@ -10807,9 +10844,9 @@
                 ? (expenseMonth === realMonthKey() ? localTodayISO() : expenseMonth + '-01')
                 : localTodayISO();
             const ks = document.getElementById('expenseKindGroup');
-            const sel = document.getElementById('expenseKind');
             if (ks) ks.style.display = '';       // show the type chooser for a new entry
-            if (sel) sel.value = 'once';
+            syncExpenseKindUI('once');
+            const ddv = document.getElementById('expDueDay'); if (ddv) ddv.value = '';
             document.getElementById('expenseModalTitle').textContent = '🧾 הוספת הוצאה';
             // A brand-new record has no folder yet — attach the first file the plain way.
             const dg = document.getElementById('expDocsGroup'); if (dg) dg.style.display = 'none';
@@ -10818,31 +10855,63 @@
             openModal('expenseModal');
         }
 
-        // The unified "+ הוסף" chooser: 'once' stays here; the recurring types hand off
-        // to the recurring dialog preset to that kind.
-        function onExpenseKindChange(kind) {
-            if (kind === 'once') return;
-            // Carry the current data over to the recurring form so nothing is wiped
-            // when switching type — the user is editing, not starting from scratch.
-            const carry = {
-                desc: document.getElementById('expenseDesc').value,
-                category: document.getElementById('expenseCategory').value,
-                amount: document.getElementById('expenseAmount').value,
-                recognition: document.getElementById('expenseRecognition').value,
-                deductible: document.getElementById('expenseDeductible').value === '1',
-                inputVat: document.getElementById('expenseInputVat').value === '1'
-            };
-            closeModal('expenseModal');
-            openRecurringAdd();
-            document.getElementById('recKind').value = kind;
-            onRecKindChange();
-            if (carry.desc) document.getElementById('recDesc').value = carry.desc;
-            if (carry.category) document.getElementById('recCategory').value = carry.category;
-            if (carry.amount) document.getElementById('recAmount').value = carry.amount;
-            if (carry.recognition) document.getElementById('recRecognition').value = carry.recognition;
-            setRecDeductible(carry.deductible);
-            setRecInputVat(carry.inputVat !== false);
-            onRecKindChange();
+        // ONE dialog, two questions. "חד־פעמית" or "קבועה"; if קבועה, then
+        // "סכום קבוע כל חודש?" — כן = חשבון קבוע (bill), לא = לאיסוף (collect).
+        // The hidden #expenseKind still carries the real kind, so every existing
+        // reader of it keeps working untouched.
+        function setExpenseKind(mode) {
+            const hidden = document.getElementById('expenseKind');
+            const fixedGrp = document.getElementById('expKindFixedGroup');
+            const onceBtn = document.getElementById('expKindOnceBtn');
+            const recBtn = document.getElementById('expKindRecBtn');
+            if (onceBtn) onceBtn.classList.toggle('btn-primary', mode === 'once');
+            if (recBtn) recBtn.classList.toggle('btn-primary', mode === 'rec');
+            if (mode === 'once') {
+                hidden.value = 'once';
+                if (fixedGrp) fixedGrp.style.display = 'none';
+                updateExpenseKindUI();
+            } else {
+                if (fixedGrp) fixedGrp.style.display = '';
+                setExpenseFixed(hidden.value !== 'collect');
+            }
+        }
+
+        function setExpenseFixed(fixed) {
+            document.getElementById('expenseKind').value = fixed ? 'bill' : 'collect';
+            const yes = document.getElementById('expKindFixedYes');
+            const no = document.getElementById('expKindFixedNo');
+            if (yes) yes.classList.toggle('btn-primary', fixed);
+            if (no) no.classList.toggle('btn-primary', !fixed);
+            const hint = document.getElementById('expKindHint');
+            if (hint) hint.textContent = fixed
+                ? 'אותו סכום בכל חודש — תופיע שורה לתשלום בצ׳ק־ליסט החודשי.'
+                : 'הסכום משתנה — תופיע שורה "לאיסוף" בכל חודש עד שתמלא את הסכום.';
+            updateExpenseKindUI();
+        }
+
+        // Fields that depend on the chosen kind.
+        function updateExpenseKindUI() {
+            const k = document.getElementById('expenseKind').value;
+            const dd = document.getElementById('expDueDayGroup');
+            if (dd) dd.style.display = (k === 'bill') ? '' : 'none';
+        }
+
+        // Open the dialog showing the record's REAL kind.
+        function syncExpenseKindUI(kind) {
+            const hidden = document.getElementById('expenseKind');
+            const note = document.getElementById('expKindCategoryNote');
+            const onceBtn = document.getElementById('expKindOnceBtn');
+            const recBtn = document.getElementById('expKindRecBtn');
+            const fixedGrp = document.getElementById('expKindFixedGroup');
+            hidden.value = kind || 'once';
+            // 'category' is a budget bucket, not one of the two — show it, don't offer it.
+            const isCat = (kind === 'category');
+            if (note) note.style.display = isCat ? '' : 'none';
+            if (onceBtn) onceBtn.style.display = isCat ? 'none' : '';
+            if (recBtn) recBtn.style.display = isCat ? 'none' : '';
+            if (isCat) { if (fixedGrp) fixedGrp.style.display = 'none'; updateExpenseKindUI(); return; }
+            if (kind === 'bill' || kind === 'collect') setExpenseKind('rec');
+            else setExpenseKind('once');
         }
 
         function payRecurring(monthKey, itemId) {
@@ -10868,8 +10937,10 @@
             // chooser available so it can still be changed if the user wants.
             const kg = document.getElementById('expenseKindGroup');
             if (kg) kg.style.display = '';
-            const ks = document.getElementById('expenseKind');
-            if (ks) ks.value = item.kind || 'bill';
+            _expenseKindOnOpen = item.kind || 'bill';
+            syncExpenseKindUI(item.kind || 'bill');
+            const ddp = document.getElementById('expDueDay');
+            if (ddp) ddp.value = item.dueDay || '';
             openModal('expenseModal');
             if (collect) setTimeout(() => document.getElementById('expenseAmount').focus(), 100);
         }
@@ -11076,7 +11147,7 @@
 
         // Turn an already-recorded expense into a recurring template item (from its month forward),
         // marking the expense itself as that month's payment.
-        async function makeExpenseRecurring(id) {
+        async function makeExpenseRecurring(id, dueDayOverride) {
             const yd = getYearData();
             const e = active(yd.expenses).find(x => x.id === id);
             if (!e) return;
@@ -11100,7 +11171,7 @@
                 category: e.category || 'אחר',
                 amount: e.amount,
                 recognition: e.recognition ?? 100,
-                dueDay: parseInt(e.date.slice(8, 10)) || null
+                dueDay: (Number.isFinite(dueDayOverride) && dueDayOverride) ? dueDayOverride : (parseInt(e.date.slice(8, 10)) || null)
             };
             // Materialize existing template months first, then create earlier months (before the
             // template started) as empty — they should only carry this new item, not the others.
