@@ -4183,6 +4183,27 @@
         // Our own token server (Google Apps Script) — holds the offline refresh key and
         // returns a fresh Drive access token on demand, so the app never needs to sign in
         // again. See the john-finance-auth Apps Script project.
+        // ---- ORIGIN LOCK ----------------------------------------------------
+        // Only the real published app may reach the Drive account. A copy of this
+        // file served from anywhere else — a local preview, a fork, a mirror — must
+        // never get a token and must never sync: on 20/09/2026 a preview copy running
+        // on http://localhost:8090 obtained a token, wrote to the shared backup, and
+        // two of its demo rows were merged into the live data.
+        const TRUSTED_ORIGINS = ['https://galijohn.github.io'];
+        function isTrustedOrigin() {
+            try { return TRUSTED_ORIGINS.indexOf(location.origin) !== -1; } catch (e) { return false; }
+        }
+        let _driveBlockWarned = false;
+        function driveBlockedHere() {
+            if (isTrustedOrigin()) return false;
+            if (!_driveBlockWarned) {
+                _driveBlockWarned = true;
+                console.warn('[drive] סנכרון חסום — התוכנה אינה רצה מהכתובת הרשמית. מקור נוכחי: ' + location.origin);
+                try { updateDriveStatus(false, 'סנכרון חסום — עותק לא רשמי'); } catch (e) {}
+            }
+            return true;
+        }
+
         const DRIVE_TOKEN_URL    = 'https://script.google.com/macros/s/AKfycbwyFK-bMCzOp9CuvYmWx5YhRicLmyvlVQuXk27m1GU2r-bJ7khwasiuPSZdKhpcoD6-Tw/exec';
         const DRIVE_TOKEN_SECRET = 'jf_9f3k2p7q1x8m4v6b0zt5';
         let googleAccessToken = null;
@@ -4249,6 +4270,7 @@
 
         // ===== GET TOKEN (SAVED OR NEW) =====
         async function getGoogleToken() {
+            if (driveBlockedHere()) throw new Error('סנכרון חסום — עותק לא רשמי');
             // Check saved token
             const savedToken = localStorage.getItem('googleAccessToken');
             const tokenExpiry = localStorage.getItem('googleTokenExpiry');
@@ -4341,6 +4363,7 @@
         });
 
         async function renewTokenSilently() {
+            if (driveBlockedHere()) throw new Error('סנכרון חסום — עותק לא רשמי');
             // Ask our own server for a fresh Drive access token — it holds the refresh key,
             // so this needs no popup and no user action.
             const r = await fetch(DRIVE_TOKEN_URL + '?secret=' + encodeURIComponent(DRIVE_TOKEN_SECRET));
@@ -4455,6 +4478,7 @@
 
         // ===== SYNC ALL DATA TO CLOUD =====
         async function syncToCloud() {
+            if (driveBlockedHere()) return;
             if (!googleAccessToken || !driveFolderId) {
                 console.error('No token or folder ID!');
                 return;
@@ -4518,6 +4542,7 @@
 
         // ===== AUTO-CONNECT ON PAGE LOAD =====
         async function tryAutoConnect() {
+            if (driveBlockedHere()) return;
             const savedToken = localStorage.getItem('googleAccessToken');
             const tokenExpiry = localStorage.getItem('googleTokenExpiry');
 
@@ -4710,6 +4735,7 @@
         }
 
         async function pullFromCloudIfNewer() {
+            if (driveBlockedHere()) return;
             if (!googleAccessToken || !driveFolderId) return;
 
             try {
