@@ -1469,7 +1469,7 @@
         </div>
         <div class="nav-item" onclick="showPage('selfemployed')">
             <span class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/money-bag.png" alt="" onerror="this.replaceWith(document.createTextNode('💰'))"></span>
-            <span class="nav-text">עצמאי</span>
+            <span class="nav-text">הכנסה כעצמאי</span>
         </div>
         <div class="nav-item" onclick="showPage('expenses')">
             <span class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/receipt.png" alt="" onerror="this.replaceWith(document.createTextNode('🧾'))"></span>
@@ -3280,7 +3280,16 @@
                     <label>📎 הערות</label>
                     <input type="text" class="form-control" id="selfNotes" placeholder="לדוגמה: חשבונית מס' 001">
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="selfDocsGroup" style="display:none;">
+                    <label>📂 מסמכים <span id="selfDocsCount" style="color:var(--text-muted);"></span></label>
+                    <div id="selfDocsBody" style="margin-bottom:8px;"></div>
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <button type="button" class="btn btn-sm" onclick="pickFolderDoc()">➕ הוסף מסמך</button>
+                        <span id="selfDocsStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">יישמר בתיקייה: חשבוניות-עצמאי/</div>
+                </div>
+                <div class="form-group" id="selfPlainAttach">
                     <label>📄 צרף חשבונית</label>
                     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <input type="file" id="selfFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
@@ -8021,6 +8030,7 @@
             document.getElementById('selfAmount').value = item.amount;
             document.getElementById('selfNotes').value = item.notes || '';
             setIncomeVat(item.vat === true);
+            showInlineDocs('income', id);
             openModal('selfEmployedModal');
         }
 
@@ -8030,6 +8040,7 @@
             setIncomeVat(false);
             const st = document.getElementById('selfFileStatus');
             if (st) st.textContent = '';
+            hideInlineDocs('income');
             openModal('selfEmployedModal');
         }
 
@@ -8087,10 +8098,7 @@
             if (ddEl) ddEl.value = (recLine && recLine.dueDay) ? recLine.dueDay : (item.date ? parseInt(item.date.slice(8, 10)) || '' : '');
             document.getElementById('expenseModalTitle').textContent = '🧾 עריכת הוצאה';
             // Documents live inside the dialog: point the folder at this record and show it.
-            _docFolderKind = 'expense'; _docFolderId = id;
-            const dg = document.getElementById('expDocsGroup'); if (dg) dg.style.display = '';
-            const pa = document.getElementById('expPlainAttach'); if (pa) pa.style.display = 'none';
-            renderExpenseDocsInline();
+            showInlineDocs('expense', id);
             // "Undo payment" belongs here too, only for a record tied to a recurring line.
             const rv = document.getElementById('expRevertGroup');
             if (rv) rv.style.display = (item.recurringKey && recurringLineOf(item)) ? '' : 'none';
@@ -9829,22 +9837,41 @@
             renderDocFolder();
             openModal('incomeDossierModal');
         }
+        // Every record type that can hold documents, in one table: which array it
+        // lives in, which Drive folder its files go to, and how its folder is titled.
+        const DOC_KINDS = {
+            expense:      { arr: yd => yd.expenses,    base: 'הוצאות-מוכרות',   uploadType: 'expense'    },
+            income:       { arr: yd => yd.selfEmployed, base: 'חשבוניות-עצמאי', uploadType: 'selfEmployed' },
+            taxAdvance:   { arr: yd => yd.taxAdvances,  base: 'מקדמות-מס',       uploadType: 'taxAdvance'  },
+            blAdvance:    { arr: yd => yd.blAdvances,   base: 'ביטוח-לאומי',     uploadType: 'blAdvance'   }
+        };
+
         function _folderRecord() {
-            const yd = getYearData();
-            const arr = _docFolderKind === 'expense' ? yd.expenses : yd.selfEmployed;
-            return active(arr).find(x => x.id === _docFolderId);
+            const k = DOC_KINDS[_docFolderKind];
+            if (!k) return null;
+            return active(k.arr(getYearData()) || []).find(x => x.id === _docFolderId);
         }
         function _folderCtx(r) {
+            const k = DOC_KINDS[_docFolderKind] || DOC_KINDS.income;
             if (_docFolderKind === 'expense') {
                 return {
-                    base: 'הוצאות-מוכרות', uploadType: 'expense',
+                    base: k.base, uploadType: k.uploadType,
                     title: '📂 תיק מסמכים · ' + (r.description || 'הוצאה'),
                     sub: (r.date ? formatDate(r.date) + ' · ' : '') + formatCurrency(r.amount || 0),
                     meta: name => ({ date: r.date, category: r.category, description: (r.description || 'הוצאה') + (name ? ' · ' + name : ''), amount: r.amount })
                 };
             }
+            if (_docFolderKind === 'taxAdvance' || _docFolderKind === 'blAdvance') {
+                const label = _docFolderKind === 'taxAdvance' ? 'מקדמת מס' : 'מקדמת ביטוח לאומי';
+                return {
+                    base: k.base, uploadType: k.uploadType,
+                    title: '📂 תיק מסמכים · ' + label + ' · ' + (MONTHS[r.month] || ''),
+                    sub: formatCurrency(r.amount || 0),
+                    meta: name => ({ month: r.month, description: label + (name ? ' · ' + name : ''), amount: r.amount })
+                };
+            }
             return {
-                base: 'חשבוניות-עצמאי', uploadType: 'selfEmployed',
+                base: k.base, uploadType: k.uploadType,
                 title: '📂 תיק הכנסה · ' + MONTHS[r.month] + ' · ' + (r.description || 'הכנסה'),
                 sub: formatCurrency(r.amount || 0),
                 meta: name => ({ month: r.month, description: (r.description || 'הכנסה') + (name ? ' · ' + name : ''), amount: r.amount })
@@ -9869,7 +9896,7 @@
             }
             document.getElementById('incomeDossierBody').innerHTML = body;
             document.getElementById('incomeDossierStatus').textContent = '';
-            renderExpenseDocsInline();   // keep the in-dialog copy in sync
+            renderInlineDocs();   // keep the in-dialog copy in sync
         }
         function pickFolderDoc() { document.getElementById('incomeDocFile').click(); }
         async function onFolderDocPicked(input) {
@@ -9879,7 +9906,9 @@
             // Write the status to both the folder modal and the in-dialog copy.
             const st = { set textContent(v) {
                 const a = document.getElementById('incomeDossierStatus'); if (a) a.textContent = v;
-                const b = document.getElementById('expDocsStatus'); if (b) b.textContent = v;
+                const t = INLINE_DOC_TARGETS[_docFolderKind];
+                const b = t ? document.getElementById(t.body.replace('Body', 'Status')) : null;
+                if (b) b.textContent = v;
             } };
             st.textContent = '⏳ מעלה...';
             const defName = stripDocExt(file.name);
@@ -9931,12 +9960,44 @@
 
         // The same document folder, rendered INSIDE the expense dialog.
         // Reuses the existing folder actions (rename/view/remove/upload) as-is.
-        function renderExpenseDocsInline() {
-            const body = document.getElementById('expDocsBody');
+        // Where the in-dialog copy of the folder lives, per record type.
+        const INLINE_DOC_TARGETS = {
+            expense:    { body: 'expDocsBody',  count: 'expDocsCount',  group: 'expDocsGroup',  plain: 'expPlainAttach'  },
+            income:     { body: 'selfDocsBody', count: 'selfDocsCount', group: 'selfDocsGroup', plain: 'selfPlainAttach' },
+            taxAdvance: { body: 'taxDocsBody',  count: 'taxDocsCount',  group: 'taxDocsGroup',  plain: 'taxPlainAttach'  },
+            blAdvance:  { body: 'blDocsBody',   count: 'blDocsCount',   group: 'blDocsGroup',   plain: 'blPlainAttach'   }
+        };
+
+        // Show the folder inside the dialog for the record being edited, and hide the
+        // old single-file "attach" box — one place to manage documents, not two.
+        function showInlineDocs(kind, id) {
+            _docFolderKind = kind; _docFolderId = id;
+            Object.keys(INLINE_DOC_TARGETS).forEach(k => {
+                const t = INLINE_DOC_TARGETS[k];
+                const g = document.getElementById(t.group);
+                const p = document.getElementById(t.plain);
+                if (g) g.style.display = (k === kind) ? '' : 'none';
+                if (p) p.style.display = (k === kind) ? 'none' : '';
+            });
+            renderInlineDocs();
+        }
+
+        // A brand-new record has no folder yet — attach the first file the plain way.
+        function hideInlineDocs(kind) {
+            const t = INLINE_DOC_TARGETS[kind];
+            if (!t) return;
+            const g = document.getElementById(t.group); if (g) g.style.display = 'none';
+            const p = document.getElementById(t.plain); if (p) p.style.display = '';
+        }
+
+        function renderInlineDocs() {
+            const t = INLINE_DOC_TARGETS[_docFolderKind];
+            if (!t) return;
+            const body = document.getElementById(t.body);
             if (!body) return;
             const r = _folderRecord();
             const docs = r ? recordDocs(r) : [];
-            const cnt = document.getElementById('expDocsCount');
+            const cnt = document.getElementById(t.count);
             if (cnt) cnt.textContent = '(' + docs.length + ')';
             body.innerHTML = docs.length
                 ? docs.map(d => `<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;">
@@ -9948,8 +10009,25 @@
                 : '<div style="padding:14px;border:1px dashed var(--border);border-radius:8px;text-align:center;color:var(--text-muted);">אין מסמכים מצורפים — לחץ "הוסף מסמך".</div>';
         }
 
-        // Double-click on a row: one document opens straight away, several open the
-        // folder to choose from, none shows a plain notice.
+        // Double-click on ANY record row, everywhere in the app: one document opens
+        // straight away, several open the folder to choose from, none shows a notice.
+        function openRowDocsFor(kind, id) {
+            const k = DOC_KINDS[kind];
+            if (!k) return;
+            const r = active(k.arr(getYearData()) || []).find(x => x.id === id);
+            if (!r) { popupError('אין מסמך', 'לא מצורף מסמך לרשומה זו.'); return; }
+            const docs = recordDocs(r);
+            if (docs.length > 1) { openDocFolder(kind, id); return; }
+            if (docs.length === 1) {
+                const d = docs[0];
+                if (d.driveLink || d.driveId) {
+                    window.open(d.driveLink || ('https://drive.google.com/file/d/' + d.driveId + '/view'), '_blank');
+                    return;
+                }
+            }
+            popupError('אין מסמך', 'לא מצורף מסמך לרשומה זו.');
+        }
+
         function openRowDocs(id) {
             const r = active(getYearData().expenses).find(x => x.id === id);
             if (!r) return;
@@ -10228,11 +10306,11 @@
             tbody.innerHTML = [...selfItems].sort((a, b) => a.month - b.month).map(s => {
                 cumulative += s.amount;
                 return `<tr class="row-click"
-                    ondblclick="openIncomeDossier(${s.id})"
+                    ondblclick="openRowDocsFor('income',${s.id})"
                     oncontextmenu="showRowMenu(event,'selfEmployed',${s.id})"
                     ontouchstart="rowTouchStart(event,'selfEmployed',${s.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td>${MONTHS[s.month]}</td>
-                <td onclick="event.stopPropagation();openIncomeDossier(${s.id})" style="cursor:pointer;">${incomeStatusCell(s)}</td>
+                <td>${incomeStatusCell(s)}</td>
                 <td>${s.description || '-'} ${s.notes ? '<span data-tip="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${formatCurrency(s.amount)}${s.vat ? ' <span data-tip=\'חשבונית עם מע"מ\' style="font-size:0.64rem;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:0 5px;cursor:help;">מע"מ</span>' : ''}</td>
                 <td style="color:var(--primary)">${formatCurrency(cumulative)}</td>
@@ -12714,11 +12792,8 @@
                 if (!r) return;
                 const editName = kind === 'selfEmployed' ? 'editSelfEmployed' : kind === 'taxAdvance' ? 'editTaxAdvance' : 'editBLAdvance';
                 const delCall = kind === 'selfEmployed' ? `deleteItem('selfEmployed',${id})` : kind === 'taxAdvance' ? `deleteTaxAdvance(${id})` : `deleteBLAdvance(${id})`;
-                if (kind === 'selfEmployed') {
-                    html += `<button onclick="hideRowMenu();openIncomeDossier(${id})">📂 פתח תיק מסמכים</button>`;
-                } else if (r.driveLink || r.driveId) {
-                    html += `<button onclick="hideRowMenu();openIncomeDoc('${kind}',${id})">👁️ צפייה במסמך</button>`;
-                }
+                // Same rule as the expenses page: the row only opens things. Every
+                // change — documents included — is made inside the dialog.
                 html += `<button onclick="hideRowMenu();${editName}(${id})">✏️ עריכה</button>`;
                 html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();${delCall}">✕ מחיקה</button>`;
             }
@@ -12859,7 +12934,7 @@
                 total += p.amount;
 
                 return `<tr class="row-click"
-                    ondblclick="openIncomeDoc('taxAdvance',${p.id})"
+                    ondblclick="openRowDocsFor('taxAdvance',${p.id})"
                     oncontextmenu="showRowMenu(event,'taxAdvance',${p.id})"
                     ontouchstart="rowTouchStart(event,'taxAdvance',${p.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                     <td>${MONTHS[p.month]}</td>
@@ -12897,7 +12972,7 @@
                 total += p.amount;
 
                 return `<tr class="row-click"
-                    ondblclick="openIncomeDoc('blAdvance',${p.id})"
+                    ondblclick="openRowDocsFor('blAdvance',${p.id})"
                     oncontextmenu="showRowMenu(event,'blAdvance',${p.id})"
                     ontouchstart="rowTouchStart(event,'blAdvance',${p.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                     <td>${MONTHS[p.month]}</td>
