@@ -6754,10 +6754,39 @@
             console.log('Auto-restore from Drive: User needs to connect manually');
         }
 
+        // One-time cleanup: two demo rows were seeded into a preview copy of this app
+        // on 20/09/2026 and may have reached real data. They are matched on ALL five
+        // fields at once — id, description, amount, date and the fake Drive id — so no
+        // genuine record can ever match. Runs once, then records that it ran.
+        function removeSeededDemoRows(d) {
+            if (!d || !d.yearData) return 0;
+            if (d._demoRowsCleaned) return 0;
+            const FAKE = [
+                { id: 8801, description: 'דלק פז', amount: 450, date: '2026-09-24', driveId: 'd1' },
+                { id: 8802, description: 'בזק', amount: 156, date: '2026-09-11', driveId: 'd2' }
+            ];
+            let removed = 0;
+            Object.keys(d.yearData).forEach(y => {
+                const arr = d.yearData[y].expenses;
+                if (!Array.isArray(arr)) return;
+                for (let i = arr.length - 1; i >= 0; i--) {
+                    const e = arr[i];
+                    const hit = FAKE.some(f =>
+                        e.id === f.id && e.description === f.description &&
+                        Number(e.amount) === f.amount && e.date === f.date && e.driveId === f.driveId);
+                    if (hit) { arr.splice(i, 1); removed++; }
+                }
+            });
+            d._demoRowsCleaned = true;
+            if (removed) console.log('[cleanup] הוסרו ' + removed + ' שורות דמו שנזרעו בטעות');
+            return removed;
+        }
+
         function loadData() {
             const saved = localStorage.getItem('taxCalculatorV2');
             if (saved) {
                 const loadedData = JSON.parse(saved);
+                const _demoRemoved = removeSeededDemoRows(loadedData);
                 
                 // Check if we need to migrate to new year-based structure
                 if (!loadedData.yearData) {
@@ -6828,6 +6857,9 @@
                     }
                 }
                 
+                // Persist the demo-row cleanup so it runs once and never again.
+                if (_demoRemoved) { try { localStorage.setItem('taxCalculatorV2', JSON.stringify(data)); } catch (e) {} }
+
                 // Ensure yearData exists for current year
                 if (!data.yearData) data.yearData = {};
                 if (!data.yearData[currentYear]) {
