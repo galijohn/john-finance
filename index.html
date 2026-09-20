@@ -1733,7 +1733,7 @@
                         </div>
                     </div>
                 </div>
-                <button class="btn btn-primary" onclick="openModal('salaryModal')">+ הוסף תקופת עבודה</button>
+                <button class="btn btn-primary" onclick="openAddSalary()">+ הוסף תקופת עבודה</button>
             </div>
 
             <div class="info-box">
@@ -1747,11 +1747,11 @@
                     <thead>
                         <tr>
                             <th>מעסיק</th>
+                            <th>סטטוס</th>
                             <th>תשלום בפועל (חודשים)</th>
                             <th>ברוטו</th>
                             <th>מס שנוכה</th>
                             <th>ביט"ל שנוכה</th>
-                            <th>פעולות</th>
                         </tr>
                     </thead>
                     <tbody id="salaryTable"></tbody>
@@ -1772,7 +1772,7 @@
                         </div>
                     </div>
                 </div>
-                <button class="btn btn-primary" onclick="openModal('unemploymentModal')">+ הוסף תקופת אבטלה</button>
+                <button class="btn btn-primary" onclick="openAddUnemployment()">+ הוסף תקופת אבטלה</button>
             </div>
 
             <div class="info-box">
@@ -1785,10 +1785,10 @@
                     <thead>
                         <tr>
                             <th>תשלום בפועל (חודשים)</th>
+                            <th>סטטוס</th>
                             <th>סכום ברוטו</th>
                             <th>מס שנוכה</th>
                             <th>ביט"ל שנוכה</th>
-                            <th>פעולות</th>
                         </tr>
                     </thead>
                     <tbody id="unemploymentTable"></tbody>
@@ -2926,7 +2926,16 @@
                     <label>📎 הערות</label>
                     <input type="text" class="form-control" id="salaryNotes" placeholder="אופציונלי">
                 </div>
-                <div class="form-group">
+                                <div class="form-group" id="salDocsGroup" style="display:none;">
+                    <label>📂 מסמכים <span id="salDocsCount" style="color:var(--text-muted);"></span></label>
+                    <div id="salDocsBody" style="margin-bottom:8px;"></div>
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <button type="button" class="btn btn-sm" onclick="pickFolderDoc()">➕ הוסף מסמך</button>
+                        <span id="salDocsStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">יישמר בתיקייה: תלושי-שכר/</div>
+                </div>
+                <div class="form-group" id="salPlainAttach">
                     <label>📄 צרף מסמך</label>
                     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <input type="file" id="salaryFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
@@ -3171,7 +3180,16 @@
                     <label>📎 הערות</label>
                     <input type="text" class="form-control" id="unemploymentNotes" placeholder="לדוגמה: אישור שנתי מביטוח לאומי">
                 </div>
-                <div class="form-group">
+                                <div class="form-group" id="unpDocsGroup" style="display:none;">
+                    <label>📂 מסמכים <span id="unpDocsCount" style="color:var(--text-muted);"></span></label>
+                    <div id="unpDocsBody" style="margin-bottom:8px;"></div>
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <button type="button" class="btn btn-sm" onclick="pickFolderDoc()">➕ הוסף מסמך</button>
+                        <span id="unpDocsStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">יישמר בתיקייה: דמי-אבטלה/</div>
+                </div>
+                <div class="form-group" id="unpPlainAttach">
                     <label>📄 צרף אישור מביטוח לאומי</label>
                     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <input type="file" id="unemploymentFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
@@ -8095,6 +8113,22 @@
         let editingId = null;
         let _replacedFile = null;   // previous attachment of the record being edited
 
+        function openAddSalary() {
+            editingId = null;
+            clearForm('salaryModal');
+            const st = document.getElementById('salaryFileStatus'); if (st) st.textContent = '';
+            hideInlineDocs('salary');
+            openModal('salaryModal');
+        }
+
+        function openAddUnemployment() {
+            editingId = null;
+            clearForm('unemploymentModal');
+            const st = document.getElementById('unemploymentFileStatus'); if (st) st.textContent = '';
+            hideInlineDocs('unemployment');
+            openModal('unemploymentModal');
+        }
+
         function editSalary(id) {
             const yd = getYearData();
             const item = yd.salary.find(s => s.id === id);
@@ -8107,6 +8141,7 @@
             document.getElementById('salaryTaxDeducted').value = item.taxDeducted;
             document.getElementById('salaryBLDeducted').value = item.blDeducted;
             document.getElementById('salaryNotes').value = item.notes || '';
+            showInlineDocs('salary', id);
             openModal('salaryModal');
         }
 
@@ -8121,6 +8156,7 @@
             document.getElementById('unemploymentTaxDeducted').value = item.taxDeducted;
             document.getElementById('unemploymentBLDeducted').value = item.blDeducted || 0;
             document.getElementById('unemploymentNotes').value = item.notes || '';
+            showInlineDocs('unemployment', id);
             openModal('unemploymentModal');
         }
 
@@ -9910,17 +9946,16 @@
                 tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">💼</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = [...salaryItems].sort((a, b) => a.fromMonth - b.fromMonth).map(s => `<tr>
+            tbody.innerHTML = [...salaryItems].sort((a, b) => a.fromMonth - b.fromMonth).map(s => `<tr class="row-click"
+                ondblclick="openRowDocsFor('salary',${s.id})"
+                oncontextmenu="showRowMenu(event,'salary',${s.id})"
+                ontouchstart="rowTouchStart(event,'salary',${s.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td>${s.employer || '-'} ${s.notes ? '<span data-tip="'+s.notes+'" style="cursor:help;">📎</span>' : ''}</td>
+                <td>${incomeStatusCell(s)}</td>
                 <td>${MONTHS[s.fromMonth]} - ${MONTHS[s.toMonth]}</td>
                 <td>${formatCurrency(s.gross)}</td>
                 <td>${formatCurrency(s.taxDeducted)}</td>
                 <td>${formatCurrency(s.blDeducted)}</td>
-                <td>
-                    ${s.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${s.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
-                    <button class="btn btn-icon btn-sm" onclick="editSalary(${s.id})" title="עריכה">✏️</button>
-                    <button class="btn btn-icon btn-sm" onclick="deleteItem('salary',${s.id})" title="מחיקה">🗑️</button>
-                </td>
             </tr>`).join('');
         }
 
@@ -9932,16 +9967,15 @@
                 tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">📋</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = [...unemploymentItems].sort((a, b) => a.fromMonth - b.fromMonth).map(u => `<tr>
+            tbody.innerHTML = [...unemploymentItems].sort((a, b) => a.fromMonth - b.fromMonth).map(u => `<tr class="row-click"
+                ondblclick="openRowDocsFor('unemployment',${u.id})"
+                oncontextmenu="showRowMenu(event,'unemployment',${u.id})"
+                ontouchstart="rowTouchStart(event,'unemployment',${u.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td>${MONTHS[u.fromMonth]} - ${MONTHS[u.toMonth]} ${u.notes ? '<span data-tip="'+u.notes+'" style="cursor:help;">📎</span>' : ''}</td>
+                <td>${incomeStatusCell(u)}</td>
                 <td>${formatCurrency(u.gross)}</td>
                 <td>${formatCurrency(u.taxDeducted)}</td>
                 <td>${formatCurrency(u.blDeducted || 0)}</td>
-                <td>
-                    ${u.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${u.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
-                    <button class="btn btn-icon btn-sm" onclick="editUnemployment(${u.id})" title="עריכה">✏️</button>
-                    <button class="btn btn-icon btn-sm" onclick="deleteItem('unemployment',${u.id})" title="מחיקה">🗑️</button>
-                </td>
             </tr>`).join('');
         }
 
@@ -10044,7 +10078,9 @@
             income:       { arr: yd => yd.selfEmployed, base: 'חשבוניות-עצמאי', uploadType: 'selfEmployed' },
             taxAdvance:   { arr: yd => yd.taxAdvances,  base: 'מקדמות-מס',       uploadType: 'taxAdvance'  },
             blAdvance:    { arr: yd => yd.blAdvances,   base: 'ביטוח-לאומי',     uploadType: 'blAdvance'   },
-            miluim:       { arr: yd => yd.miluim,       base: 'מילואים',         uploadType: 'miluim'      }
+            miluim:       { arr: yd => yd.miluim,       base: 'מילואים',         uploadType: 'miluim'      },
+            salary:       { arr: yd => yd.salary,       base: 'תלושי-שכר',       uploadType: 'salary'      },
+            unemployment: { arr: yd => yd.unemployment, base: 'דמי-אבטלה',       uploadType: 'unemployment'}
         };
 
         function _folderRecord() {
@@ -10167,7 +10203,9 @@
             income:     { body: 'selfDocsBody', count: 'selfDocsCount', group: 'selfDocsGroup', plain: 'selfPlainAttach' },
             taxAdvance: { body: 'taxDocsBody',  count: 'taxDocsCount',  group: 'taxDocsGroup',  plain: 'taxPlainAttach'  },
             blAdvance:  { body: 'blDocsBody',   count: 'blDocsCount',   group: 'blDocsGroup',   plain: 'blPlainAttach'   },
-            miluim:     { body: 'milDocsBody',  count: 'milDocsCount',  group: 'milDocsGroup',  plain: 'milPlainAttach'  }
+            miluim:     { body: 'milDocsBody',  count: 'milDocsCount',  group: 'milDocsGroup',  plain: 'milPlainAttach'  },
+            salary:     { body: 'salDocsBody',  count: 'salDocsCount',  group: 'salDocsGroup',  plain: 'salPlainAttach'  },
+            unemployment:{body: 'unpDocsBody',  count: 'unpDocsCount',  group: 'unpDocsGroup',  plain: 'unpPlainAttach'  }
         };
 
         // Show the folder inside the dialog for the record being edited, and hide the
@@ -13010,6 +13048,10 @@
                 const cat = id;
                 html += `<button onclick="hideRowMenu();addExpenseToCategory('${cat}')">＋ הוסף חשבונית</button>`;
                 html += `<button onclick="hideRowMenu();renameCategory('${cat}')">🏷️ שנה שם קטגוריה</button>`;
+            } else if (kind === 'salary' || kind === 'unemployment') {
+                const ed = kind === 'salary' ? 'editSalary' : 'editUnemployment';
+                html += `<button onclick="hideRowMenu();${ed}(${id})">✏️ עריכה</button>`;
+                html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteItem('${kind}',${id})">✕ מחיקה</button>`;
             } else if (kind === 'miluim') {
                 html += `<button onclick="hideRowMenu();editMiluim(${id})">✏️ עריכה</button>`;
                 html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteItem('miluim',${id})">✕ מחיקה</button>`;
