@@ -7106,7 +7106,7 @@
             document.getElementById(id).classList.remove('active');
             if (!AUX_MODALS.includes(id)) {
                 editingId = null;
-                if (id === 'expenseModal') recurringPayContext = null;
+                if (id === 'expenseModal') { recurringPayContext = null; editingRecurringLine = null; }
             }
             clearForm(id);
         }
