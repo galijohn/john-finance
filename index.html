@@ -3367,7 +3367,7 @@
                     <label>יום החיוב בחודש</label>
                     <input type="number" class="form-control" id="expDueDay" min="1" max="31" placeholder="לדוגמה: 10">
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="expDateGroup">
                     <label>תאריך</label>
                     <input type="date" class="form-control" id="expenseDate" onchange="updateExpenseVatHint()">
                 </div>
@@ -11167,6 +11167,7 @@
             if (!ok) return;
             const rec = getRecurring();
             const values = {
+                kind: 'bill',
                 description: e.description || 'הוצאה קבועה',
                 category: e.category || 'אחר',
                 amount: e.amount,
@@ -12479,6 +12480,14 @@
 
         // Small colored pill marking the row's TYPE (kind), so you see at a glance
         // whether it's a fixed bill / running category / collect / one-off.
+        // A row's real type: a payment tied to a recurring line carries THAT line's
+        // kind (a line created before `kind` was stored is a fixed bill).
+        function expenseRowKind(e) {
+            if (!e || !e.recurringKey) return 'once';
+            const line = recurringLineOf(e);
+            return line ? (line.kind || 'bill') : 'once';
+        }
+
         function typeBadge(kind) {
             const m = { bill: ['קבוע', '#3b82f6'], category: ['שוטף', '#10b981'], collect: ['לאיסוף', '#8b5cf6'], once: ['חד־פעמי', '#64748b'] }[kind];
             if (!m) return '';
@@ -12531,7 +12540,7 @@
                         ontouchstart="rowTouchStart(event,'bill','${item.id}',${menuExtra})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td style="white-space:nowrap;">${payIcon}${status}</td>
                 <td>${categoryLabel(item.category)}</td>
-                <td>${typeBadge(item.kind)}${(real && real.description) ? real.description : item.description}${real && (real.driveLink || real.driveId) ? ' <span data-tip="יש מסמך — לחץ לצפייה" style="color:#38bdf8;cursor:pointer;">📄</span>' : ''}${real && real.notes ? ' <span data-tip="' + escapeFormHtml(real.notes) + '" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--bg-input);color:var(--text-muted);font-size:0.62rem;font-style:italic;font-weight:bold;vertical-align:middle;">i</span>' : ''}</td>
+                <td>${typeBadge(item.kind || 'bill')}${(real && real.description) ? real.description : item.description}${real && (real.driveLink || real.driveId) ? ' <span data-tip="יש מסמך — לחץ לצפייה" style="color:#38bdf8;cursor:pointer;">📄</span>' : ''}${real && real.notes ? ' <span data-tip="' + escapeFormHtml(real.notes) + '" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--bg-input);color:var(--text-muted);font-size:0.62rem;font-style:italic;font-weight:bold;vertical-align:middle;">i</span>' : ''}</td>
                 <td style="color:${collect ? 'var(--text-muted)' : 'var(--danger)'}">${collect ? '—' : formatCurrency(amount)}</td>
                 <td class="col-pct" style="text-align:center;${!collect && deduct && effPct < 100 ? 'color:var(--warning)' : ''}">${collect || !deduct ? '—' : effPct + '%'}</td>
                 <td class="col-net" style="color:${collect || !deduct ? 'var(--text-muted)' : 'var(--success)'}">${collect || !deduct ? '—' : formatCurrency(amount * (effPct / 100))}${(!collect && deduct && vatBack > 0) ? '<div style="font-size:0.72rem;color:#38bdf8;">מע"מ לקיזוז: ' + formatCurrency(vatBack) + '</div>' : ''}</td>
@@ -12757,7 +12766,7 @@
                         ontouchstart="rowTouchStart(event,'expense',${e.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td style="white-space:nowrap;"><span class="pay-tip" data-tip="${escapeFormHtml(pi.tip)}" style="font-size:0.8rem;margin-inline-end:4px;cursor:help;">${pi.icon}</span><span class="rec-paid-chip">✓ שולם ${formatDate(e.date)}</span></td>
                 <td>${categoryLabel(e.category)}</td>
-                <td>${typeBadge('once')}${e.description || '-'}${docCount(e) ? ' <span data-tip="תיק מסמכים — לחץ לפתיחה" style="color:#38bdf8;cursor:pointer;">📄' + (docCount(e) > 1 ? ' ' + docCount(e) : '') + '</span>' : ''}${e.notes ? ' <span data-tip="'+escapeFormHtml(e.notes)+'" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--bg-input);color:var(--text-muted);font-size:0.62rem;font-style:italic;font-weight:bold;vertical-align:middle;">i</span>' : ''}</td>
+                <td>${typeBadge(expenseRowKind(e))}${e.description || '-'}${docCount(e) ? ' <span data-tip="תיק מסמכים — לחץ לפתיחה" style="color:#38bdf8;cursor:pointer;">📄' + (docCount(e) > 1 ? ' ' + docCount(e) : '') + '</span>' : ''}${e.notes ? ' <span data-tip="'+escapeFormHtml(e.notes)+'" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--bg-input);color:var(--text-muted);font-size:0.62rem;font-style:italic;font-weight:bold;vertical-align:middle;">i</span>' : ''}</td>
                 <td style="color:var(--danger)">${formatCurrency(e.amount)}</td>
                 <td class="col-pct" style="text-align:center;${deduct ? (pct < 100 ? 'color:var(--warning)' : '') : 'color:var(--text-muted)'}">${deduct ? pct + '%' : '—'}</td>
                 <td class="col-net" style="color:${deduct ? 'var(--success)' : 'var(--text-muted)'}">${deduct ? formatCurrency(recognized) : '—'}${vatBack > 0 ? '<div style="font-size:0.72rem;color:#38bdf8;">מע"מ לקיזוז: ' + formatCurrency(vatBack) + '</div>' : ''}</td>
