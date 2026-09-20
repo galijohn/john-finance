@@ -1501,7 +1501,7 @@
         </div>
         <div class="nav-item" onclick="showPage('calculation')">
             <span class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/calculator.png" alt="" onerror="this.replaceWith(document.createTextNode('🧮'))"></span>
-            <span class="nav-text">חישוב מפורט</span>
+            <span class="nav-text">חישוב שנתי</span>
         </div>
         <div class="nav-item" onclick="showPage('docs')">
             <span class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/documents.png" alt="" onerror="this.replaceWith(document.createTextNode('🗂️'))"></span>
@@ -2230,6 +2230,10 @@
                     <span>דמי מילואים</span>
                     <span id="calcMiluim">₪0</span>
                 </div>
+                <div class="summary-row" id="calcBLDeductRow" style="display:none;">
+                    <span style="color:var(--danger)">(-) ניכוי דמי ביטוח לאומי <span id="calcBLDeductNote" style="font-size:0.7rem;color:var(--text-muted);"></span></span>
+                    <span id="calcBLDeduct" style="color:var(--danger)">₪0</span>
+                </div>
                 <div class="summary-row total">
                     <span>סה"כ הכנסה חייבת במס</span>
                     <span id="calcTaxableIncome">₪0</span>
@@ -2707,9 +2711,8 @@
                         </div>
                         <div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;line-height:1.6;">
                             מנוכה מ<strong>ההכנסה החייבת</strong> (לא מהמס), ורק מרכיב <strong>ביט"ל</strong> — דמי בריאות אינם בכלל זה.<br>
-                            מחושב על המקדמות ששולמו בפועל השנה.
+                            מחושב על המקדמות ששולמו בפועל. הסכום מוצג בעמוד חישוב המס.
                         </div>
-                        <div id="blDeductPreview" style="font-size:0.85rem;color:var(--primary);margin-top:8px;"></div>
                     </div>
                     <div class="info-box" style="margin-top:15px;font-size:0.85rem;">
                         <strong>📊 מקור:</strong> <a href="https://www.btl.gov.il/Insurance/National%20Insurance/type_list/Self_Employed/Pages/rates.aspx" target="_blank" style="color:var(--primary);">אתר ביטוח לאומי</a><br>
@@ -8602,17 +8605,11 @@
             renderAll();
         }
 
+        // Settings holds the setting only. The resulting figure is running data and
+        // belongs on the חישוב שנתי page, where the income is broken down.
         function renderBLDeductPreview() {
-            const el = document.getElementById('blDeductPreview');
             const input = document.getElementById('settingsBLDeductPct');
-            const yd = getYearData();
-            if (input) input.value = blDeductionPct(yd);
-            if (!el) return;
-            const t = calculateTotals();
-            el.textContent = t.blDeduction > 0
-                ? 'השנה: שולמו ' + formatCurrency(t.blPaidSelf) + ' · מזה ביט"ל ' + formatCurrency(t.blPaidDeductiblePart)
-                  + ' · ניכוי ' + formatCurrency(t.blDeduction)
-                : 'אין מקדמות ביטוח לאומי רשומות השנה — אין ניכוי.';
+            if (input) input.value = blDeductionPct(getYearData());
         }
 
         function calculateBituachLeumi(selfEmployedIncome, overrideMonths = null) {
@@ -9710,6 +9707,19 @@
             document.getElementById('calcSelfEmployed').textContent = formatCurrency(totals.selfEmployed);
             document.getElementById('calcExpenses').textContent = '-' + formatCurrency(totals.expenses);
             document.getElementById('calcMiluim').textContent = formatCurrency(totals.miluim);
+            // Section 47א deduction — shown on the line above the taxable-income total,
+            // so the figure is visible where the income is broken down.
+            const _bldRow = document.getElementById('calcBLDeductRow');
+            if (_bldRow) {
+                if (totals.blDeduction > 0) {
+                    _bldRow.style.display = '';
+                    document.getElementById('calcBLDeduct').textContent = formatCurrency(totals.blDeduction);
+                    document.getElementById('calcBLDeductNote').textContent =
+                        '· ' + totals.blDeductPct + '% מתוך ' + formatCurrency(totals.blPaidDeductiblePart) + ' רכיב ביט"ל ששולם';
+                } else {
+                    _bldRow.style.display = 'none';
+                }
+            }
             document.getElementById('calcTaxableIncome').textContent = formatCurrency(totals.taxableIncome);
 
             // Source indicators (📄 = from official form, 📋 = from monthly slips)
