@@ -1,5 +1,7 @@
 john-finance-*.json
 client_secret*.json
+tax-data-*.json
+_proto_demo.html
 pdf-test.html
 test-expenses.pdf
 report-examples.html
