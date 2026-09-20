@@ -9777,7 +9777,9 @@
             const calcEff = totals.taxableIncome > 0 ? (netTax / totals.taxableIncome * 100) : 0;
             const crEl = document.getElementById('calcRates');
             if (crEl) crEl.textContent = `שולי ${calcMarginal}% · אפקטיבי ${calcEff.toFixed(1)}%`;
-            const calcNet = totals.taxableIncome - netTax - bl.total;
+            // Income received, not income after the 47א relief — the relief is a tax
+            // benefit, not money that left the pocket.
+            const calcNet = totals.incomeBeforeBLDeduction - netTax - bl.total;
             const cnpEl = document.getElementById('calcNetPocket');
             const cnpmEl = document.getElementById('calcNetPocketMonthly');
             if (cnpEl) cnpEl.textContent = formatCurrency(calcNet);
@@ -13466,7 +13468,11 @@
                 const bl = calculateBituachLeumi(t.selfEmployedNet);
                 s = {
                     taxable: t.taxableIncome, expenses: t.expenses, netTax: netTax,
-                    bl: bl.total, netPocket: t.taxableIncome - netTax - bl.total, vatBalance: t.vatBalance || 0
+                    bl: bl.total,
+                    // Measured on income received, before the 47א relief — same rule as
+                    // the dashboard tile and the reports.
+                    netPocket: (t.incomeBeforeBLDeduction != null ? t.incomeBeforeBLDeduction : t.taxableIncome) - netTax - bl.total,
+                    vatBalance: t.vatBalance || 0
                 };
             } finally { currentYear = prev; }
             return s;
