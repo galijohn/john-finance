@@ -1809,7 +1809,7 @@
                         </div>
                     </div>
                 </div>
-                <button class="btn btn-primary" onclick="openModal('miluimModal')">+ הוסף תקופת מילואים</button>
+                <button class="btn btn-primary" onclick="openAddMiluim()">+ הוסף תקופת מילואים</button>
             </div>
 
             <div class="info-box">
@@ -1827,7 +1827,7 @@
                             <th>סכום ברוטו</th>
                             <th>מס שנוכה</th>
                             <th>ביט"ל שנוכה</th>
-                            <th>פעולות</th>
+                            <th>מסמך</th>
                         </tr>
                     </thead>
                     <tbody id="miluimTable"></tbody>
@@ -3230,7 +3230,16 @@
                     <label>📎 הערות</label>
                     <input type="text" class="form-control" id="miluimNotes" placeholder="לדוגמה: אישור מביטוח לאומי">
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="milDocsGroup" style="display:none;">
+                    <label>📂 מסמכים <span id="milDocsCount" style="color:var(--text-muted);"></span></label>
+                    <div id="milDocsBody" style="margin-bottom:8px;"></div>
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <button type="button" class="btn btn-sm" onclick="pickFolderDoc()">➕ הוסף מסמך</button>
+                        <span id="milDocsStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">יישמר בתיקייה: מילואים/</div>
+                </div>
+                <div class="form-group" id="milPlainAttach">
                     <label>📄 צרף אישור מילואים</label>
                     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <input type="file" id="miluimFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
@@ -8115,6 +8124,16 @@
             openModal('unemploymentModal');
         }
 
+        // A new period has no folder yet — the plain attach box is shown instead.
+        function openAddMiluim() {
+            editingId = null;
+            clearForm('miluimModal');
+            const st = document.getElementById('miluimFileStatus');
+            if (st) st.textContent = '';
+            hideInlineDocs('miluim');
+            openModal('miluimModal');
+        }
+
         function editMiluim(id) {
             const yd = getYearData();
             const item = yd.miluim.find(m => m.id === id);
@@ -8127,6 +8146,7 @@
             document.getElementById('miluimTaxDeducted').value = item.taxDeducted || 0;
             document.getElementById('miluimBLDeducted').value = item.blDeducted || 0;
             document.getElementById('miluimNotes').value = item.notes || '';
+            showInlineDocs('miluim', id);
             openModal('miluimModal');
         }
 
@@ -9942,17 +9962,16 @@
                 tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="icon">🎖️</div><p>לחץ + להוסיף</p></td></tr>';
                 return;
             }
-            tbody.innerHTML = [...miluimItems].sort((a, b) => (a.from || '').localeCompare(b.from || '')).map(m => `<tr>
+            tbody.innerHTML = [...miluimItems].sort((a, b) => (a.from || '').localeCompare(b.from || '')).map(m => `<tr class="row-click"
+                ondblclick="openRowDocsFor('miluim',${m.id})"
+                oncontextmenu="showRowMenu(event,'miluim',${m.id})"
+                ontouchstart="rowTouchStart(event,'miluim',${m.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td>${formatDate(m.from)} - ${formatDate(m.to)} ${m.notes ? '<span data-tip="'+m.notes+'" style="cursor:help;">📎</span>' : ''}</td>
                 <td>${m.days}</td>
                 <td>${formatCurrency(m.amount)}</td>
                 <td style="color:var(--danger)">${formatCurrency(m.taxDeducted || 0)}</td>
                 <td style="color:var(--warning)">${formatCurrency(m.blDeducted || 0)}</td>
-                <td>
-                    ${m.driveLink ? `<button class="btn btn-icon btn-sm" onclick="window.open('${m.driveLink}','_blank')" title="צפה בקובץ">👁️</button>` : ''}
-                    <button class="btn btn-icon btn-sm" onclick="editMiluim(${m.id})" title="עריכה">✏️</button>
-                    <button class="btn btn-icon btn-sm" onclick="deleteItem('miluim',${m.id})" title="מחיקה">🗑️</button>
-                </td>
+                <td>${docCount(m) ? '<span data-tip="תיק מסמכים — דאבל־קליק לצפייה" style="color:#38bdf8;">📄' + (docCount(m) > 1 ? ' ' + docCount(m) : '') + '</span>' : ''}</td>
             </tr>`).join('');
         }
 
@@ -10024,7 +10043,8 @@
             expense:      { arr: yd => yd.expenses,    base: 'הוצאות-מוכרות',   uploadType: 'expense'    },
             income:       { arr: yd => yd.selfEmployed, base: 'חשבוניות-עצמאי', uploadType: 'selfEmployed' },
             taxAdvance:   { arr: yd => yd.taxAdvances,  base: 'מקדמות-מס',       uploadType: 'taxAdvance'  },
-            blAdvance:    { arr: yd => yd.blAdvances,   base: 'ביטוח-לאומי',     uploadType: 'blAdvance'   }
+            blAdvance:    { arr: yd => yd.blAdvances,   base: 'ביטוח-לאומי',     uploadType: 'blAdvance'   },
+            miluim:       { arr: yd => yd.miluim,       base: 'מילואים',         uploadType: 'miluim'      }
         };
 
         function _folderRecord() {
@@ -10146,7 +10166,8 @@
             expense:    { body: 'expDocsBody',  count: 'expDocsCount',  group: 'expDocsGroup',  plain: 'expPlainAttach'  },
             income:     { body: 'selfDocsBody', count: 'selfDocsCount', group: 'selfDocsGroup', plain: 'selfPlainAttach' },
             taxAdvance: { body: 'taxDocsBody',  count: 'taxDocsCount',  group: 'taxDocsGroup',  plain: 'taxPlainAttach'  },
-            blAdvance:  { body: 'blDocsBody',   count: 'blDocsCount',   group: 'blDocsGroup',   plain: 'blPlainAttach'   }
+            blAdvance:  { body: 'blDocsBody',   count: 'blDocsCount',   group: 'blDocsGroup',   plain: 'blPlainAttach'   },
+            miluim:     { body: 'milDocsBody',  count: 'milDocsCount',  group: 'milDocsGroup',  plain: 'milPlainAttach'  }
         };
 
         // Show the folder inside the dialog for the record being edited, and hide the
@@ -12989,6 +13010,9 @@
                 const cat = id;
                 html += `<button onclick="hideRowMenu();addExpenseToCategory('${cat}')">＋ הוסף חשבונית</button>`;
                 html += `<button onclick="hideRowMenu();renameCategory('${cat}')">🏷️ שנה שם קטגוריה</button>`;
+            } else if (kind === 'miluim') {
+                html += `<button onclick="hideRowMenu();editMiluim(${id})">✏️ עריכה</button>`;
+                html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteItem('miluim',${id})">✕ מחיקה</button>`;
             } else if (kind === 'selfEmployed' || kind === 'taxAdvance' || kind === 'blAdvance') {
                 const r = active(incomeArr(kind)).find(x => x.id === id);
                 if (!r) return;
