@@ -13975,7 +13975,9 @@
 
                 addSection('א. סיכום הכנסות', S);
                 addHdr(['מקור', 'סכום']);
-                [['הכנסה כשכיר', d.totals.salary], ['דמי אבטלה', d.totals.unemployment], ['מילואים', d.totals.miluim], ['הכנסה כעצמאי', d.totals.selfEmployed], ['(-) הוצאות מוכרות', d.totals.expenses]].forEach((r, i) => addDR(r, i));
+                [['הכנסה כשכיר', d.totals.salary], ['דמי אבטלה', d.totals.unemployment], ['מילואים', d.totals.miluim], ['הכנסה כעצמאי', d.totals.selfEmployed], ['(-) הוצאות מוכרות', d.totals.expenses]]
+                    .concat(d.totals.blDeduction > 0 ? [['(-) ניכוי דמי ביט"ל (' + d.totals.blDeductPct + '%)', d.totals.blDeduction]] : [])
+                    .forEach((r, i) => addDR(r, i));
                 addSub(['הכנסה חייבת', d.totals.taxableIncome]);
 
                 addSection('ב. מס הכנסה', S);
@@ -14001,7 +14003,9 @@
 
                 addSection('א. סיכום הכנסות', S);
                 addHdr(['מקור', 'סכום', '', '']);
-                [['הכנסה כשכיר', t.totals.salary], ['דמי אבטלה', t.totals.unemployment], ['הכנסה כעצמאי', t.totals.selfEmployed], ['(-) הוצאות מוכרות', t.totals.expenses], ['מילואים', t.totals.miluim]].forEach((r, i) => addDR([...r, '', ''], i));
+                [['הכנסה כשכיר', t.totals.salary], ['דמי אבטלה', t.totals.unemployment], ['הכנסה כעצמאי', t.totals.selfEmployed], ['(-) הוצאות מוכרות', t.totals.expenses], ['מילואים', t.totals.miluim]]
+                    .concat(t.totals.blDeduction > 0 ? [['(-) ניכוי דמי ביט"ל (' + t.totals.blDeductPct + '%)', t.totals.blDeduction]] : [])
+                    .forEach((r, i) => addDR([...r, '', ''], i));
                 addSub(['הכנסה חייבת', t.totals.taxableIncome, '', '']);
 
                 addSection('ב. חישוב מס הכנסה - מדרגות מס', S);
@@ -14681,6 +14685,7 @@
                 bodyContent += trow('דמי מילואים', tt.miluim);
                 bodyContent += trow('הכנסה כעצמאי (נטו ממע"מ)', tt.selfEmployed);
                 bodyContent += trow('(-) הוצאות מוכרות (נטו ממע"מ)', tt.expenses);
+                if (tt.blDeduction > 0) bodyContent += trow('(-) ניכוי דמי ביטוח לאומי (סעיף 47א · ' + tt.blDeductPct + '%)', tt.blDeduction);
                 bodyContent += '</tbody></table>' + strip('סה"כ הכנסה חייבת', tt.taxableIncome);
 
                 bodyContent += H('ב. חישוב מס הכנסה');
