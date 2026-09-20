@@ -8519,6 +8519,10 @@
             const blDeduction = Math.max(0, blPaidDeductiblePart * (blDeductPct / 100));
 
             let taxableIncome = totalSalary + totalUnemployment + totalMiluim + selfEmployedNet;
+            // The money actually received, before the 47א deduction. The deduction is a
+            // tax relief, not a cost — disposable income must be measured against this,
+            // otherwise claiming the relief appears to make you poorer.
+            const incomeBeforeBLDeduction = taxableIncome;
             // Capped at the taxable income before the deduction, as the section requires.
             const blDeductionApplied = Math.min(blDeduction, Math.max(0, taxableIncome));
             taxableIncome = Math.max(0, taxableIncome - blDeductionApplied);
@@ -8561,6 +8565,7 @@
                 blPaidSelf: blFromSelf,
                 blPaidDeductiblePart,
                 blDeduction: blDeductionApplied,
+                incomeBeforeBLDeduction,
                 totalTaxPaid: taxFromSalary + taxFromUnemployment + taxFromMiluim + taxFromSelf,
                 salaryBreakdown,
                 salaryHasOverride: salaryBreakdown.some(b => b.source === '106' || b.source === '106-only'),
@@ -9578,7 +9583,8 @@
             document.getElementById('dashTaxPaid').textContent = formatCurrency(totals.totalTaxPaid);
             document.getElementById('dashBLDue').textContent = formatCurrency(bl.total);
             document.getElementById('dashBLPaid').textContent = formatCurrency(totals.totalBLPaid);
-            const dashNet = totals.taxableIncome - netTax - bl.total;
+            // Measured on income received, not on income after the tax relief.
+            const dashNet = totals.incomeBeforeBLDeduction - netTax - bl.total;
             const dnpEl = document.getElementById('dashNetPocket');
             const dnpmEl = document.getElementById('dashNetPocketMonthly');
             if (dnpEl) dnpEl.textContent = formatCurrency(dashNet);
@@ -14558,7 +14564,7 @@
                 if (show('blDue')) summaryCards.push(['🏥 ביט"ל + בריאות (עצמאי)', fmtNum(d.bl.total)]);
                 if (show('blPaid')) summaryCards.push(['💳 ביט"ל ששולם (מקדמות)', fmtNum(d.totals.totalBLPaid)]);
                 const _taxable = d.totals.taxableIncome || 0;
-                const _netInPocket = _taxable - d.netTax - d.bl.total;
+                const _netInPocket = (d.totals.incomeBeforeBLDeduction != null ? d.totals.incomeBeforeBLDeduction : _taxable) - d.netTax - d.bl.total;
                 if (show('netPocket')) summaryCards.push(['💰 הכנסה פנויה (שנתי)', fmtNum(_netInPocket)]);
                 if (show('netPocketMonthly')) summaryCards.push(['💵 הכנסה פנויה (לחודש)', fmtNum(Math.round(_netInPocket / 12))]);
                 if (show('taxRates')) {
