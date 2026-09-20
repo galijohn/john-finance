@@ -1823,11 +1823,11 @@
                     <thead>
                         <tr>
                             <th>תקופה</th>
+                            <th>סטטוס</th>
                             <th>מספר ימים</th>
                             <th>סכום ברוטו</th>
                             <th>מס שנוכה</th>
                             <th>ביט"ל שנוכה</th>
-                            <th>מסמך</th>
                         </tr>
                     </thead>
                     <tbody id="miluimTable"></tbody>
@@ -9967,11 +9967,11 @@
                 oncontextmenu="showRowMenu(event,'miluim',${m.id})"
                 ontouchstart="rowTouchStart(event,'miluim',${m.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td>${formatDate(m.from)} - ${formatDate(m.to)} ${m.notes ? '<span data-tip="'+m.notes+'" style="cursor:help;">📎</span>' : ''}</td>
+                <td>${incomeStatusCell(m)}</td>
                 <td>${m.days}</td>
                 <td>${formatCurrency(m.amount)}</td>
                 <td style="color:var(--danger)">${formatCurrency(m.taxDeducted || 0)}</td>
                 <td style="color:var(--warning)">${formatCurrency(m.blDeducted || 0)}</td>
-                <td>${docCount(m) ? '<span data-tip="תיק מסמכים — דאבל־קליק לצפייה" style="color:#38bdf8;">📄' + (docCount(m) > 1 ? ' ' + docCount(m) : '') + '</span>' : ''}</td>
             </tr>`).join('');
         }
 
