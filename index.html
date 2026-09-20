@@ -4638,23 +4638,53 @@
         }
 
         // ===== AUTO-SYNC FROM CLOUD ON LOAD =====
+        // A record's documents, read without mutating it (the live recordDocs migrates
+        // in place, which must not happen while merging).
+        function docsOfPlain(r) {
+            if (!r) return [];
+            if (Array.isArray(r.docs)) return r.docs;
+            if (r.driveId || r.driveLink) return [{
+                id: 'legacy', name: stripDocExt(r.fileName) || 'מסמך', fileName: r.fileName,
+                driveId: r.driveId, driveLink: r.driveLink, localPath: r.localPath, date: r.date || ''
+            }];
+            return [];
+        }
+
+        // The same record on both sides used to mean "keep mine, drop theirs" — which
+        // silently threw away a receipt attached on another device and left the Drive
+        // file orphaned. Documents are unioned by Drive file id instead.
+        function unionRecordDocs(localRec, cloudRec) {
+            const mine = docsOfPlain(localRec);
+            const theirs = docsOfPlain(cloudRec);
+            if (!theirs.length) return null;
+            const key = d => String((d && (d.driveId || d.driveLink || d.fileName)) || '');
+            const seen = new Set(mine.map(key).filter(Boolean));
+            const extra = theirs.filter(d => key(d) && !seen.has(key(d)));
+            if (!extra.length) return null;
+            return mine.concat(extra);
+        }
+
         function mergeArrayById(localArr, cloudArr) {
             if (!localArr && !cloudArr) return [];
             if (!localArr) return cloudArr || [];
             if (!cloudArr) return localArr || [];
             const map = new Map();
-            localArr.forEach(item => { if (item.id) map.set(item.id, item); });
+            // An item with no id cannot be keyed — keep it instead of dropping it.
+            const idless = [];
+            localArr.forEach(item => { if (item && item.id) map.set(item.id, item); else if (item) idless.push(item); });
             cloudArr.forEach(item => {
-                if (!item.id) return;
+                if (!item || !item.id) return;
                 const existing = map.get(item.id);
                 if (!existing) {
                     map.set(item.id, item);
                 } else {
                     // If either copy is deleted, keep the deleted version
-                    if (item._deleted && !existing._deleted) map.set(item.id, item);
+                    if (item._deleted && !existing._deleted) { map.set(item.id, item); return; }
+                    const docs = unionRecordDocs(existing, item);
+                    if (docs) map.set(item.id, Object.assign({}, existing, { docs: docs }));
                 }
             });
-            return Array.from(map.values());
+            return Array.from(map.values()).concat(idless);
         }
 
         function mergeYearData(localYd, cloudYd) {
@@ -4662,7 +4692,13 @@
             if (!localYd) return cloudYd;
             if (!cloudYd) return localYd;
             const merged = JSON.parse(JSON.stringify(localYd));
-            const arrays = ['salary', 'unemployment', 'miluim', 'selfEmployed', 'expenses', 'taxAdvances', 'blAdvances', 'vatReports', 'documents', 'officialDocs'];
+            // 'forms' was missing from this list, so form 106 / שומה records and their
+            // attachments were dropped by every merge. Rather than maintain a list that
+            // can go stale again, every array on either side is merged.
+            const arrays = ['salary', 'unemployment', 'miluim', 'selfEmployed', 'expenses', 'taxAdvances', 'blAdvances', 'vatReports', 'documents', 'officialDocs', 'forms'];
+            Object.keys(localYd).concat(Object.keys(cloudYd)).forEach(k => {
+                if (arrays.indexOf(k) === -1 && (Array.isArray(localYd[k]) || Array.isArray(cloudYd[k]))) arrays.push(k);
+            });
             arrays.forEach(key => {
                 merged[key] = mergeArrayById(localYd[key], cloudYd[key]);
             });
@@ -4734,6 +4770,7 @@
             return merged;
         }
 
+        let _declinedCloudStamp = '';   // a cloud backup the user refused to merge
         async function pullFromCloudIfNewer() {
             if (driveBlockedHere()) return;
             if (!googleAccessToken || !driveFolderId) return;
@@ -4747,6 +4784,10 @@
                 if (search.result.files.length === 0) return;
 
                 const fileId = search.result.files[0].id;
+                // A backup the user already refused must not ask again every five
+                // minutes — only a newer one is worth a second question.
+                const cloudStamp = search.result.files[0].modifiedTime || '';
+                if (cloudStamp && cloudStamp === _declinedCloudStamp) return;
                 const response = await gapi.client.drive.files.get({
                     fileId: fileId,
                     alt: 'media'
@@ -4758,9 +4799,9 @@
                 const countRecords = (d) => {
                     let c = 0;
                     if (d.yearData) Object.values(d.yearData).forEach(yd => {
-                        ['salary','unemployment','miluim','selfEmployed','expenses','taxAdvances','blAdvances','vatReports'].forEach(k => {
-                            c += (yd[k] || []).length;
-                        });
+                        // Every record array, not a fixed list — otherwise the count is
+                        // wrong for exactly the types the merge used to forget.
+                        Object.keys(yd || {}).forEach(k => { if (Array.isArray(yd[k])) c += yd[k].length; });
                     });
                     return c;
                 };
@@ -4768,11 +4809,39 @@
                 const localCount = countRecords(data);
                 const cloudCount = countRecords(cloudData);
 
-                // Always merge - never skip
+                // A payload that is not an object would merge to "local only" and then be
+                // pushed back, erasing whatever the cloud held. Refuse instead.
+                if (!cloudData || typeof cloudData !== 'object' || !cloudData.yearData) {
+                    console.warn('[sync] תוכן ענן לא תקין — המיזוג בוטל');
+                    return;
+                }
+
                 console.log('🔄 Merging... local records:', localCount, 'cloud records:', cloudCount);
                 const merged = mergeData(data, cloudData);
                 const mergedCount = countRecords(merged);
                 console.log('✅ Merged result:', mergedCount, 'records');
+
+                // Rows the cloud has and this device does not are ADDED by the merge.
+                // That is the path the seeded demo rows took on 20/09/2026, so nothing
+                // enters the ledger any more without being shown and approved.
+                const incoming = mergedCount - localCount;
+                if (incoming > 0) {
+                    const ok = await showPopup({
+                        type: 'warning',
+                        title: 'רשומות חדשות מהענן',
+                        message: 'נמצאו ' + incoming + ' רשומות בגיבוי שלא קיימות במכשיר הזה.\n\n' +
+                                 'אם הוספת אותן במכשיר אחר — אשר.\n' +
+                                 'אם לא הוספת כלום — אל תאשר, ותבדוק מה קרה.',
+                        okText: 'צרף ' + incoming + ' רשומות',
+                        cancelText: 'לא לצרף'
+                    });
+                    if (!ok) {
+                        _declinedCloudStamp = cloudStamp;
+                        console.warn('[sync] המשתמש דחה ' + incoming + ' רשומות נכנסות');
+                        showSyncNotification('⛔ ' + incoming + ' רשומות מהענן לא צורפו');
+                        return;
+                    }
+                }
 
                 data = merged;
                 localStorage.setItem('taxCalculatorV2', JSON.stringify(data));
