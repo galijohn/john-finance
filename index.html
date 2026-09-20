@@ -12465,68 +12465,19 @@
             if (kind === 'expense') {
                 const e = active(getYearData().expenses).find(x => x.id === id);
                 if (!e) return;
-                html += `<button onclick="hideRowMenu();openRecordFile(${id})">👁️ פתח מסמך</button>`;
-                html += `<button onclick="hideRowMenu();editExpense(${id})">✏️ ערוך</button>`;
-                if (e.driveId || e.fileName) html += `<button onclick="hideRowMenu();removeExpenseFile(${id})">📎 הסר קובץ בלבד</button>`;
-                // Word the action for what this expense is actually linked to —
-                // a bill and a collection are not the same thing.
-                const line = recurringLineOf(e);
-                if (line) {
-                    html += isCollect(line)
-                        ? `<button onclick="hideRowMenu();unlinkExpenseRecurring(${id})">📄 נתק מרשימת האיסוף</button>`
-                        : `<button onclick="hideRowMenu();unlinkExpenseRecurring(${id})">🔁 נתק מהוצאה קבועה</button>`;
-                } else if (e.recurringKey) {
-                    html += `<button onclick="hideRowMenu();unlinkExpenseRecurring(${id})">🔗 נתק מהשורה החודשית</button>`;
-                } else {
-                    html += `<button onclick="hideRowMenu();makeExpenseRecurring(${id})">🔁 הפוך להוצאה קבועה</button>`;
-                }
-                // If this expense is what marks a collection as done, let it be undone here.
-                const cl = collectLineForExpense(e);
-                if (cl) {
-                    html += `<button onclick="hideRowMenu();setCollected('${cl.monthKey}','${cl.item.id}',false)">↩️ בטל איסוף</button>`;
-                } else if (!line && !e.recurringKey) {
-                    html += `<button onclick="hideRowMenu();makeExpenseCollect(${id})">📄 הוסף לרשימת האיסוף</button>`;
-                }
+                // One rule: the row only opens things. Every change is made inside the dialog.
+                html += `<button onclick="hideRowMenu();editExpense(${id})">✏️ עריכה</button>`;
                 html += `<div class="sep"></div><button class="danger" onclick="hideRowMenu();deleteItem('expenses',${id})">✕ מחיקה</button>`;
             } else if (kind === 'bill') {
                 const monthKey = extra.monthKey;
                 const payment = extra.paymentId ? active(getYearData().expenses).find(x => x.id === extra.paymentId) : null;
-                const recItem = active(getRecurring().months[monthKey] || []).find(i => String(i.id) === String(id));
-                const collectLine = recItem && isCollect(recItem);
-                if (collectLine) {
-                    // A collection line: word everything as collection, and always allow undo.
-                    const done = lineDone(monthKey, recItem);
-                    if (payment) {
-                        html += `<button onclick="hideRowMenu();openRecordFile(${payment.id})">👁️ פתח מסמך</button>`;
-                        html += `<button onclick="hideRowMenu();editExpense(${payment.id})">✏️ ערוך חשבונית</button>`;
-                    } else {
-                        html += `<button onclick="hideRowMenu();payRecurring('${monthKey}','${id}')">📄 השלם חשבונית</button>`;
-                    }
-                    if (done) {
-                        html += payment
-                            ? `<button onclick="hideRowMenu();revertRecurringPayment('${monthKey}','${id}')">↩️ בטל איסוף (מחזיר ל"לאסוף", מוחק קובץ)</button>`
-                            : `<button onclick="hideRowMenu();setCollected('${monthKey}','${id}',false)">↩️ בטל איסוף</button>`;
-                    } else {
-                        html += `<button onclick="hideRowMenu();setCollected('${monthKey}','${id}',true)">✓ סמן כנאסף</button>`;
-                    }
-                    html += `<button onclick="hideRowMenu();openRecurringEdit('${monthKey}','${id}')">✏️ ערוך</button>`;
-                    html += `<div class="sep"></div>`;
-                    html += `<button class="danger" onclick="hideRowMenu();deleteRecurring('${monthKey}','${id}')">✕ הסר מרשימת האיסוף</button>`;
-                } else {
-                    if (payment) {
-                        html += `<button onclick="hideRowMenu();openRecordFile(${payment.id})">👁️ פתח מסמך</button>`;
-                        html += `<button onclick="hideRowMenu();revertRecurringPayment('${monthKey}','${id}')">↩️ בטל תשלום (מחזיר ל"לתשלום", מוחק קובץ)</button>`;
-                    } else {
-                        html += `<button onclick="hideRowMenu();payRecurring('${monthKey}','${id}')">💳 סמן כשולם</button>`;
-                    }
-                    // Paid → edit in the FULL box (file + payment method + type + category).
-                    // Unpaid → edit the recurring definition (no payment/file yet).
-                    html += payment
-                        ? `<button onclick="hideRowMenu();editExpense(${payment.id})">✏️ ערוך</button>`
-                        : `<button onclick="hideRowMenu();openRecurringEdit('${monthKey}','${id}')">✏️ ערוך</button>`;
-                    html += `<div class="sep"></div>`;
-                    html += `<button class="danger" onclick="hideRowMenu();deleteRecurring('${monthKey}','${id}')">✕ מחק שורה קבועה</button>`;
-                }
+                // Paid → edit the payment record (it carries the documents).
+                // Unpaid → edit the recurring line itself. Marking as paid stays on the row button.
+                html += payment
+                    ? `<button onclick="hideRowMenu();editExpense(${payment.id})">✏️ עריכה</button>`
+                    : `<button onclick="hideRowMenu();openRecurringEdit('${monthKey}','${id}')">✏️ עריכה</button>`;
+                html += `<div class="sep"></div>`;
+                html += `<button class="danger" onclick="hideRowMenu();deleteRecurring('${monthKey}','${id}')">✕ מחיקה</button>`;
             } else if (kind === 'category') {
                 const cat = id;
                 html += `<button onclick="hideRowMenu();addExpenseToCategory('${cat}')">＋ הוסף חשבונית</button>`;
