@@ -3405,11 +3405,11 @@
                     <label>סכום (₪)</label>
                     <input type="number" class="form-control" id="expenseAmount" oninput="updateExpenseVatHint()">
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="expNotesGroup">
                     <label>📎 הערות</label>
                     <input type="text" class="form-control" id="expenseNotes" placeholder="לדוגמה: קבלה מס' 123">
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="expPayGroup">
                     <label>💳 אמצעי תשלום</label>
                     <select class="form-control" id="expensePayMethod" onchange="onExpensePayMethodChange()">
                         <option value="">— לא צוין —</option>
@@ -7343,11 +7343,16 @@
             }
         }
 
+        // Set while the expense dialog is editing a recurring LINE instead of a record.
+        let editingRecurringLine = null;
+
         let _expenseSaving = false;
         async function addExpense() {
             if (_expenseSaving) return;   // a save is already in flight — ignore the double-click
             _expenseSaving = true;
             try {
+            // Same dialog, different subject: a recurring line saves as a line.
+            if (editingRecurringLine) { await saveRecurringLineFromDialog(); return; }
             const yd = getYearData();
             const recordId = editingId || Date.now();
             
@@ -8022,6 +8027,8 @@
             const item = yd.expenses.find(e => e.id === id);
             if (!item) return;
             editingId = id;
+            editingRecurringLine = null;
+            setExpenseDialogMode('record');
             document.getElementById('expenseDate').value = item.date;
             document.getElementById('expenseDesc').value = item.description || '';
             document.getElementById('expenseCategory').value = item.category;
@@ -10858,7 +10865,10 @@
                 : localTodayISO();
             const ks = document.getElementById('expenseKindGroup');
             if (ks) ks.style.display = '';       // show the type chooser for a new entry
+            editingRecurringLine = null;
+            _expenseKindOnOpen = 'once';
             syncExpenseKindUI('once');
+            setExpenseDialogMode('record');
             const ddv = document.getElementById('expDueDay'); if (ddv) ddv.value = '';
             document.getElementById('expenseModalTitle').textContent = '🧾 הוספת הוצאה';
             // A brand-new record has no folder yet — attach the first file the plain way.
@@ -10933,6 +10943,8 @@
             if (!item) return;
             recurringPayContext = { monthKey: monthKey, itemId: itemId };
             editingId = null;
+            editingRecurringLine = null;
+            setExpenseDialogMode('record');
             const collect = isCollect(item);
             buildCategoryOptions();
             // Completing a line for an earlier month must land in THAT month, not today.
@@ -11014,23 +11026,64 @@
             openModal('recurringModal');
         }
 
+        // Editing an unpaid recurring line now happens in the SAME dialog as an expense.
+        // The old recurring window is no longer opened from anywhere.
         function openRecurringEdit(monthKey, itemId) {
             const rec = getRecurring();
             const item = active(rec.months[monthKey] || []).find(i => String(i.id) === String(itemId));
             if (!item) return;
-            editingRecurring = { monthKey: monthKey, itemId: itemId };
-            document.getElementById('recurringModalTitle').textContent = '🔁 עריכת הוצאה קבועה';
+            editingRecurringLine = { monthKey: monthKey, itemId: itemId };
+            editingRecurring = null;
+            editingId = null;
+            recurringPayContext = null;
             buildCategoryOptions();
-            document.getElementById('recKind').value = item.kind || 'bill';
-            document.getElementById('recDesc').value = item.description;
-            document.getElementById('recCategory').value = item.category;
-            document.getElementById('recAmount').value = item.amount;
-            document.getElementById('recRecognition').value = item.recognition ?? 100;
-            document.getElementById('recDueDay').value = item.dueDay || '';
-            setRecDeductible(item.deductible !== false);
-            setRecInputVat(item.inputVat !== false);
-            onRecKindChange();
-            openModal('recurringModal');
+            document.getElementById('expenseModalTitle').textContent = '🔁 עריכת הוצאה קבועה';
+            document.getElementById('expenseDesc').value = item.description || '';
+            document.getElementById('expenseCategory').value = item.category;
+            document.getElementById('expenseAmount').value = item.amount || '';
+            document.getElementById('expenseRecognition').value = item.recognition ?? 100;
+            document.getElementById('expDueDay').value = item.dueDay || '';
+            setExpenseDeductible(item.deductible !== false);
+            setExpenseInputVat(item.inputVat !== false);
+            const kg = document.getElementById('expenseKindGroup');
+            if (kg) kg.style.display = '';
+            _expenseKindOnOpen = item.kind || 'bill';
+            syncExpenseKindUI(item.kind || 'bill');
+            setExpenseDialogMode('line');
+            openModal('expenseModal');
+        }
+
+        // A recurring LINE has no date, no receipt and no payment method — it is a
+        // plan, not a payment. Hide what does not belong to it.
+        function setExpenseDialogMode(mode) {
+            const isLine = (mode === 'line');
+            const set = (id, show) => { const el = document.getElementById(id); if (el) el.style.display = show ? '' : 'none'; };
+            set('expDateGroup', !isLine);
+            set('expNotesGroup', !isLine);
+            set('expPayGroup', !isLine);
+            set('expPlainAttach', !isLine);
+            if (isLine) { set('expenseAssetGroup', false); set('expDocsGroup', false); set('expRevertGroup', false); }
+            else onExpensePayMethodChange();
+        }
+
+        // Save a recurring line edited in the expense dialog by reusing the existing
+        // recurring save — so the "רק החודש / מהחודש והלאה" question stays identical.
+        async function saveRecurringLineFromDialog() {
+            const ctx = editingRecurringLine;
+            editingRecurringLine = null;
+            if (!ctx) return;
+            const g = id => document.getElementById(id);
+            g('recKind').value = g('expenseKind').value || 'bill';
+            g('recDesc').value = g('expenseDesc').value;
+            g('recCategory').value = g('expenseCategory').value;
+            g('recAmount').value = g('expenseAmount').value;
+            g('recRecognition').value = g('expenseRecognition').value;
+            g('recDueDay').value = g('expDueDay').value;
+            g('recDeductible').value = g('expenseDeductible').value;
+            g('recInputVat').value = g('expenseInputVat').value;
+            editingRecurring = ctx;
+            closeModal('expenseModal');
+            await saveRecurringItem();
         }
 
         let _recurringScopeResolve = null;
