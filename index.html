@@ -3422,7 +3422,21 @@
                         <span style="color:var(--text-muted);font-size:0.85rem;">% מהסכום מוכר כהוצאה</span>
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="expRevertGroup" style="display:none;">
+                    <button type="button" class="btn btn-sm" style="width:100%;color:var(--warning);border-color:var(--warning);" onclick="revertFromDialog()">↩️ בטל תשלום — החזר את השורה ל"לתשלום"</button>
+                </div>
+                <div class="form-group" id="expDocsGroup" style="display:none;">
+                    <label>📂 מסמכים <span id="expDocsCount" style="color:var(--text-muted);"></span></label>
+                    <div id="expDocsBody" style="margin-bottom:8px;"></div>
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <button type="button" class="btn btn-sm" onclick="pickFolderDoc()">➕ הוסף מסמך</button>
+                        <span id="expDocsStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">
+                        יישמר בתיקייה: הוצאות-מוכרות/
+                    </div>
+                </div>
+                <div class="form-group" id="expPlainAttach">
                     <label>📄 צרף קבלה/חשבונית</label>
                     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <input type="file" id="expenseFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
@@ -7983,6 +7997,14 @@
                 kSel.value = k;
             }
             document.getElementById('expenseModalTitle').textContent = '🧾 עריכת הוצאה';
+            // Documents live inside the dialog: point the folder at this record and show it.
+            _docFolderKind = 'expense'; _docFolderId = id;
+            const dg = document.getElementById('expDocsGroup'); if (dg) dg.style.display = '';
+            const pa = document.getElementById('expPlainAttach'); if (pa) pa.style.display = 'none';
+            renderExpenseDocsInline();
+            // "Undo payment" belongs here too, only for a record tied to a recurring line.
+            const rv = document.getElementById('expRevertGroup');
+            if (rv) rv.style.display = (item.recurringKey && recurringLineOf(item)) ? '' : 'none';
             openModal('expenseModal');
         }
 
@@ -9758,13 +9780,18 @@
             }
             document.getElementById('incomeDossierBody').innerHTML = body;
             document.getElementById('incomeDossierStatus').textContent = '';
+            renderExpenseDocsInline();   // keep the in-dialog copy in sync
         }
         function pickFolderDoc() { document.getElementById('incomeDocFile').click(); }
         async function onFolderDocPicked(input) {
             const file = input.files[0]; if (!file) return;
             const r = _folderRecord(); if (!r) { input.value = ''; return; }
             const ctx = _folderCtx(r);
-            const st = document.getElementById('incomeDossierStatus');
+            // Write the status to both the folder modal and the in-dialog copy.
+            const st = { set textContent(v) {
+                const a = document.getElementById('incomeDossierStatus'); if (a) a.textContent = v;
+                const b = document.getElementById('expDocsStatus'); if (b) b.textContent = v;
+            } };
             st.textContent = '⏳ מעלה...';
             const defName = stripDocExt(file.name);
             const results = await requireDriveUpload(file, ctx.base, ctx.uploadType, r.id, ctx.meta(defName));
@@ -9811,6 +9838,52 @@
             saveData();
             renderDocFolder();
             renderAll();
+        }
+
+        // The same document folder, rendered INSIDE the expense dialog.
+        // Reuses the existing folder actions (rename/view/remove/upload) as-is.
+        function renderExpenseDocsInline() {
+            const body = document.getElementById('expDocsBody');
+            if (!body) return;
+            const r = _folderRecord();
+            const docs = r ? recordDocs(r) : [];
+            const cnt = document.getElementById('expDocsCount');
+            if (cnt) cnt.textContent = '(' + docs.length + ')';
+            body.innerHTML = docs.length
+                ? docs.map(d => `<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;">
+                        <span style="color:var(--success);font-size:1.05rem;">✓</span>
+                        <input class="form-control" style="flex:1;" value="${escapeFormHtml(d.name || '')}" placeholder="שם המסמך" title="לחץ כדי לשנות את שם המסמך" onchange="renameFolderDoc('${d.id}', this.value)">
+                        <button type="button" class="btn btn-sm" style="width:auto;" onclick="viewFolderDoc('${d.id}')">👁️ צפה</button>
+                        <button type="button" class="btn btn-icon btn-sm" title="הסר מסמך" onclick="removeFolderDoc('${d.id}')">🗑️</button>
+                    </div>`).join('')
+                : '<div style="padding:14px;border:1px dashed var(--border);border-radius:8px;text-align:center;color:var(--text-muted);">אין מסמכים מצורפים — לחץ "הוסף מסמך".</div>';
+        }
+
+        // Double-click on a row: one document opens straight away, several open the
+        // folder to choose from, none shows a plain notice.
+        function openRowDocs(id) {
+            const r = active(getYearData().expenses).find(x => x.id === id);
+            if (!r) return;
+            const docs = recordDocs(r);
+            if (docs.length > 1) { openDocFolder('expense', id); return; }
+            if (docs.length === 1) {
+                const d = docs[0];
+                if (d.driveLink || d.driveId) {
+                    window.open(d.driveLink || ('https://drive.google.com/file/d/' + d.driveId + '/view'), '_blank');
+                    return;
+                }
+            }
+            popupError('אין מסמך', 'לא מצורף מסמך לרשומה זו.');
+        }
+
+        // "Undo payment / undo collection" — moved from the row menu into the dialog.
+        async function revertFromDialog() {
+            const id = editingId;
+            const r = id ? active(getYearData().expenses).find(x => x.id === id) : null;
+            if (!r || !r.recurringKey) return;
+            const parts = String(r.recurringKey).split(':');
+            closeModal('expenseModal');
+            await revertRecurringPayment(parts[0], parts[1]);
         }
 
         function incomeDocsOf(r) {
@@ -10738,6 +10811,10 @@
             if (ks) ks.style.display = '';       // show the type chooser for a new entry
             if (sel) sel.value = 'once';
             document.getElementById('expenseModalTitle').textContent = '🧾 הוספת הוצאה';
+            // A brand-new record has no folder yet — attach the first file the plain way.
+            const dg = document.getElementById('expDocsGroup'); if (dg) dg.style.display = 'none';
+            const pa = document.getElementById('expPlainAttach'); if (pa) pa.style.display = '';
+            const rv = document.getElementById('expRevertGroup'); if (rv) rv.style.display = 'none';
             openModal('expenseModal');
         }
 
@@ -12370,15 +12447,15 @@
             const deduct = real ? isDeductible(real) : isDeductible(item);
             const vatBack = real ? expenseVatParts(real, getYearData()).vat : 0;   // reclaimable VAT on the paid record
             const menuExtra = `{monthKey:'${monthKey}',paymentId:${real ? real.id : 'null'}}`;
-            const rowClick = real ? `openDocFolder('expense',${real.id})` : `payRecurring('${monthKey}','${item.id}')`;
+            // Row itself no longer acts on a single click: double-click views the document.
+            const rowDbl = real ? ` ondblclick="openRowDocs(${real.id})"` : '';
             // State icon: unpaid → 🪙, paid → how it was paid. Collect lines carry no money out.
             let payIcon = '';
             if (!collect) {
                 if (payment) { const pi = paidPayIcon(real || {}); payIcon = `<span class="pay-tip" data-tip="${escapeFormHtml(pi.tip)}" style="font-size:0.8rem;margin-inline-end:4px;cursor:help;">${pi.icon}</span>`; }
                 else { payIcon = `<span class="pay-tip" data-tip="טרם שולם" style="font-size:0.8rem;margin-inline-end:4px;cursor:help;">🪙</span>`; }
             }
-            return `<tr class="row-click"${isCarry ? ' style="background:rgba(239,68,68,0.07);"' : ''}
-                        onclick="${rowClick}"
+            return `<tr class="row-click"${isCarry ? ' style="background:rgba(239,68,68,0.07);"' : ''}${rowDbl}
                         oncontextmenu="showRowMenu(event,'bill','${item.id}',${menuExtra})"
                         ontouchstart="rowTouchStart(event,'bill','${item.id}',${menuExtra})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td style="white-space:nowrap;">${payIcon}${status}</td>
@@ -12569,10 +12646,9 @@
         function collectRowHtml(monthKey, item) {
             const menuExtra = `{monthKey:'${monthKey}',paymentId:null}`;
             return `<tr class="row-click" style="background:rgba(139,92,246,0.08);"
-                        onclick="payRecurring('${monthKey}','${item.id}')"
                         oncontextmenu="showRowMenu(event,'bill','${item.id}',${menuExtra})"
                         ontouchstart="rowTouchStart(event,'bill','${item.id}',${menuExtra})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
-                <td><span class="rec-collect-btn">📄 לאסוף</span></td>
+                <td><button type="button" class="rec-collect-btn" onclick="event.stopPropagation();payRecurring('${monthKey}','${item.id}')">📄 לאסוף</button></td>
                 <td>${categoryLabel(item.category)}</td>
                 <td>${item.description}</td>
                 <td style="color:var(--text-muted)">—</td>
@@ -12605,7 +12681,7 @@
             const vatBack = expenseVatParts(e, getYearData()).vat;   // reclaimable input VAT (0 if not eligible)
             const tag = deduct ? '' : ' <span style="font-size:0.72rem;padding:1px 7px;border-radius:8px;background:var(--bg-input);color:var(--text-muted);">לא מוכר</span>';
             const pi = paidPayIcon(e);   // a recorded expense is already paid → show how
-            return `<tr class="row-click"${deduct ? '' : ' style="opacity:0.75;"'} onclick="openDocFolder('expense',${e.id})"
+            return `<tr class="row-click"${deduct ? '' : ' style="opacity:0.75;"'} ondblclick="openRowDocs(${e.id})"
                         oncontextmenu="showRowMenu(event,'expense',${e.id})"
                         ontouchstart="rowTouchStart(event,'expense',${e.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
                 <td style="white-space:nowrap;"><span class="pay-tip" data-tip="${escapeFormHtml(pi.tip)}" style="font-size:0.8rem;margin-inline-end:4px;cursor:help;">${pi.icon}</span><span class="rec-paid-chip">✓ שולם ${formatDate(e.date)}</span></td>
