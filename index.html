@@ -880,6 +880,19 @@
             border-color: var(--primary);
         }
 
+        /* .btn-sm (above) redefines the background, and being the later rule of equal
+           specificity it beat .btn-primary — so a SELECTED small button looked
+           unselected and only changed on hover. Two classes win it back. */
+        .btn-sm.btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+        .btn-sm.btn-primary:hover {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+        }
+
         .category-group-header {
             background: rgba(22, 169, 155, 0.15);
             cursor: pointer;
