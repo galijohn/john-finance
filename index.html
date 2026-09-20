@@ -11055,6 +11055,7 @@
             editingRecurringLine = null;
             setExpenseDialogMode('record');
             const collect = isCollect(item);
+            document.getElementById('expenseModalTitle').textContent = collect ? '📄 השלמת חשבונית' : '💳 רישום תשלום';
             buildCategoryOptions();
             // Completing a line for an earlier month must land in THAT month, not today.
             document.getElementById('expenseDate').value = monthKey === realMonthKey()
@@ -11161,7 +11162,16 @@
             set('expNotesGroup', !isLine);
             set('expPayGroup', !isLine);
             set('expPlainAttach', !isLine);
-            if (isLine) { set('expenseAssetGroup', false); set('expDocsGroup', false); set('expRevertGroup', false); }
+            // The document folder and "undo payment" belong to a saved RECORD only.
+            // Both modes hide them; the entry point that has a record turns them on.
+            set('expDocsGroup', false);
+            set('expRevertGroup', false);
+            _docFolderKind = null; _docFolderId = null;
+            // A recurring line is always bill-or-collect — "חד־פעמית" is not a thing
+            // you can turn a monthly plan into, so the first pair is hidden there.
+            set('expKindOnceBtn', !isLine);
+            set('expKindRecBtn', !isLine);
+            if (isLine) { set('expenseAssetGroup', false); set('expKindFixedGroup', true); }
             else onExpensePayMethodChange();
         }
 
@@ -11169,10 +11179,16 @@
         // recurring save — so the "רק החודש / מהחודש והלאה" question stays identical.
         async function saveRecurringLineFromDialog() {
             const ctx = editingRecurringLine;
-            editingRecurringLine = null;
             if (!ctx) return;
             const g = id => document.getElementById(id);
-            g('recKind').value = g('expenseKind').value || 'bill';
+            // Validate BEFORE closing — otherwise the dialog is wiped and the user is
+            // told to fix something they can no longer see.
+            if (!g('expenseDesc').value.trim()) {
+                await popupError('חסר תיאור', 'תן שם להוצאה הקבועה');
+                return;
+            }
+            // A line is bill or collect; the chooser cannot produce anything else here.
+            g('recKind').value = (g('expenseKind').value === 'collect') ? 'collect' : 'bill';
             g('recDesc').value = g('expenseDesc').value;
             g('recCategory').value = g('expenseCategory').value;
             g('recAmount').value = g('expenseAmount').value;
@@ -11181,8 +11197,12 @@
             g('recDeductible').value = g('expenseDeductible').value;
             g('recInputVat').value = g('expenseInputVat').value;
             editingRecurring = ctx;
+            // Close only once the save actually went through, so cancelling the
+            // "רק החודש / מהחודש והלאה" question keeps the edit on screen.
+            const saved = await saveRecurringItem();
+            if (!saved) { editingRecurring = null; return; }
+            editingRecurringLine = null;
             closeModal('expenseModal');
-            await saveRecurringItem();
         }
 
         let _recurringScopeResolve = null;
@@ -11205,7 +11225,7 @@
             const category = document.getElementById('recCategory').value;
             // A running category is identified by its category — the label follows it.
             const desc = kind === 'category' ? category : document.getElementById('recDesc').value.trim();
-            if (!desc) { await popupError('חסר תיאור', 'תן שם להוצאה הקבועה'); return; }
+            if (!desc) { await popupError('חסר תיאור', 'תן שם להוצאה הקבועה'); return false; }
             const values = {
                 kind: kind,
                 description: desc,
@@ -11274,6 +11294,7 @@
             closeModal('recurringModal');
             saveData();
             renderAll();
+            return true;
         }
 
         async function deleteRecurring(monthKey, itemId) {
@@ -12882,6 +12903,13 @@
         function addExpenseToCategory(cat) {
             recurringPayContext = null;
             editingId = null;
+            editingRecurringLine = null;
+            setExpenseDialogMode('record');
+            document.getElementById('expenseModalTitle').textContent = '🧾 הוספת הוצאה';
+            _expenseKindOnOpen = 'once';
+            syncExpenseKindUI('once');
+            setExpenseInputVat(true);
+            const dd = document.getElementById('expDueDay'); if (dd) dd.value = '';
             const rk = realMonthKey();
             document.getElementById('expenseDate').value = expenseMonth === rk ? localTodayISO() : expenseMonth + '-01';
             document.getElementById('expenseDesc').value = '';
