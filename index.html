@@ -1469,7 +1469,7 @@
         </div>
         <div class="nav-item" onclick="showPage('selfemployed')">
             <span class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/money-bag.png" alt="" onerror="this.replaceWith(document.createTextNode('💰'))"></span>
-            <span class="nav-text">הכנסה ומקדמות</span>
+            <span class="nav-text">הכנסה כעצמאי ומקדמות</span>
         </div>
         <div class="nav-item" onclick="showPage('salary')">
             <span class="icon"><img class="ic3d" src="https://img.icons8.com/3d-fluency/94/briefcase.png" alt="" onerror="this.replaceWith(document.createTextNode('💼'))"></span>
@@ -1859,7 +1859,7 @@
         <div id="page-selfemployed" class="page">
             <div class="page-header">
                 <div style="display:flex;align-items:center;gap:10px;">
-                    <h2>💰 הכנסה ומקדמות</h2>
+                    <h2>💰 הכנסה כעצמאי ומקדמות</h2>
                     <div class="export-dropdown">
                         <button class="btn btn-sm" onclick="toggleExportMenu(this)">🖨️ הדפסה</button>
                         <div class="export-dropdown-content">
@@ -13719,7 +13719,7 @@
                 salary: 'הכנסה כשכיר',
                 unemployment: 'דמי אבטלה',
                 miluim: 'מילואים',
-                selfEmployed: 'הכנסה כעצמאי',
+                selfEmployed: 'הכנסה כעצמאי ומקדמות',
                 expenses: 'הוצאות מוכרות',
                 vat: 'מע"מ',
                 taxCalc: 'חישוב מס',
@@ -13762,7 +13762,7 @@
                     const totalExpenses = deductibleExpenses(yd).reduce((s, e) => s + recognizedAmount(e, yd), 0);
                     const totalTaxAdv = taxAdv.reduce((s, t) => s + t.amount, 0);
                     const totalBLAdv = blAdv.reduce((s, b) => s + b.amount, 0);
-                    title = 'הכנסה כעצמאי - דוח מלא';
+                    title = 'הכנסה כעצמאי ומקדמות';
                     rows._extras = {
                         taxAdvances: taxAdv,
                         blAdvances: blAdv,
@@ -13776,7 +13776,7 @@
                 }
                 case 'income': {
                     const ids = (incomeExportScope || {}).dataset || 'selfEmployed';
-                    title = ids === 'all' ? 'דוח עצמאי — הכל' : (INCOME_DATASETS[ids] ? INCOME_DATASETS[ids].title : 'הכנסה כעצמאי');
+                    title = ids === 'all' ? 'הכנסה כעצמאי ומקדמות' : (INCOME_DATASETS[ids] ? INCOME_DATASETS[ids].title : 'הכנסה כעצמאי');
                     headers = []; rows = [];
                     break;
                 }
