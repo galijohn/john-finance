@@ -5628,35 +5628,12 @@
             }
         }
 
-        // Sweep files that were replaced before the cleanup above existed: entries in
-        // yd.documents whose Drive file is no longer referenced by any record.
-        async function cleanupSupersededFiles(silent) {
-            const ok = await ensureValidToken();
-            if (!ok) return 0;
-            let removed = 0;
-            for (const [yearKey, yd] of Object.entries(data.yearData || {})) {
-                if (!yd || !yd.documents) continue;
-                const live = new Set();
-                // EVERY record type that can own a file. A type missing from this list
-                // makes its files look orphaned — which is how documents got deleted.
-                ['expenses','salary','unemployment','miluim','selfEmployed','taxAdvances','blAdvances','forms','officialDocs','vatReports'].forEach(k => {
-                    active(yd[k]).forEach(r => { if (r.driveId) live.add(r.driveId); });
-                });
-                for (const doc of yd.documents) {
-                    if (doc._deleted || !doc.driveId || live.has(doc.driveId)) continue;
-                    try {
-                        await deleteDriveFile(doc.driveId);
-                        if (doc.localPath) await removeSupersededFile(null, doc.localPath, null);
-                        doc._deleted = true;
-                        doc._deletedAt = Date.now();
-                        removed++;
-                    } catch (e) { console.warn('[cleanup] failed for', doc.fileName, e); }
-                }
-            }
-            if (removed) { saveData(); await pruneEmptyDriveFolders(); }
-            if (!silent && removed) console.log('[cleanup] removed', removed, 'superseded files');
-            return removed;
-        }
+        // cleanupSupersededFiles was REMOVED (21/09/2026). It deleted every file in
+        // yd.documents that no record's r.driveId pointed at — but r.driveId mirrors only a
+        // record's FIRST document, so every second, third... document looked orphaned. On the
+        // live data it would have deleted 81 files, 37 of them still attached to live records,
+        // from Drive and permanently from the local folder. It had already deleted files once.
+        // Nothing in the app deletes a document any more without the user confirming it.
 
         // ===== AUTOMATIC RE-FILING =====
         // Whenever a record changes (category, supplier, date, amount) its attachment
@@ -6827,9 +6804,8 @@
         async function postUnlockSync() {
             try {
                 await tryAutoConnect();
-                // NOTE: cleanupSupersededFiles() is NOT run automatically. It deleted
-                // files belonging to record types it did not know about (officialDocs),
-                // and an automatic, irreversible delete is not worth the risk.
+                // No automatic file cleanup runs here — see the note where
+                // cleanupSupersededFiles used to be.
             } catch (e) {
                 console.error('postUnlockSync error:', e);
             }
@@ -12469,7 +12445,18 @@
                 target.localPath = uploaded.local;
                 target.driveId = uploaded.drive.id;
                 target.driveLink = uploaded.drive.link || ('https://drive.google.com/file/d/' + uploaded.drive.id + '/view');
-                if (prevDrive && prevDrive !== target.driveId) removeSupersededFile(prevDrive, prevLocal, target.driveId);
+                // The previous file is deleted only if the user says so. Declining keeps it
+                // exactly where it is — the new file is attached either way.
+                if (prevDrive && prevDrive !== target.driveId) {
+                    const drop = await showPopup({
+                        type: 'warning', title: 'הקובץ הקודם של המסמך',
+                        message: 'צירפת קובץ חדש למסמך הזה.\n\n' +
+                                 'להעביר את הקובץ הקודם לפח ב-Google Drive ולמחוק אותו מהתיקייה במחשב?\n\n' +
+                                 'אם לא — הוא יישאר בשני המקומות כמו שהוא.',
+                        okText: 'כן, למחוק את הקודם', cancelText: 'לא, להשאיר אותו'
+                    });
+                    if (drop) removeSupersededFile(prevDrive, prevLocal, target.driveId);
+                }
             }
             _editingDocId = null;
             saveData();
