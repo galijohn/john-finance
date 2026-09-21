@@ -7328,7 +7328,6 @@
                 itemData.fileName = file.name;
                 itemData.localPath = results.local;
                 itemData.driveId = results.drive.id;
-                if (editingId) _replacedFile = (function(){ const yd2=getYearData(); for (const k of ["salary","unemployment","miluim","selfEmployed","expenses","taxAdvances","blAdvances"]) { const r=(yd2[k]||[]).find(x=>x.id===editingId); if (r && r.driveId && r.driveId!==results.drive.id) return {driveId:r.driveId, localPath:r.localPath}; } return null; })();
                 itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
                 document.getElementById('salaryFileStatus').textContent = '✅ הועלה!';
             }
@@ -7345,7 +7344,6 @@
             
             saveData();
             autoRefile('salary', yd.salary.find(x => x.id === recordId), currentYear);
-            if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('salaryModal');
             clearForm('salaryModal');
             renderAll();
@@ -7380,7 +7378,6 @@
                 itemData.fileName = file.name;
                 itemData.localPath = results.local;
                 itemData.driveId = results.drive.id;
-                if (editingId) _replacedFile = (function(){ const yd2=getYearData(); for (const k of ["salary","unemployment","miluim","selfEmployed","expenses","taxAdvances","blAdvances"]) { const r=(yd2[k]||[]).find(x=>x.id===editingId); if (r && r.driveId && r.driveId!==results.drive.id) return {driveId:r.driveId, localPath:r.localPath}; } return null; })();
                 itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
                 document.getElementById('unemploymentFileStatus').textContent = '✅ הועלה!';
             }
@@ -7397,7 +7394,6 @@
             
             saveData();
             autoRefile('unemployment', yd.unemployment.find(x => x.id === recordId), currentYear);
-            if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('unemploymentModal');
             clearForm('unemploymentModal');
             renderAll();
@@ -7442,7 +7438,6 @@
                 itemData.fileName = file.name;
                 itemData.localPath = results.local;
                 itemData.driveId = results.drive.id;
-                if (editingId) _replacedFile = (function(){ const yd2=getYearData(); for (const k of ["salary","unemployment","miluim","selfEmployed","expenses","taxAdvances","blAdvances"]) { const r=(yd2[k]||[]).find(x=>x.id===editingId); if (r && r.driveId && r.driveId!==results.drive.id) return {driveId:r.driveId, localPath:r.localPath}; } return null; })();
                 itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
                 document.getElementById('miluimFileStatus').textContent = '✅ הועלה!';
             }
@@ -7459,7 +7454,6 @@
             
             saveData();
             autoRefile('miluim', yd.miluim.find(x => x.id === recordId), currentYear);
-            if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('miluimModal');
             clearForm('miluimModal');
             renderAll();
@@ -7493,7 +7487,6 @@
                 itemData.fileName = file.name;
                 itemData.localPath = results.local;
                 itemData.driveId = results.drive.id;
-                if (editingId) _replacedFile = (function(){ const yd2=getYearData(); for (const k of ["salary","unemployment","miluim","selfEmployed","expenses","taxAdvances","blAdvances"]) { const r=(yd2[k]||[]).find(x=>x.id===editingId); if (r && r.driveId && r.driveId!==results.drive.id) return {driveId:r.driveId, localPath:r.localPath}; } return null; })();
                 itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
                 document.getElementById('selfFileStatus').textContent = '✅ הועלה!';
             }
@@ -7516,7 +7509,6 @@
             if (_oldDesc != null && _oldDesc !== itemData.description) {
                 refileIncomeDocs(yd.selfEmployed.find(x => x.id === recordId)).catch(e => console.warn('refile income docs', e));
             }
-            if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('selfEmployedModal');
             clearForm('selfEmployedModal');
             renderAll();
@@ -7648,7 +7640,6 @@
                 if (it) { it.deductible = _savedExp.deductible; it.category = _savedExp.category; it.inputVat = _savedExp.inputVat; saveData(); }
             }
             autoRefile('expenses', yd.expenses.find(x => x.id === recordId), currentYear);
-            if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             // The type chosen in THIS dialog is applied here — no second window.
             // 'category' is never produced by the chooser, so it is left untouched.
             await applyExpenseKindChange(recordId);
@@ -7689,7 +7680,6 @@
                 itemData.fileName = file.name;
                 itemData.localPath = results.local;
                 itemData.driveId = results.drive.id;
-                if (editingId) _replacedFile = (function(){ const yd2=getYearData(); for (const k of ["salary","unemployment","miluim","selfEmployed","expenses","taxAdvances","blAdvances"]) { const r=(yd2[k]||[]).find(x=>x.id===editingId); if (r && r.driveId && r.driveId!==results.drive.id) return {driveId:r.driveId, localPath:r.localPath}; } return null; })();
                 itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
                 document.getElementById('taxAdvanceFileStatus').textContent = '✅ הועלה!';
             }
@@ -7707,7 +7697,6 @@
             yd.taxAdvances.sort((a, b) => a.month - b.month);
             saveData();
             autoRefile('taxAdvances', yd.taxAdvances.find(x => x.id === recordId), currentYear);
-            if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('taxAdvanceModal');
             clearForm('taxAdvanceModal');
             renderAll();
@@ -7781,7 +7770,6 @@
                 itemData.fileName = file.name;
                 itemData.localPath = results.local;
                 itemData.driveId = results.drive.id;
-                if (editingId) _replacedFile = (function(){ const yd2=getYearData(); for (const k of ["salary","unemployment","miluim","selfEmployed","expenses","taxAdvances","blAdvances"]) { const r=(yd2[k]||[]).find(x=>x.id===editingId); if (r && r.driveId && r.driveId!==results.drive.id) return {driveId:r.driveId, localPath:r.localPath}; } return null; })();
                 itemData.driveLink = results.drive.link || ('https://drive.google.com/file/d/' + results.drive.id + '/view');
                 document.getElementById('blAdvanceFileStatus').textContent = '✅ הועלה!';
             }
@@ -7799,7 +7787,6 @@
             yd.blAdvances.sort((a, b) => a.month - b.month);
             saveData();
             autoRefile('blAdvances', yd.blAdvances.find(x => x.id === recordId), currentYear);
-            if (_replacedFile) { removeSupersededFile(_replacedFile.driveId, _replacedFile.localPath, null); _replacedFile = null; }
             closeModal('blAdvanceModal');
             clearForm('blAdvanceModal');
             renderAll();
@@ -8158,7 +8145,6 @@
 
         // ========== EDIT FUNCTIONS ==========
         let editingId = null;
-        let _replacedFile = null;   // previous attachment of the record being edited
 
         function openAddSalary() {
             editingId = null;
