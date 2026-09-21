@@ -1895,7 +1895,7 @@
             <div class="card" style="margin-top:20px;">
                 <div class="table-header" style="padding:15px 0;">
                     <h3 style="margin:0;">🏛️ מקדמות מס הכנסה</h3>
-                    <button class="btn btn-primary btn-sm" onclick="openModal('taxAdvanceModal')">+ הוסף תשלום</button>
+                    <button class="btn btn-primary btn-sm" onclick="openAddTaxAdvance()">+ הוסף תשלום</button>
                 </div>
                 <table>
                     <thead>
@@ -1914,7 +1914,7 @@
             <div class="card" style="margin-top:20px;">
                 <div class="table-header" style="padding:15px 0;">
                     <h3 style="margin:0;">🏥 ביטוח לאומי + מס בריאות</h3>
-                    <button class="btn btn-primary btn-sm" onclick="openModal('blAdvanceModal')">+ הוסף תשלום</button>
+                    <button class="btn btn-primary btn-sm" onclick="openAddBLAdvance()">+ הוסף תשלום</button>
                 </div>
                 <div class="info-box" style="margin:10px 0;">
                     💡 ביטוח לאומי ומס בריאות משולמים ביחד לביטוח לאומי
@@ -3912,7 +3912,16 @@
                     <label>📎 הערות / אסמכתא</label>
                     <input type="text" class="form-control" id="taxAdvanceNotes" placeholder="מספר אסמכתא / שובר">
                 </div>
-                <div class="form-group">
+                                <div class="form-group" id="taxDocsGroup" style="display:none;">
+                    <label>📂 מסמכים <span id="taxDocsCount" style="color:var(--text-muted);"></span></label>
+                    <div id="taxDocsBody" style="margin-bottom:8px;"></div>
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <button type="button" class="btn btn-sm" onclick="pickFolderDoc()">➕ הוסף מסמך</button>
+                        <span id="taxDocsStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">יישמר בתיקייה: מקדמות-מס/</div>
+                </div>
+                <div class="form-group" id="taxPlainAttach">
                     <label>📄 צרף אישור תשלום</label>
                     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <input type="file" id="taxAdvanceFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
@@ -3964,7 +3973,16 @@
                     <label>📎 הערות / אסמכתא</label>
                     <input type="text" class="form-control" id="blAdvanceNotes" placeholder="מספר אסמכתא / שובר">
                 </div>
-                <div class="form-group">
+                                <div class="form-group" id="blDocsGroup" style="display:none;">
+                    <label>📂 מסמכים <span id="blDocsCount" style="color:var(--text-muted);"></span></label>
+                    <div id="blDocsBody" style="margin-bottom:8px;"></div>
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <button type="button" class="btn btn-sm" onclick="pickFolderDoc()">➕ הוסף מסמך</button>
+                        <span id="blDocsStatus" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px;">יישמר בתיקייה: ביטוח-לאומי/</div>
+                </div>
+                <div class="form-group" id="blPlainAttach">
                     <label>📄 צרף אישור תשלום</label>
                     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <input type="file" id="blAdvanceFile" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;">
@@ -7691,6 +7709,23 @@
             renderAll();
         }
 
+        // A new payment has no folder yet — the plain attach box is shown instead.
+        function openAddTaxAdvance() {
+            editingId = null;
+            clearForm('taxAdvanceModal');
+            const st = document.getElementById('taxAdvanceFileStatus'); if (st) st.textContent = '';
+            hideInlineDocs('taxAdvance');
+            openModal('taxAdvanceModal');
+        }
+
+        function openAddBLAdvance() {
+            editingId = null;
+            clearForm('blAdvanceModal');
+            const st = document.getElementById('blAdvanceFileStatus'); if (st) st.textContent = '';
+            hideInlineDocs('blAdvance');
+            openModal('blAdvanceModal');
+        }
+
         function editTaxAdvance(id) {
             const yd = getYearData();
             const item = yd.taxAdvances.find(p => p.id === id);
@@ -7699,6 +7734,7 @@
             document.getElementById('taxAdvanceMonth').value = item.month;
             document.getElementById('taxAdvanceAmount').value = item.amount;
             document.getElementById('taxAdvanceNotes').value = item.notes || '';
+            showInlineDocs('taxAdvance', id);
             openModal('taxAdvanceModal');
         }
 
@@ -7773,6 +7809,7 @@
             document.getElementById('blAdvanceMonth').value = item.month;
             document.getElementById('blAdvanceAmount').value = item.amount;
             document.getElementById('blAdvanceNotes').value = item.notes || '';
+            showInlineDocs('blAdvance', id);
             openModal('blAdvanceModal');
         }
 
