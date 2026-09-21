@@ -7104,9 +7104,28 @@
             document.getElementById('children_old').value = yearData.credits.childrenOld;
         }
 
+        // A failed save used to throw out of whatever was saving — mid-way through
+        // attaching a document — with no message at all: the file was already in Drive
+        // but no record pointed at it. Now the failure is caught and shown loudly, and
+        // the local-folder copy and the Drive sync below still run.
+        let _saveFailWarnedAt = 0;
         function saveData() {
             data.lastModified = Date.now();
-            localStorage.setItem('taxCalculatorV2', JSON.stringify(data));
+            try {
+                localStorage.setItem('taxCalculatorV2', JSON.stringify(data));
+            } catch (e) {
+                console.error('[save] browser storage write failed', e);
+                if (Date.now() - _saveFailWarnedAt > 60000) {   // at most once a minute
+                    _saveFailWarnedAt = Date.now();
+                    const full = e && (e.name === 'QuotaExceededError' || e.code === 22);
+                    try {
+                        popupError('השמירה בדפדפן נכשלה',
+                            (full ? 'אין מספיק מקום באחסון של הדפדפן.' : 'הדפדפן סירב לשמור את הנתונים.') +
+                            '\n\nאל תסגור את הלשונית. הנתונים נשלחים לגיבוי ב-Google Drive — ' +
+                            'ודא שהמחוון בתפריט ירוק לפני שאתה סוגר.');
+                    } catch (_) {}
+                }
+            }
             // Also save to local folder and Drive if available
             saveDataToLocalFolder();
             syncToCloudDebounced();
@@ -7709,13 +7728,32 @@
             openModal('taxAdvanceModal');
         }
 
+        // Every Drive file a record holds — its document folder plus the legacy
+        // single-file mirror, without duplicates. Deleting a record used to trash only
+        // the first document (r.driveId); the rest stayed behind in Drive, orphaned.
+        function recordDriveIds(r) {
+            const ids = new Set();
+            docsOfPlain(r).forEach(d => { if (d && d.driveId) ids.add(d.driveId); });
+            if (r && r.driveId) ids.add(r.driveId);
+            return [...ids];
+        }
+        function trashRecordFiles(r) {
+            recordDriveIds(r).forEach(fid => deleteDriveFile(fid).catch(err => console.warn('[drive] delete failed:', err)));
+        }
+        // The confirmation states exactly how many documents go to the trash.
+        function recordDocsNote(r) {
+            const n = r ? recordDriveIds(r).length : 0;
+            if (!n) return '';
+            return '\n\n' + (n === 1 ? 'המסמך המצורף יועבר' : n + ' המסמכים המצורפים יועברו') + ' לפח ב־Google Drive (ניתן לשחזר משם).';
+        }
+
         async function deleteTaxAdvance(id) {
-            const ok = await popupConfirm('מחיקת מקדמת מס', 'למחוק את הרישום?\n\nקובץ מצורף (אם קיים) יימחק גם מ־Google Drive.', 'מחק', 'ביטול');
-            if (!ok) return;
             const yd = getYearData();
             const item = yd.taxAdvances.find(p => p.id === id);
+            const ok = await popupConfirm('מחיקת מקדמת מס', 'למחוק את הרישום?' + recordDocsNote(item), 'מחק', 'ביטול');
+            if (!ok) return;
             if (item) {
-                if (item.driveId) deleteDriveFile(item.driveId).catch(err => console.warn('[drive] delete failed:', err));
+                trashRecordFiles(item);
                 item._deleted = true; item._deletedAt = Date.now();
             }
             saveData();
@@ -7783,12 +7821,12 @@
         }
 
         async function deleteBLAdvance(id) {
-            const ok = await popupConfirm('מחיקת מקדמת ביטוח לאומי', 'למחוק את הרישום?\n\nקובץ מצורף (אם קיים) יימחק גם מ־Google Drive.', 'מחק', 'ביטול');
-            if (!ok) return;
             const yd = getYearData();
             const item = yd.blAdvances.find(p => p.id === id);
+            const ok = await popupConfirm('מחיקת מקדמת ביטוח לאומי', 'למחוק את הרישום?' + recordDocsNote(item), 'מחק', 'ביטול');
+            if (!ok) return;
             if (item) {
-                if (item.driveId) deleteDriveFile(item.driveId).catch(err => console.warn('[drive] delete failed:', err));
+                trashRecordFiles(item);
                 item._deleted = true; item._deletedAt = Date.now();
             }
             saveData();
@@ -7928,12 +7966,12 @@
         }
 
         async function deleteVatReport(id) {
-            const ok = await popupConfirm('מחיקת דוח מע"מ', 'למחוק את הדוח?\n\nקובץ מצורף (אם קיים) יימחק גם מ־Google Drive.', 'מחק', 'ביטול');
-            if (!ok) return;
             const yd = getYearData();
             const item = yd.vatReports.find(v => v.id === id);
+            const ok = await popupConfirm('מחיקת דוח מע"מ', 'למחוק את הדוח?' + recordDocsNote(item), 'מחק', 'ביטול');
+            if (!ok) return;
             if (item) {
-                if (item.driveId) deleteDriveFile(item.driveId).catch(err => console.warn('[drive] delete failed:', err));
+                trashRecordFiles(item);
                 item._deleted = true; item._deletedAt = Date.now();
             }
             saveData();
@@ -8109,12 +8147,12 @@
                 expenses: 'הוצאה מוכרת'
             };
             const label = labels[type] || 'רישום';
-            const ok = await popupConfirm('מחיקת ' + label, 'למחוק את ה' + label + '?\n\nקובץ מצורף (אם קיים) יימחק גם מ־Google Drive.', 'מחק', 'ביטול');
-            if (!ok) return;
             const yd = getYearData();
             const item = yd[type].find(i => i.id === id);
+            const ok = await popupConfirm('מחיקת ' + label, 'למחוק את ה' + label + '?' + recordDocsNote(item), 'מחק', 'ביטול');
+            if (!ok) return;
             if (item) {
-                if (item.driveId) deleteDriveFile(item.driveId).catch(err => console.warn('[drive] delete failed:', err));
+                trashRecordFiles(item);
                 item._deleted = true; item._deletedAt = Date.now();
             }
             saveData();
@@ -11611,15 +11649,23 @@
                 if (!scope) return;
             }
             item._deleted = true;
+            const removedKeys = new Set([monthKey + ':' + item.id]);
             if (scope === 'forward' && item.templateId) {
                 Object.keys(rec.months).forEach(k => {
                     if (k > monthKey) (rec.months[k] || []).forEach(i => {
-                        if (i.templateId === item.templateId) i._deleted = true;
+                        if (i.templateId === item.templateId) { i._deleted = true; removedKeys.add(k + ':' + i.id); }
                     });
                 });
                 const t = rec.template.find(t => t.id === item.templateId);
                 if (t) t._deleted = true;
             }
+            // The popup promised the payment "stays in the expenses table" — so it now
+            // really does, as an ordinary expense. Before, it kept pointing at the deleted
+            // line, and "בטל תשלום" silently did nothing forever. All years are scanned,
+            // since a recurring line can be paid in the following calendar year.
+            Object.values(data.yearData || {}).forEach(y => (y.expenses || []).forEach(e => {
+                if (e && e.recurringKey && removedKeys.has(String(e.recurringKey))) delete e.recurringKey;
+            }));
             saveData();
             renderAll();
         }
@@ -11752,12 +11798,12 @@
                 type: 'warning',
                 title: 'ביטול ' + word,
                 message: 'השורה תישאר במעקב ותחזור ל"' + (isCollect(item) ? 'לאסוף' : 'לתשלום') + '".' +
-                    (payment && payment.driveId ? '\n\nהקובץ שצורף יימחק (יעבור לסל האשפה של Drive).' : ''),
+                    recordDocsNote(payment),
                 okText: 'בטל ' + word, cancelText: 'השאר'
             });
             if (!ok) return;
             if (payment) {
-                if (payment.driveId) deleteDriveFile(payment.driveId).catch(e => console.warn('[drive] revert delete failed', e));
+                trashRecordFiles(payment);
                 payment._deleted = true;
                 payment._deletedAt = Date.now();
             }
