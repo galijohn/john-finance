@@ -67,7 +67,7 @@
             position: fixed;
             right: 0;
             top: 0;
-            width: 220px;
+            width: 240px;   /* wide enough for the longest label on one line */
             height: 100vh;
             background: var(--bg-card);
             border-left: 1px solid var(--border);
@@ -116,7 +116,7 @@
         }
         
         .main {
-            margin-right: 220px;
+            margin-right: 240px;
             padding: 20px 30px;
             min-height: 100vh;
         }
@@ -1901,9 +1901,9 @@
                     <thead>
                         <tr>
                             <th>חודש</th>
+                            <th>סטטוס</th>
                             <th>סכום</th>
                             <th>מצטבר</th>
-                            <th>מסמך</th>
                         </tr>
                     </thead>
                     <tbody id="taxAdvanceTable"></tbody>
@@ -1923,9 +1923,9 @@
                     <thead>
                         <tr>
                             <th>חודש</th>
+                            <th>סטטוס</th>
                             <th>סכום</th>
                             <th>מצטבר</th>
-                            <th>מסמך</th>
                         </tr>
                     </thead>
                     <tbody id="blAdvanceTable"></tbody>
@@ -2193,7 +2193,7 @@
         <div id="page-calculation" class="page">
             <div class="page-header">
                 <div style="display:flex;align-items:center;gap:10px;">
-                    <h2>🧮 חישוב מס מפורט</h2>
+                    <h2>⚖️ חישוב שנתי</h2>
                     <div class="export-dropdown">
                         <button class="btn btn-sm" onclick="toggleExportMenu(this)">🖨️ הדפסה</button>
                         <div class="export-dropdown-content">
@@ -2715,7 +2715,7 @@
                         </div>
                         <div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;line-height:1.6;">
                             מנוכה מ<strong>ההכנסה החייבת</strong> (לא מהמס), ורק מרכיב <strong>ביט"ל</strong> — דמי בריאות אינם בכלל זה.<br>
-                            מחושב על המקדמות ששולמו בפועל. הסכום מוצג בעמוד חישוב המס.
+                            מחושב על המקדמות ששולמו בפועל. הסכום מוצג בעמוד חישוב שנתי.
                         </div>
                     </div>
                     <div class="info-box" style="margin-top:15px;font-size:0.85rem;">
@@ -10239,9 +10239,28 @@
             unemployment:{body: 'unpDocsBody',  count: 'unpDocsCount',  group: 'unpDocsGroup',  plain: 'unpPlainAttach'  }
         };
 
+        // Every record dialog opens from exactly two places — its add function (which
+        // calls hideInlineDocs) and its edit function (which calls showInlineDocs) — so
+        // the title is set there and can never say "הוסף" while editing.
+        const DIALOG_TITLES = {
+            income:       ['selfEmployedModal', '💰 הוסף הכנסה כעצמאי',       '💰 עריכת הכנסה כעצמאי'],
+            salary:       ['salaryModal',       '💼 הוסף משכורת',              '💼 עריכת משכורת'],
+            unemployment: ['unemploymentModal', '📋 הוסף תקופת אבטלה',         '📋 עריכת תקופת אבטלה'],
+            miluim:       ['miluimModal',       '🎖️ הוסף תקופת מילואים',       '🎖️ עריכת תקופת מילואים'],
+            taxAdvance:   ['taxAdvanceModal',   '🏛️ הוסף מקדמת מס הכנסה',      '🏛️ עריכת מקדמת מס הכנסה'],
+            blAdvance:    ['blAdvanceModal',    '🏥 הוסף תשלום ביטוח לאומי',   '🏥 עריכת תשלום ביטוח לאומי']
+        };
+        function setDialogTitle(kind, editing) {
+            const t = DIALOG_TITLES[kind];
+            if (!t) return;
+            const h = document.querySelector('#' + t[0] + ' .modal-header h3');
+            if (h) h.textContent = editing ? t[2] : t[1];
+        }
+
         // Show the folder inside the dialog for the record being edited, and hide the
         // old single-file "attach" box — one place to manage documents, not two.
         function showInlineDocs(kind, id) {
+            setDialogTitle(kind, true);
             _docFolderKind = kind; _docFolderId = id;
             Object.keys(INLINE_DOC_TARGETS).forEach(k => {
                 const t = INLINE_DOC_TARGETS[k];
@@ -10255,6 +10274,7 @@
 
         // A brand-new record has no folder yet — attach the first file the plain way.
         function hideInlineDocs(kind) {
+            setDialogTitle(kind, false);
             const t = INLINE_DOC_TARGETS[kind];
             if (!t) return;
             const g = document.getElementById(t.group); if (g) g.style.display = 'none';
@@ -13254,17 +13274,17 @@
                     ondblclick="openRowDocsFor('taxAdvance',${p.id})"
                     oncontextmenu="showRowMenu(event,'taxAdvance',${p.id})"
                     ontouchstart="rowTouchStart(event,'taxAdvance',${p.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
-                    <td>${MONTHS[p.month]}</td>
+                    <td>${MONTHS[p.month]} ${p.notes ? '<span data-tip="'+p.notes+'" style="cursor:help;">📎</span>' : ''}</td>
+                    <td>${incomeStatusCell(p)}</td>
                     <td>${formatCurrency(p.amount)}</td>
                     <td style="color:var(--primary)">${formatCurrency(cumulative)}</td>
-                    <td>${p.notes ? '<span data-tip="'+p.notes+'" style="cursor:help;">📎</span>' : '-'}</td>
                 </tr>`;
             }).join('');
 
             tfoot.innerHTML = `<tr style="background:rgba(239,68,68,0.1);font-weight:bold;">
                 <td>סה"כ</td>
-                <td style="color:var(--danger)">${formatCurrency(total)}</td>
                 <td></td>
+                <td style="color:var(--danger)">${formatCurrency(total)}</td>
                 <td></td>
             </tr>`;
         }
@@ -13292,17 +13312,17 @@
                     ondblclick="openRowDocsFor('blAdvance',${p.id})"
                     oncontextmenu="showRowMenu(event,'blAdvance',${p.id})"
                     ontouchstart="rowTouchStart(event,'blAdvance',${p.id})" ontouchend="rowTouchEnd()" ontouchmove="rowTouchEnd()">
-                    <td>${MONTHS[p.month]}</td>
+                    <td>${MONTHS[p.month]} ${p.notes ? '<span data-tip="'+p.notes+'" style="cursor:help;">📎</span>' : ''}</td>
+                    <td>${incomeStatusCell(p)}</td>
                     <td>${formatCurrency(p.amount)}</td>
                     <td style="color:var(--primary)">${formatCurrency(cumulative)}</td>
-                    <td>${p.notes ? '<span data-tip="'+p.notes+'" style="cursor:help;">📎</span>' : '-'}</td>
                 </tr>`;
             }).join('');
 
             tfoot.innerHTML = `<tr style="background:rgba(245,158,11,0.1);font-weight:bold;">
                 <td>סה"כ</td>
-                <td style="color:var(--warning)">${formatCurrency(total)}</td>
                 <td></td>
+                <td style="color:var(--warning)">${formatCurrency(total)}</td>
                 <td></td>
             </tr>`;
         }
@@ -13695,7 +13715,7 @@
                 selfEmployed: 'הכנסה כעצמאי ומקדמות',
                 expenses: 'הוצאות מוכרות',
                 vat: 'מע"מ',
-                taxCalc: 'חישוב מס',
+                taxCalc: 'חישוב שנתי',
                 forecast: 'תחזית שנתית',
                 accountant: 'דוח שנתי לרואה חשבון',
                 settings: 'הגדרות מערכת - מעמד עסקי'
