@@ -8486,6 +8486,16 @@
             return m ? m.from : ((data && data.vatStartDate) ? data.vatStartDate : '2026-08-11');
         }
         // Deductible expense: when it carries reclaimable input VAT, the real cost is net.
+        // The recognised (tax-deductible) amount of an expense: its cost NET of the
+        // input VAT reclaimed from מע"מ, times the recognition %. Reclaimed VAT comes back
+        // and is not a business cost, so it is never part of the deduction. A non-deductible
+        // expense recognises nothing. One definition for every screen and report — the
+        // expenses report used the gross amount and disagreed with the dashboard.
+        function recognizedAmount(e, yd) {
+            if (!e || isDeductible(e) === false) return 0;
+            return expenseVatParts(e, yd || getYearData()).net * (((e.recognition ?? 100)) / 100);
+        }
+
         function expenseVatParts(e, yd) {
             const amount = Number(e && e.amount) || 0;
             if (!e || !e.inputVat || isDeductible(e) === false) return { net: amount, vat: 0 };
@@ -12666,10 +12676,10 @@
             const deductibleItems = expenseItems.filter(isDeductible);
             const nonDeductibleItems = expenseItems.filter(e => !isDeductible(e));
             const totalGross = deductibleItems.reduce((sum, e) => sum + e.amount, 0);
-            const totalRecognized = deductibleItems.reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+            const totalRecognized = deductibleItems.reduce((sum, e) => sum + recognizedAmount(e), 0);
             const totalNonDeductible = nonDeductibleItems.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
             const totalAll = deductibleItems.reduce((s, e) => s + (Number(e.amount) || 0), 0) + totalNonDeductible;
-            const annualRecognized = allItems.filter(isDeductible).reduce((sum, e) => sum + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+            const annualRecognized = allItems.filter(isDeductible).reduce((sum, e) => sum + recognizedAmount(e), 0);
             const scopeLabel = expenseMonth === 'all' ? '' : ' — ' + monthLabelFromKey(expenseMonth);
             document.getElementById('expSummaryGrossLabel').textContent = 'הוצאות מוכרות (לפני הכרה)' + scopeLabel;
             document.getElementById('expSummaryNetLabel').textContent = 'הוצאות מוכרות (מוכר במס)' + scopeLabel;
@@ -12769,7 +12779,7 @@
                     const amt = r ? (Number(r.amount) || 0) : (Number(i.amount) || 0);
                     const pct = r ? (r.recognition ?? 100) : (i.recognition ?? 100);
                     const ded = r ? isDeductible(r) : isDeductible(i);
-                    return { gross: amt, recognized: ded ? amt * (pct / 100) : 0 };
+                    return { gross: amt, recognized: r ? recognizedAmount(r) : (ded ? amt * (pct / 100) : 0) };
                 };
 
                 let html = '';
@@ -12781,7 +12791,7 @@
                 for (const [cat, items] of Object.entries(groups)) {
                     const catBills = billsByCat[cat] || [];
                     const billT = catBills.reduce((a, i) => { const e = billEff(i); a.gross += e.gross; a.recognized += e.recognized; return a; }, { gross: 0, recognized: 0 });
-                    const catRecognized = items.reduce((s, e) => s + (isDeductible(e) ? e.amount * ((e.recognition ?? 100) / 100) : 0), 0) + billT.recognized;
+                    const catRecognized = items.reduce((s, e) => s + recognizedAmount(e), 0) + billT.recognized;
                     const catGross = items.reduce((s, e) => s + (Number(e.amount) || 0), 0) + billT.gross;
                     const catVat = items.reduce((s, e) => s + expenseVatParts(e, yd).vat, 0)
                         + catBills.reduce((s, i) => { const p = lineDone(expenseMonth, i); const r = (p && p.id) ? p : null; return s + (r ? expenseVatParts(r, yd).vat : 0); }, 0);
@@ -13001,7 +13011,7 @@
                 <td>${typeBadge(item.kind || 'bill')}${(real && real.description) ? real.description : item.description}${real && (real.driveLink || real.driveId) ? ' <span data-tip="יש מסמך — לחץ לצפייה" style="color:#38bdf8;cursor:pointer;">📄</span>' : ''}${real && real.notes ? ' <span data-tip="' + escapeFormHtml(real.notes) + '" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--bg-input);color:var(--text-muted);font-size:0.62rem;font-style:italic;font-weight:bold;vertical-align:middle;">i</span>' : ''}</td>
                 <td style="color:${collect ? 'var(--text-muted)' : 'var(--danger)'}">${collect ? '—' : formatCurrency(amount)}</td>
                 <td class="col-pct" style="text-align:center;${!collect && deduct && effPct < 100 ? 'color:var(--warning)' : ''}">${collect || !deduct ? '—' : effPct + '%'}</td>
-                <td class="col-net" style="color:${collect || !deduct ? 'var(--text-muted)' : 'var(--success)'}">${collect || !deduct ? '—' : formatCurrency(amount * (effPct / 100))}${(!collect && deduct && vatBack > 0) ? '<div style="font-size:0.72rem;color:#38bdf8;">מע"מ לקיזוז: ' + formatCurrency(vatBack) + '</div>' : ''}</td>
+                <td class="col-net" style="color:${collect || !deduct ? 'var(--text-muted)' : 'var(--success)'}">${collect || !deduct ? '—' : formatCurrency(real ? recognizedAmount(real) : amount * (effPct / 100))}${(!collect && deduct && vatBack > 0) ? '<div style="font-size:0.72rem;color:#38bdf8;">מע"מ לקיזוז: ' + formatCurrency(vatBack) + '</div>' : ''}</td>
             </tr>`;
         }
 
@@ -13210,7 +13220,7 @@
         function renderExpenseRow(e) {
             const pct = e.recognition ?? 100;
             const deduct = isDeductible(e);
-            const recognized = deduct ? e.amount * (pct / 100) : 0;
+            const recognized = deduct ? recognizedAmount(e) : 0;
             const vatBack = expenseVatParts(e, getYearData()).vat;   // reclaimable input VAT (0 if not eligible)
             const tag = deduct ? '' : ' <span style="font-size:0.72rem;padding:1px 7px;border-radius:8px;background:var(--bg-input);color:var(--text-muted);">לא מוכר</span>';
             const pi = paidPayIcon(e);   // a recorded expense is already paid → show how
@@ -13727,7 +13737,7 @@
                     const taxAdv = active(yd.taxAdvances);
                     const blAdv = active(yd.blAdvances);
                     const totalIncome = se.reduce((s, si) => s + si.amount, 0);
-                    const totalExpenses = deductibleExpenses(yd).reduce((s, e) => s + (e.amount * ((e.recognition ?? 100) / 100)), 0);
+                    const totalExpenses = deductibleExpenses(yd).reduce((s, e) => s + recognizedAmount(e, yd), 0);
                     const totalTaxAdv = taxAdv.reduce((s, t) => s + t.amount, 0);
                     const totalBLAdv = blAdv.reduce((s, b) => s + b.amount, 0);
                     title = 'הכנסה כעצמאי - דוח מלא';
@@ -13752,7 +13762,7 @@
                     headers = ['תאריך', 'תיאור', 'קטגוריה', 'סכום', '% הכרה', 'סכום מוכר', 'הערות'];
                     rows = active(yd.expenses).map(e => {
                         const pct = e.recognition ?? 100;
-                        return [formatDate(e.date), e.description || '', categoryLabel(e.category), e.amount, pct + '%', e.amount * (pct / 100), e.notes || ''];
+                        return [formatDate(e.date), e.description || '', categoryLabel(e.category), e.amount, pct + '%', recognizedAmount(e, yd), e.notes || ''];
                     });
                     break;
                 case 'vat': {
@@ -14004,7 +14014,7 @@
                 const mode = (expenseExportScope || {}).mode || 'year';
                 const scoped = getScopedExpenses();
                 const byDate = (a, b) => (a.date || '').localeCompare(b.date || '');
-                const recOf = e => e.amount * ((e.recognition ?? 100) / 100);
+                const recOf = e => recognizedAmount(e, yd);
                 const vatOf = e => expenseVatParts(e, getYearData()).vat;
                 const S = mode === 'month' ? 7 : 8;
                 addTitle(S); addInfo(S);
@@ -14497,7 +14507,7 @@
                 const mode = (expenseExportScope || {}).mode || 'year';
                 const scoped = getScopedExpenses();
                 const byDate = (a, b) => (a.date || '').localeCompare(b.date || '');
-                const recOf = e => e.amount * ((e.recognition ?? 100) / 100);
+                const recOf = e => recognizedAmount(e, yd);
                 const vatOf = e => expenseVatParts(e, getYearData()).vat;
                 const grandTotal = scoped.reduce((s, e) => s + e.amount, 0);
                 const grandRecognized = scoped.reduce((s, e) => s + recOf(e), 0);
