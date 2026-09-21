@@ -2568,6 +2568,10 @@
                     <span>(+) הכנסות אחרות</span>
                     <span id="forecastDetailOther">₪0</span>
                 </div>
+                <div class="summary-row" id="forecastBLDeductRow" style="display:none;">
+                    <span style="color:var(--danger)">(-) ניכוי בשל תשלומים לביטוח לאומי (לא כולל דמי ביטוח בריאות)</span>
+                    <span id="forecastBLDeduct" style="color:var(--danger)">₪0</span>
+                </div>
                 <div class="summary-row total">
                     <span>סה"כ הכנסה חייבת צפויה</span>
                     <span id="forecastDetailTaxable">₪0</span>
@@ -9507,9 +9511,19 @@
             
             // Calculate net self-employed income
             const netSelfEmployed = Math.max(0, income - expenses);
-            
+
+            // BL on self-employed income - use 12 months for yearly forecast. Computed
+            // before the tax because it feeds the section 47א deduction below.
+            const bl = calculateBituachLeumi(netSelfEmployed, 12);
+
+            // Section 47א: the forecast knows the ביט"ל/בריאות split of the liability
+            // directly, so no estimate is needed — the deduction is the settings
+            // percentage of the ביט"ל component the forecast expects to be paid.
+            const forecastIncomeBefore = netSelfEmployed + otherIncome;
+            const forecastBLDeduction = Math.min(Math.max(0, (bl.blOnly || 0) * (blDeductionPct(yd) / 100)), forecastIncomeBefore);
+
             // Total taxable income
-            const taxableIncome = netSelfEmployed + otherIncome;
+            const taxableIncome = Math.max(0, forecastIncomeBefore - forecastBLDeduction);
             
             // Calculate tax
             let credits = parseFloat(document.getElementById('forecastCredits').value);
@@ -9520,9 +9534,6 @@
             
             // Tax to pay as self-employed (minus what's already deducted from other sources)
             const selfEmployedTax = Math.max(0, netTax - otherTax);
-            
-            // Calculate BL on self-employed income - use 12 months for yearly forecast
-            const bl = calculateBituachLeumi(netSelfEmployed, 12);
             
             // Total to pay
             const totalDue = selfEmployedTax + bl.total;
@@ -9555,6 +9566,11 @@
             document.getElementById('forecastDetailIncome').textContent = formatCurrency(income);
             document.getElementById('forecastDetailExpenses').textContent = '-' + formatCurrency(expenses);
             document.getElementById('forecastDetailOther').textContent = formatCurrency(otherIncome);
+            const _fbr = document.getElementById('forecastBLDeductRow');
+            if (_fbr) {
+                _fbr.style.display = forecastBLDeduction > 0 ? '' : 'none';
+                document.getElementById('forecastBLDeduct').textContent = '-' + formatCurrency(forecastBLDeduction);
+            }
             document.getElementById('forecastDetailTaxable').textContent = formatCurrency(taxableIncome);
             document.getElementById('forecastDetailGrossTax').textContent = formatCurrency(grossTax);
             document.getElementById('forecastDetailCredits').textContent = credits.toFixed(2);
@@ -13834,20 +13850,26 @@
                     const fOtherIncome = parseFloat(document.getElementById('forecastOtherIncome')?.value) || 0;
                     const fOtherTax = parseFloat(document.getElementById('forecastOtherTax')?.value) || 0;
                     const fNetSE = Math.max(0, fIncome - fExpenses);
-                    const fTaxableIncome = fNetSE + fOtherIncome;
-                    const fCredits = calculateCredits();
+                    // Same order and rules as calculateForecast on screen, so the printed
+                    // forecast can never disagree with the page.
+                    const fBL = calculateBituachLeumi(fNetSE, 12);
+                    const fIncomeBefore = fNetSE + fOtherIncome;
+                    const fBLDeduction = Math.min(Math.max(0, (fBL.blOnly || 0) * (blDeductionPct(fyd) / 100)), fIncomeBefore);
+                    const fTaxableIncome = Math.max(0, fIncomeBefore - fBLDeduction);
+                    // The screen honours the credits typed into the forecast; so must the print.
+                    let fCredits = parseFloat(document.getElementById('forecastCredits')?.value);
+                    if (!Number.isFinite(fCredits)) fCredits = calculateCredits();
                     const fCreditValue = fCredits * fyd.settings.creditValue * 12;
                     const { gross: fGrossTax } = calculateIncomeTax(fTaxableIncome);
                     const fNetTax = Math.max(0, fGrossTax - fCreditValue);
                     const fSelfTax = Math.max(0, fNetTax - fOtherTax);
-                    const fBL = calculateBituachLeumi(fNetSE, 12);
                     const fTotalDue = fSelfTax + fBL.total;
                     const fMonthlyTax = Math.ceil(fSelfTax / 12);
                     const fMonthlyBL = Math.ceil(fBL.total / 12);
                     rows._custom = 'forecast';
                     rows._data = {
                         income: fIncome, expenses: fExpenses, otherIncome: fOtherIncome, otherTax: fOtherTax,
-                        netSelfEmployed: fNetSE, taxableIncome: fTaxableIncome,
+                        netSelfEmployed: fNetSE, taxableIncome: fTaxableIncome, blDeduction: fBLDeduction,
                         credits: fCredits, creditValue: fCreditValue,
                         grossTax: fGrossTax, netTax: fNetTax, selfTax: fSelfTax,
                         bl: fBL, totalDue: fTotalDue,
@@ -14168,7 +14190,10 @@
 
                 addSection('א. נתוני תחזית', S);
                 addHdr(['פריט', 'סכום', '', '', '']);
-                [['הכנסה כעצמאי (צפי)', f.income], ['(-) הוצאות מוכרות (צפי)', f.expenses], ['הכנסה נטו כעצמאי', f.netSelfEmployed], ['הכנסות אחרות', f.otherIncome], ['הכנסה חייבת כוללת', f.taxableIncome]].forEach((r, i) => addDR([...r, '', '', ''], i));
+                [['הכנסה כעצמאי (צפי)', f.income], ['(-) הוצאות מוכרות (צפי)', f.expenses], ['הכנסה נטו כעצמאי', f.netSelfEmployed], ['הכנסות אחרות', f.otherIncome]]
+                    .concat(f.blDeduction > 0 ? [['(-) ניכוי בשל תשלומים לביטוח לאומי (לא כולל דמי ביטוח בריאות)', f.blDeduction]] : [])
+                    .concat([['הכנסה חייבת כוללת', f.taxableIncome]])
+                    .forEach((r, i) => addDR([...r, '', '', ''], i));
 
                 addSection('ב. חישוב מס צפוי', S);
                 addHdr(['פריט', 'סכום', '', '', '']);
@@ -14843,6 +14868,7 @@
                 bodyContent += '<tr><td>(-) הוצאות מוכרות (צפי)</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.expenses) + '</td></tr>';
                 bodyContent += '<tr><td>הכנסה נטו כעצמאי</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.netSelfEmployed) + '</td></tr>';
                 bodyContent += '<tr><td>הכנסות אחרות (שכיר/אבטלה/מילואים)</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.otherIncome) + '</td></tr>';
+                if (f.blDeduction > 0) bodyContent += '<tr><td>(-) ניכוי בשל תשלומים לביטוח לאומי (לא כולל דמי ביטוח בריאות)</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.blDeduction) + '</td></tr>';
                 bodyContent += '<tr><td>הכנסה חייבת כוללת</td><td style="text-align:left;direction:ltr;">' + fmtNum(f.taxableIncome) + '</td></tr>';
                 bodyContent += '</tbody></table>';
 
