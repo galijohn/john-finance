@@ -7984,6 +7984,12 @@
             const yd = getYearData();
             let taxableBase = 0, outputVat = 0, zeroRated = 0, equipVat = 0, regularVat = 0, netExp = 0;
             active(yd.selfEmployed).filter(s => months.includes(Number(s.month))).forEach(s => {
+                // A month in a פטור period belongs on NO VAT return — neither as taxable
+                // nor as zero-rated. Without this, income from before registration was
+                // declared as zero-rated turnover on the first return. Same mid-month
+                // rule as incomeVatParts, since income records carry a month, not a day.
+                const dt = currentYear + '-' + String(s.month || 1).padStart(2, '0') + '-15';
+                if (!isMursheOn(dt)) return;
                 const p = incomeVatParts(s, yd);
                 if (s.vat) { taxableBase += p.net; outputVat += p.vat; } else { zeroRated += p.net; }
             });
